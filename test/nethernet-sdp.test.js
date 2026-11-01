@@ -59,7 +59,7 @@ test('does not promote a fingerprint across media sections that do not share it'
     'm=application 9 UDP/DTLS/SCTP webrtc-datachannel',
     'a=fingerprint:sha-256 AA:BB',
     'm=application 9 UDP/DTLS/SCTP webrtc-datachannel', ''
-  ].join('\\r\\n')
+  ].join('\r\n')
   assert.equal(normalizeFingerprintScope(sdp), sdp)
 })
 
