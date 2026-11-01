@@ -2,7 +2,7 @@ name: Validate Bedrock Bot Console
 
 on:
   push:
-    branches: ["main", "maintenance/**"]
+    branches: ["main"]
   pull_request:
   workflow_dispatch:
 
