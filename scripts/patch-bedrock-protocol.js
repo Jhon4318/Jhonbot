@@ -9,6 +9,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 const { createRequire } = require('node:module')
+const { patchSdpIdentitySource } = require('./patch-nethernet-sdp')
 
 const EXPECTED_VERSION = '3.60.1'
 const EXPECTED_NETHERNET_VERSION = '1.1.2'
@@ -372,6 +373,7 @@ function applyPatch (projectRoot = path.resolve(__dirname, '..')) {
     }
     results.push(replaceFile(path.join(copy.root, 'src', 'signalling', 'http.js'), patchHttpErrorSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'signalling', 'http.js'), patchHttpOfferDiagnosticsSource))
+    results.push(replaceFile(path.join(copy.root, 'src', 'signalling', 'sdpIdentity.js'), patchSdpIdentitySource))
   }
   return results
 }
