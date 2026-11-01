@@ -21,13 +21,13 @@ function mediaSdp (fingerprints) {
     ...fingerprints.map(value => 'a=fingerprint:' + value),
     'a=setup:actpass',
     ''
-  ].join('\\r\\n')
+  ].join('\r\n')
 }
 
 test('promotes a single media-level DTLS fingerprint into the session section', () => {
   const sdp = mediaSdp(['sha-256 AA:BB:CC'])
   const result = normalizeFingerprintScope(sdp)
-  const lines = result.split(/\\r?\\n/)
+  const lines = result.split(/\r?\n/)
   const fingerprintIndex = lines.findIndex(line => line.startsWith('a=fingerprint:'))
   const mediaIndex = lines.findIndex(line => line.startsWith('m='))
   assert.equal(fingerprintIndex >= 0 && fingerprintIndex < mediaIndex, true)
@@ -41,9 +41,9 @@ test('collapses repeated identical media fingerprints to one session-level attri
     'a=fingerprint:sha-256 AA:BB',
     'm=application 9 UDP/DTLS/SCTP webrtc-datachannel',
     'a=fingerprint:sha-256 AA:BB', ''
-  ].join('\\r\\n')
+  ].join('\r\n')
   const result = normalizeFingerprintScope(sdp)
-  const lines = result.split(/\\r?\\n/)
+  const lines = result.split(/\r?\n/)
   assert.equal(lines.filter(line => line.startsWith('a=fingerprint:')).length, 1)
   assert.equal(lines.findIndex(line => line.startsWith('a=fingerprint:')) < lines.findIndex(line => line.startsWith('m=')), true)
 })
@@ -58,7 +58,7 @@ test('leaves already session-level fingerprints untouched', () => {
     'v=0', 'o=- 1 1 IN IP4 0.0.0.0', 's=-', 't=0 0',
     'a=fingerprint:sha-256 AA:BB',
     'm=application 9 UDP/DTLS/SCTP webrtc-datachannel', ''
-  ].join('\\r\\n')
+  ].join('\r\n')
   assert.equal(normalizeFingerprintScope(sdp), sdp)
 })
 
@@ -68,7 +68,7 @@ test('patches the pinned NetherNet identity helper idempotently', () => {
     'function buildIdentityAttribute () { return "identity" }',
     ATTACH_IDENTITY_ORIGINAL,
     'module.exports = { attachIdentity }'
-  ].join('\\n')
+  ].join('\n')
   const first = patchSdpIdentitySource(fixture)
   assert.equal(first.changed, true)
   assert.match(first.source, new RegExp(MARKER))
