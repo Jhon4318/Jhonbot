@@ -1,4 +1,4 @@
-name: Validate 0.3.4
+name: Validate Bedrock Bot Console
 
 on:
   push:
@@ -18,18 +18,10 @@ jobs:
         with:
           node-version: 26
 
-      - name: Extract application ZIP
-        run: |
-          mkdir -p app
-          unzip -q Bedrock-Bot-Console-Prototype-0.3.4.zip -d app
-          test -f app/bedrock-bot-console-0.3.4/package.json
-
       - name: Install pinned dependencies
-        working-directory: app/bedrock-bot-console-0.3.4
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
         run: npm install --no-audit --no-fund
 
       - name: Run syntax checks and unit tests
-        working-directory: app/bedrock-bot-console-0.3.4
         run: npm run check
