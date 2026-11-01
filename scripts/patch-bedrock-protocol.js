@@ -133,8 +133,8 @@ const OFFER_DIAGNOSTIC_HELPER_SOURCE = String.raw`function summarizeOfferSdp (sd
           let publicKey = null
           if (cpk && typeof cpk === 'object' && cpk.kty === 'EC' && cpk.crv === 'P-384') {
             identityTokenCpkEncoding = 'jwk'
-            identityTokenCpkP384 = true
             publicKey = crypto.createPublicKey({ key: cpk, format: 'jwk' })
+            identityTokenCpkP384 = publicKey.asymmetricKeyType === 'ec' && publicKey.asymmetricKeyDetails?.namedCurve === 'secp384r1'
           } else if (typeof cpk === 'string') {
             identityTokenCpkEncoding = 'base64-der'
             const decodedKey = crypto.createPublicKey({ key: Buffer.from(cpk, 'base64'), format: 'der', type: 'spki' })
