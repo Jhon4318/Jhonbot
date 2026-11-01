@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bedrock Bot Console</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-mark">B</div>
+      <div class="brand-copy">
+        <div class="brand-title">Bedrock Bot Console</div>
+        <div class="brand-subtitle">Bedrock 1.26.60 · Server / World Selector</div>
+      </div>
+      <div class="version-chip">BEDROCK <span id="versionText">1.26.60</span></div>
+    </header>
+
+    <main>
+      <section class="intro-row">
+        <div>
+          <div class="eyebrow">CONTROL CENTER</div>
+          <h1>Bot管理</h1>
+          <p class="muted">Botを先に認証し、参加させるサーバーやワールドはBotごとに後から選択できます。</p>
+        </div>
+        <div class="summary-cards">
+          <div class="summary-card"><span>登録Bot</span><strong id="botCount">0</strong></div>
+          <div class="summary-card"><span>ワールド参加中</span><strong id="onlineCount">0</strong></div>
+        </div>
+      </section>
+
+      <section class="panel add-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Botを追加</h2>
+            <p class="muted small">Bot名だけ登録します。アカウント認証・接続先設定・ワールド参加は後から個別に行います。</p>
+          </div>
+          <span class="step-chip">01 / REGISTER</span>
+        </div>
+        <form id="addBotForm" class="bot-form bot-form-simple">
+          <label class="field field-name">
+            <span>Bot名</span>
+            <input id="botLabel" type="text" maxlength="32" placeholder="例：Miner-01" required>
+          </label>
+          <button class="primary-button" type="submit"><span>＋</span> Botを追加</button>
+        </form>
+        <div class="notice-line"><span class="notice-dot"></span>Bot追加 → Microsoft / Xbox認証 → Botごとに参加先を選択 → ワールド参加</div>
+      </section>
+
+      <section class="panel server-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>接続先を登録</h2>
+            <p class="muted small">公開サーバーは一度登録すると、複数のBotで共有できます。The HiveはHTTPSのNetherNetシグナリングを使用します。</p>
+          </div>
+          <span class="step-chip">DESTINATIONS</span>
+        </div>
+        <form id="serverForm" class="server-form">
+          <label class="field"><span>表示名</span><input id="serverLabel" type="text" maxlength="48" placeholder="例：自分のサーバー" required></label>
+          <label class="field"><span>ホスト名 / IP</span><input id="serverHost" type="text" placeholder="example.net" required></label>
+          <label class="field"><span>ポート</span><input id="serverPort" type="number" min="1" max="65535" value="19132" required></label>
+          <label class="field"><span>通信方式</span>
+            <select id="serverMode">
+              <option value="auto">自動判定（RakNet / NetherNet / HTTP）</option>
+              <option value="http">NetherNet HTTP</option>
+              <option value="raknet">RakNet（旧方式）</option>
+            </select>
+          </label>
+          <button class="primary-button" type="submit">接続先を登録</button>
+        </form>
+        <div class="server-presets">
+          <button id="addHivePresetButton" type="button" class="secondary-button">＋ The Hive（アジア）を追加</button>
+          <span class="muted tiny">ゲーム接続先：as.nethernet.playhive.com:19132 · シグナリング：HTTPS</span>
+        </div>
+        <div id="serverProfileList" class="server-profile-list"></div>
+      </section>
+
+      <section class="panel bots-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Bot一覧</h2>
+            <p class="muted small">Botごとにアカウント認証と参加先を管理できます。</p>
+          </div>
+          <span class="count-label" id="botListLabel">0 BOTS</span>
+        </div>
+        <div id="emptyState" class="empty-state">
+          <div class="empty-icon">◇</div>
+          <strong>Botはまだ登録されていません</strong>
+          <span>上のフォームから最初のBotを追加してください。</span>
+        </div>
+        <div id="botList" class="bot-list"></div>
+      </section>
+
+      <section class="panel control-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Bot操作</h2>
+            <p class="muted small">Botを選択して、手動移動・ジャンプ・座標移動を行います。キーボードのWASD・Spaceにも対応します。</p>
+          </div>
+          <span class="step-chip">02 / CONTROL</span>
+        </div>
+        <div class="control-select-row">
+          <label class="field control-select-field">
+            <span>操作するBot</span>
+            <select id="controlBotSelect" disabled>
+              <option value="">Botを追加してください</option>
+            </select>
+          </label>
+          <div class="selected-bot-info" id="selectedBotInfo">Botを選択すると位置と状態が表示されます。</div>
+        </div>
+        <div class="control-layout">
+          <div class="movement-card">
+            <div class="subheading">手動移動 <span>ボタン長押し / WASD</span></div>
+            <div class="dpad">
+              <span class="dpad-spacer"></span>
+              <button type="button" class="move-key" data-control="forward" aria-label="前進">↑</button>
+              <span class="dpad-spacer"></span>
+              <button type="button" class="move-key" data-control="left" aria-label="左移動">←</button>
+              <button type="button" class="move-key stop-key" id="stopMovementButton">■</button>
+              <button type="button" class="move-key" data-control="right" aria-label="右移動">→</button>
+              <span class="dpad-spacer"></span>
+              <button type="button" class="move-key" data-control="back" aria-label="後退">↓</button>
+              <span class="dpad-spacer"></span>
+            </div>
+            <div class="movement-actions">
+              <button type="button" class="action-key" data-control="jump">ジャンプ <kbd>Space</kbd></button>
+              <button type="button" class="action-key" data-control="sprint">ダッシュ <kbd>Shift</kbd></button>
+              <button type="button" class="secondary-button" id="clearControlsButton">操作をすべて解除</button>
+            </div>
+          </div>
+          <div class="goto-card">
+            <div class="subheading">座標へ移動 <span>地形に沿って経路探索</span></div>
+            <form id="gotoForm" class="goto-form">
+              <label class="field"><span>X</span><input id="gotoX" type="number" step="any" placeholder="例：120" required></label>
+              <label class="field"><span>Y</span><input id="gotoY" type="number" step="any" placeholder="例：64" required></label>
+              <label class="field"><span>Z</span><input id="gotoZ" type="number" step="any" placeholder="例：-35" required></label>
+              <button class="primary-button" type="submit">移動開始</button>
+            </form>
+            <p class="goto-note" id="pathfinderNote">座標移動には周囲のチャンク読み込みが必要です。初期設定ではBotは移動中にブロックを壊しません。</p>
+            <div class="movement-status" id="movementStatus">操作待機中</div>
+          </div>
+        </div>
+        <div class="diagnostic-card">
+          <div class="subheading">接続・移動診断 <span>Bedrock 1.26.60</span></div>
+          <div class="diagnostic-grid">
+            <div><span>StartGame</span><strong id="diagStartGame">未受信</strong></div>
+            <div><span>移動権限</span><strong id="diagMovementAuthority">未確認</strong></div>
+            <div><span>位置補正パケット</span><strong id="diagCorrections">0</strong></div>
+            <div><span>チャンク / サブチャンク</span><strong id="diagChunks">0 / 0</strong></div>
+            <div><span>読み込み済み地形</span><strong id="diagWorldColumns">0チャンク</strong></div>
+            <div><span>経路探索</span><strong id="diagPathfinder">未準備</strong></div>
+          </div>
+          <p class="diagnostic-hint" id="diagnosticHint">Botがワールドに参加すると、1.26.60の移動・地形データの受信状況を表示します。</p>
+        </div>
+      </section>
+
+      <section class="panel log-panel">
+        <div class="panel-heading log-heading">
+          <div>
+            <h2>接続ログ</h2>
+            <p class="muted small">サーバー探索・鍵確認・認証・ログイン・スポーンまでの段階を記録します。</p>
+          </div>
+          <span class="live-indicator"><i></i> LIVE</span>
+        </div>
+        <div id="logList" class="log-list" aria-live="polite"></div>
+      </section>
+      <footer>Bedrock Bot Console 0.3.4 <span>·</span> 認証情報はWindowsの保護機能で暗号化して保存します。</footer>
+    </main>
+  </div>
+
+  <dialog id="authDialog" class="auth-dialog">
+    <div class="dialog-glow"></div>
+    <div class="dialog-kicker">MICROSOFT / XBOX ACCOUNT</div>
+    <h2>Microsoft / Xboxアカウント認証</h2>
+    <p class="muted" id="authDescription">画面に表示されたコードをMicrosoftのページに入力してください。</p>
+    <div class="auth-bot-label" id="authBotLabel"></div>
+    <div class="code-box"><span id="authCode">--------</span><button id="copyCodeButton" type="button" class="secondary-button">コピー</button></div>
+    <button id="openAuthButton" class="primary-button full-button" type="button">Microsoftの認証ページを開く ↗</button>
+    <p class="muted tiny">認証が完了してもワールドには参加しません。Bot一覧の「ワールド参加」を別に押してください。</p>
+    <button id="closeAuthButton" type="button" class="text-button">閉じる</button>
+  </dialog>
+  <dialog id="worldDialog" class="auth-dialog selection-dialog">
+    <div class="dialog-kicker">WORLD SELECTION</div>
+    <h2 id="worldDialogTitle">参加するワールドを選択</h2>
+    <p id="worldDialogDescription" class="muted">参加可能なワールドを選択してください。</p>
+    <div id="worldChoices" class="choice-list"></div>
+    <button id="cancelWorldSelectionButton" type="button" class="text-button">キャンセル</button>
+  </dialog>
+
+  <dialog id="serverKeyDialog" class="auth-dialog selection-dialog">
+    <div class="dialog-kicker">NETHERNET SERVER IDENTITY</div>
+    <h2>サーバーの本人確認</h2>
+    <p class="muted">この接続先が提示した公開鍵です。初めて接続するサーバーなので、信頼する場合のみ承認してください。承認すると、このPCに鍵の指紋を保存し、次回以降は同じ鍵であることを確認します。</p>
+    <div class="key-origin" id="serverKeyOrigin"></div>
+    <div class="key-fingerprint" id="serverKeyFingerprint"></div>
+    <div class="dialog-actions">
+      <button id="denyServerKeyButton" type="button" class="secondary-button">拒否</button>
+      <button id="approveServerKeyButton" type="button" class="primary-button">この鍵を信頼する</button>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="renderer.js"></script>
+</body>
+</html>
