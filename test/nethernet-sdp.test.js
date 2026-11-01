@@ -72,6 +72,6 @@ test('patches the pinned NetherNet identity helper idempotently', () => {
   const first = patchSdpIdentitySource(fixture)
   assert.equal(first.changed, true)
   assert.match(first.source, new RegExp(MARKER))
-  assert.match(first.source, /normalizeFingerprintScope\\(sdp\\)/)
+  assert.ok(first.source.includes('normalizeFingerprintScope(sdp)'))
   assert.equal(patchSdpIdentitySource(first.source).changed, false)
 })
