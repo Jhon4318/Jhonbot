@@ -69,6 +69,7 @@ test('summarizes a signed client identity without exposing token or signature ma
     'o=- 123 456 IN IP4 0.0.0.0',
     's=-',
     't=0 0',
+    'a=group:BUNDLE 0',
     'a=identity:' + identity,
     'm=application 9 UDP/DTLS/SCTP webrtc-datachannel',
     'c=IN IP4 0.0.0.0',
