@@ -22,9 +22,23 @@ test('adds the Minecraft services issuer domain to the NetherNet identity assert
   const fixture = `function connect () {\n      ${IDENTITY_ORIGINAL}\n    }`
   const patched = patchIdentityDomainSource(fixture)
   assert.equal(patched.changed, true)
-  assert.match(patched.source, /domain: 'https:\/\/authorization\.franchise\.minecraft-services\.net'/)
+  assert.match(patched.source, /domain: 'https:\/\/authorization\.franchise\.minecraft-services\.net\/'/)
   assert.match(patched.source, new RegExp(IDENTITY_MARKER))
   assert.equal(patchIdentityDomainSource(patched.source).changed, false)
+})
+
+test('migrates the previous missing-trailing-slash issuer patch in an existing install', () => {
+  const previous = `function connect () {
+    this.connection.nethernet.identity = {
+      privateKey: this.ecdhKeyPair.privateKey,
+      token: this.multiplayerToken,
+      domain: 'https://authorization.franchise.minecraft-services.net'
+    } // ${IDENTITY_MARKER}
+  }`
+  const migrated = patchIdentityDomainSource(previous)
+  assert.equal(migrated.changed, true)
+  assert.match(migrated.source, /domain: 'https:\/\/authorization\.franchise\.minecraft-services\.net\/'/)
+  assert.equal(patchIdentityDomainSource(migrated.source).changed, false)
 })
 
 test('exposes bounded HTTP error response details without logging the SDP request body', () => {
