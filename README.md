@@ -38,9 +38,9 @@ Minecraft Bedrock Edition 向けの複数Bot管理デスクトップアプリで
 
 0.3.4ではNetherNet HTTPのSDP送信前に構造診断を記録します。候補IP/ポート、ICEパスワード、DTLS fingerprint値、JWT、署名、SDP本文などの秘密値は出力しない設計です。ログ共有時もMicrosoftのパスワード、デバイスコード、アクセストークンを含めないでください。
 
-## 開発チェック
+## 開発者向け
 
-ZIP内のプロジェクトディレクトリで以下を実行します。
+リポジトリ直下にソースを展開しています。Node.js 24以降で次を実行します。
 
 ```powershell
 npm install
@@ -48,8 +48,6 @@ npm run check
 npm start
 ```
 
-`npm run check` はJavaScript構文と53件の単体テストを実行します。テスト成功は、実際のMicrosoft認証、The Hive接続、またはMinecraftワールド上でのスポーンを保証しません。
+Windowsでは `start.bat` でも起動できます。`npm run check` はJavaScript構文と53件の単体テストを実行します。テスト成功は、実際のMicrosoft認証、The Hive接続、またはMinecraftワールド上でのスポーンを保証しません。
 
-## リポジトリ構成
-
-現時点の配布ソースは上記ZIPに格納されています。今後はソースファイルを展開した形でも管理し、変更ごとの差分とテスト結果を追跡します。
+配布ZIP内の元READMEは `docs/README-0.3.4.md` に保存しています。GitHub Actionsの `validate.yml` はNode.js 26で依存関係のインストールとテストを行います。`extract-source.yml` はPRで配布ZIPが更新された際に、ZIP内のソースをリポジトリ直下へ展開してテストします。
