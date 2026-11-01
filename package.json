@@ -1,12 +1,12 @@
 {
   "name": "bedrock-bot-console",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "private": true,
-  "description": "Minecraft Bedrock Edition 1.26.60 multi-bot desktop app with NetherNet HTTP identity diagnostics",
+  "description": "Minecraft Bedrock Edition 1.26.60 multi-bot desktop app with NetherNet HTTP SDP fingerprint normalization",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/runtime-guards.js && node --check src/auth-cache.js && node --check src/account-state.js && node --check src/destinations.js && node --check scripts/patch-bedrock-protocol.js && node --test",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/runtime-guards.js && node --check src/auth-cache.js && node --check src/account-state.js && node --check src/destinations.js && node --check scripts/patch-bedrock-protocol.js && node --check scripts/patch-nethernet-sdp.js && node --test",
     "postinstall": "node scripts/patch-bedrock-protocol.js",
     "prestart": "node scripts/patch-bedrock-protocol.js"
   },

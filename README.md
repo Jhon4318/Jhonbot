@@ -4,9 +4,9 @@ Minecraft Bedrock Edition 向けの複数Bot管理デスクトップアプリで
 
 ## 現在の配布版
 
-**Prototype 0.3.5**
+**Prototype 0.3.6**
 
-[0.3.5 ZIPをダウンロード](./Bedrock-Bot-Console-Prototype-0.3.5.zip)
+[0.3.6 ZIPをダウンロード](./Bedrock-Bot-Console-Prototype-0.3.6.zip)
 
 1. ZIPを新しいフォルダーに展開します。
 2. Windows 11で `start.bat` を実行します。
@@ -36,7 +36,7 @@ Minecraft Bedrock Edition 向けの複数Bot管理デスクトップアプリで
 
 ## 診断ログとプライバシー
 
-0.3.5ではNetherNet HTTPのSDP送信前に構造診断を記録します。JWTヘッダーの署名アルゴリズム・audクレーム、公開鍵形式、cpkを使ったDTLS指紋署名のローカル検証結果も記録します。JWT自体のMicrosoft署名検証は行わず、これらは送信内容の整合性診断です。候補IP/ポート、ICEパスワード、DTLS fingerprint値、JWT、署名、SDP本文などの秘密値は出力しません。ログ共有時もMicrosoftのパスワード、デバイスコード、アクセストークンを含めないでください。
+0.3.6ではNetherNet HTTPのSDP送信前に構造診断を記録します。SDP送信前に、共通のDTLS fingerprintがメディア領域にしかない場合はセッション領域へ移動し、fingerprintをa=identityより前に配置します。異なるfingerprintが複数ある場合はSDPの意味を変えないよう自動変更しません。JWTヘッダーの署名アルゴリズム・audクレーム、公開鍵形式、cpkを使ったDTLS指紋署名のローカル検証結果も記録します。JWT自体のMicrosoft署名検証は行わず、これらは送信内容の整合性診断です。候補IP/ポート、ICEパスワード、DTLS fingerprint値、JWT、署名、SDP本文などの秘密値は出力しません。ログ共有時もMicrosoftのパスワード、デバイスコード、アクセストークンを含めないでください。
 
 ## 開発者向け
 
@@ -48,6 +48,6 @@ npm run check
 npm start
 ```
 
-Windowsでは `start.bat` でも起動できます。`npm run check` はJavaScript構文と53件の単体テストを実行します。テスト成功は、実際のMicrosoft認証、The Hive接続、またはMinecraftワールド上でのスポーンを保証しません。
+Windowsでは `start.bat` でも起動できます。`npm run check` はJavaScript構文と60件の単体テストを実行します。テスト成功は、実際のMicrosoft認証、The Hive接続、またはMinecraftワールド上でのスポーンを保証しません。
 
 GitHub Actionsの `validate.yml` はリポジトリ直下のソースに対して、Node.js 26で依存関係のインストールとテストを行います。配布ZIPは `package.json` のバージョンに合わせて自動生成されます。
