@@ -6,7 +6,7 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/runtime-guards.js && node --check src/auth-cache.js && node --check src/account-state.js && node --check src/destinations.js && node --check scripts/patch-bedrock-protocol.js && node --test",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/runtime-guards.js && node --check src/auth-cache.js && node --check src/account-state.js && node --check src/destinations.js && node --check scripts/patch-bedrock-protocol.js && node --check scripts/patch-nethernet-sdp.js && node --test",
     "postinstall": "node scripts/patch-bedrock-protocol.js",
     "prestart": "node scripts/patch-bedrock-protocol.js"
   },
