@@ -23,14 +23,24 @@ function normalizeFingerprintScope (sdp) {
   if (firstMediaIndex < 0) return source
 
   const fingerprintLines = lines.filter(line => line.startsWith('a=fingerprint:'))
-  const mediaFingerprintLines = lines.filter((line, index) => index > firstMediaIndex && line.startsWith('a=fingerprint:'))
-  if (!mediaFingerprintLines.length) return source
+  const mediaSections = []
+  let activeMediaFingerprints = null
+  for (const line of lines) {
+    if (line.startsWith('m=')) {
+      activeMediaFingerprints = []
+      mediaSections.push(activeMediaFingerprints)
+    } else if (activeMediaFingerprints && line.startsWith('a=fingerprint:')) {
+      activeMediaFingerprints.push(line)
+    }
+  }
+  if (!mediaSections.some(section => section.length > 0)) return source
 
   // Promote only a single common fingerprint. If media sections advertise
-  // different fingerprints, preserve the original SDP rather than changing
-  // its DTLS semantics.
+  // different fingerprints, or a section has no media-level fingerprint,
+  // preserve the original SDP rather than changing its DTLS semantics.
   const uniqueFingerprints = [...new Set(fingerprintLines)]
   if (uniqueFingerprints.length !== 1) return source
+  if (mediaSections.length > 1 && mediaSections.some(section => !section.includes(uniqueFingerprints[0]))) return source
 
   const normalized = lines.filter(line => !line.startsWith('a=fingerprint:'))
   const mediaIndex = normalized.findIndex(line => line.startsWith('m='))
