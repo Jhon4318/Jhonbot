@@ -5,8 +5,8 @@ const vm = require('node:vm')
 const MARKER = 'BEDROCK_BOT_CONSOLE_SESSION_FINGERPRINT_SCOPE'
 const ATTACH_IDENTITY_ORIGINAL = `function attachIdentity (sdp, identity) {
   const value = buildIdentityAttribute(sdp, identity)
-  const eol = sdp.includes('\\r\\n') ? '\\r\\n' : '\\n'
-  const lines = sdp.split(/\\r?\\n/).filter(l => !l.startsWith('a=identity:'))
+  const eol = sdp.includes('\r\n') ? '\r\n' : '\n'
+  const lines = sdp.split(/\r?\n/).filter(l => !l.startsWith('a=identity:'))
   // Place it in the session section: right before the first media (m=) line.
   const mi = lines.findIndex(l => l.startsWith('m='))
   const idLine = 'a=identity:' + value
@@ -17,8 +17,8 @@ const ATTACH_IDENTITY_ORIGINAL = `function attachIdentity (sdp, identity) {
 
 function normalizeFingerprintScope (sdp) {
   const source = String(sdp)
-  const eol = source.includes('\\r\\n') ? '\\r\\n' : '\\n'
-  const lines = source.split(/\\r?\\n/)
+  const eol = source.includes('\r\n') ? '\r\n' : '\n'
+  const lines = source.split(/\r?\n/)
   const firstMediaIndex = lines.findIndex(line => line.startsWith('m='))
   if (firstMediaIndex < 0) return source
 
@@ -49,8 +49,8 @@ const ATTACH_IDENTITY_REPLACEMENT = `${NORMALIZER_SOURCE}
 function attachIdentity (sdp, identity) {
   const normalizedSdp = normalizeFingerprintScope(sdp)
   const value = buildIdentityAttribute(normalizedSdp, identity)
-  const eol = normalizedSdp.includes('\\r\\n') ? '\\r\\n' : '\\n'
-  const lines = normalizedSdp.split(/\\r?\\n/).filter(l => !l.startsWith('a=identity:'))
+  const eol = normalizedSdp.includes('\r\n') ? '\r\n' : '\n'
+  const lines = normalizedSdp.split(/\r?\n/).filter(l => !l.startsWith('a=identity:'))
   const mi = lines.findIndex(l => l.startsWith('m='))
   const idLine = 'a=identity:' + value
   if (mi === -1) lines.push(idLine)
