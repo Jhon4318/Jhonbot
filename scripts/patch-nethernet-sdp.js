@@ -3,7 +3,7 @@
 const vm = require('node:vm')
 
 const MARKER = 'BEDROCK_BOT_CONSOLE_SESSION_FINGERPRINT_SCOPE'
-const ATTACH_IDENTITY_ORIGINAL = `function attachIdentity (sdp, identity) {
+const ATTACH_IDENTITY_ORIGINAL = String.raw`function attachIdentity (sdp, identity) {
   const value = buildIdentityAttribute(sdp, identity)
   const eol = sdp.includes('\r\n') ? '\r\n' : '\n'
   const lines = sdp.split(/\r?\n/).filter(l => !l.startsWith('a=identity:'))
@@ -40,7 +40,7 @@ function normalizeFingerprintScope (sdp) {
 
 const NORMALIZER_SOURCE = normalizeFingerprintScope.toString()
 
-const ATTACH_IDENTITY_REPLACEMENT = `${NORMALIZER_SOURCE}
+const ATTACH_IDENTITY_REPLACEMENT = String.raw`${NORMALIZER_SOURCE}
 
 // Insert (or replace) the session-level \`a=identity:<value>\` line into an offer SDP.
 // Promote a common media-level DTLS fingerprint to the session section first,
