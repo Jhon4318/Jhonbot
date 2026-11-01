@@ -1,8 +1,8 @@
 {
   "name": "bedrock-bot-console",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "private": true,
-  "description": "Minecraft Bedrock Edition 1.26.60 multi-bot desktop app with per-bot destination selection and NetherNet HTTP diagnostics",
+  "description": "Minecraft Bedrock Edition 1.26.60 multi-bot desktop app with NetherNet HTTP identity diagnostics",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",

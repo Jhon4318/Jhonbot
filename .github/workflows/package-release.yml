@@ -1,0 +1,48 @@
+name: Package Bedrock Bot Console
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "package.json"
+      - "src/**"
+      - "scripts/**"
+      - "test/**"
+      - "start.bat"
+      - "README.md"
+      - ".github/workflows/package-release.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Read application version and build ZIP
+        shell: bash
+        run: |
+          VERSION="$(node -p 'require("./package.json").version')"
+          ROOT="bedrock-bot-console-$VERSION"
+          STAGE="$RUNNER_TEMP/package/$ROOT"
+          mkdir -p "$STAGE"
+          cp package.json start.bat README.md .gitignore "$STAGE/"
+          cp -a src scripts test "$STAGE/"
+          (cd "$RUNNER_TEMP/package" && zip -qr "$GITHUB_WORKSPACE/Bedrock-Bot-Console-Prototype-$VERSION.zip" "$ROOT")
+          test -s "Bedrock-Bot-Console-Prototype-$VERSION.zip"
+
+      - name: Commit versioned ZIP to main
+        run: |
+          VERSION="$(node -p 'require("./package.json").version')"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f "Bedrock-Bot-Console-Prototype-$VERSION.zip"
+          if git diff --cached --quiet; then
+            echo "The versioned archive is already up to date."
+            exit 0
+          fi
+          git commit -m "build: package Bedrock Bot Console $VERSION"
+          git push origin HEAD:main

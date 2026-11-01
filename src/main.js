@@ -48,7 +48,7 @@ function initializeDiagnosticLog () {
         fsSync.renameSync(diagnosticLogPath, previous)
       }
     } catch {}
-    writeDiagnosticLog('\n===== Bedrock Bot Console 0.3.4 起動 =====')
+    writeDiagnosticLog('\n===== Bedrock Bot Console 0.3.5 起動 =====')
     writeDiagnosticLog(`platform=${process.platform} arch=${process.arch} node=${process.versions.node} electron=${process.versions.electron}`)
     writeDiagnosticLog(`logFile=${diagnosticLogPath}`)
 
@@ -970,7 +970,7 @@ function createWindow () {
 
 ipcMain.handle('app:get-state', () => ({
   version: MC_VERSION,
-  appVersion: '0.3.4',
+  appVersion: '0.3.5',
   servers: publicServerProfiles(),
   bots: Array.from(bots.values()).map(publicBot),
   logs: logBuffer

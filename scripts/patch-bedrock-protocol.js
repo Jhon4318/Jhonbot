@@ -24,9 +24,10 @@ const IDENTITY_ORIGINAL = `this.connection.nethernet.identity = {
 const IDENTITY_REPLACEMENT = `this.connection.nethernet.identity = {
           privateKey: this.ecdhKeyPair.privateKey,
           token: this.multiplayerToken,
-          domain: 'https://authorization.franchise.minecraft-services.net'
+          domain: 'https://authorization.franchise.minecraft-services.net/'
         } // BEDROCK_BOT_CONSOLE_MCS_IDP_DOMAIN`
 const IDENTITY_MARKER = 'BEDROCK_BOT_CONSOLE_MCS_IDP_DOMAIN'
+const IDENTITY_PREVIOUS_DOMAIN = "domain: 'https://authorization.franchise.minecraft-services.net'"
 
 const HTTP_ERROR_ORIGINAL = '  if (!response.ok) throw new Error(`Nethernet HTTP signalling returned ${response.status}`)'
 const HTTP_ERROR_REPLACEMENT = [
@@ -54,6 +55,7 @@ const OFFER_DIAGNOSTIC_FETCH_ORIGINAL = '  const response = await fetch(new URL(
 // This summary intentionally omits candidate addresses/ports, ICE ufrag/password,
 // DTLS digests, identity JWTs, signatures, and the SDP itself.
 const OFFER_DIAGNOSTIC_HELPER_SOURCE = String.raw`function summarizeOfferSdp (sdp) {
+  const crypto = require('node:crypto')
   const source = String(sdp)
   const lines = source.split(/\r?\n/)
   const firstMediaIndex = lines.findIndex(line => line.startsWith('m='))
@@ -68,9 +70,16 @@ const OFFER_DIAGNOSTIC_HELPER_SOURCE = String.raw`function summarizeOfferSdp (sd
   let identityAssertionValid = false
   let identityProtocolDefault = false
   let identityDomainPresent = false
+  let identityDomainHasTrailingSlash = false
   let identityDomainMatchesMinecraftIssuer = false
   let identityTokenJwtShapeValid = false
+  let identityTokenAlgorithm = ''
+  let identityTokenAudienceMatchesMinecraftMultiplayer = false
+  let identityTokenCpkEncoding = 'missing'
+  let identityTokenCpkP384 = false
   let identityFingerprintJwsDetached = false
+  let identityFingerprintJwsAlgorithm = ''
+  let identityFingerprintSignatureValidForTokenCpk = false
   const identityLines = []
 
   for (let i = 0; i < lines.length; i++) {
@@ -103,13 +112,60 @@ const OFFER_DIAGNOSTIC_HELPER_SOURCE = String.raw`function summarizeOfferSdp (sd
       identityEnvelopeValid = Boolean(envelope && typeof envelope === 'object')
       identityProtocolDefault = envelope?.idp?.protocol === 'default'
       identityDomainPresent = typeof envelope?.idp?.domain === 'string' && envelope.idp.domain.length > 0
-      identityDomainMatchesMinecraftIssuer = envelope?.idp?.domain === 'https://authorization.franchise.minecraft-services.net'
+      identityDomainHasTrailingSlash = typeof envelope?.idp?.domain === 'string' && envelope.idp.domain.endsWith('/')
+      identityDomainMatchesMinecraftIssuer = envelope?.idp?.domain === 'https://authorization.franchise.minecraft-services.net/'
       const assertion = typeof envelope?.assertion === 'string' ? JSON.parse(envelope.assertion) : envelope?.assertion
       identityAssertionValid = Boolean(assertion && typeof assertion === 'object')
       const tokenParts = typeof assertion?.token === 'string' ? assertion.token.split('.') : []
       const fingerprintParts = typeof assertion?.fingerprints === 'string' ? assertion.fingerprints.split('.') : []
       identityTokenJwtShapeValid = tokenParts.length === 3 && tokenParts.every(Boolean)
       identityFingerprintJwsDetached = fingerprintParts.length === 3 && fingerprintParts[1] === '' && Boolean(fingerprintParts[0] && fingerprintParts[2])
+
+      if (identityTokenJwtShapeValid) {
+        try {
+          const tokenHeader = JSON.parse(Buffer.from(tokenParts[0], 'base64url').toString('utf8'))
+          const tokenClaims = JSON.parse(Buffer.from(tokenParts[1], 'base64url').toString('utf8'))
+          identityTokenAlgorithm = typeof tokenHeader.alg === 'string' ? tokenHeader.alg : ''
+          const audiences = Array.isArray(tokenClaims.aud) ? tokenClaims.aud : [tokenClaims.aud]
+          identityTokenAudienceMatchesMinecraftMultiplayer = audiences.includes('api://auth-minecraft-services/multiplayer')
+
+          const cpk = tokenClaims.cpk
+          let publicKey = null
+          if (cpk && typeof cpk === 'object' && cpk.kty === 'EC' && cpk.crv === 'P-384') {
+            identityTokenCpkEncoding = 'jwk'
+            publicKey = crypto.createPublicKey({ key: cpk, format: 'jwk' })
+            identityTokenCpkP384 = publicKey.asymmetricKeyType === 'ec' && publicKey.asymmetricKeyDetails?.namedCurve === 'secp384r1'
+          } else if (typeof cpk === 'string') {
+            identityTokenCpkEncoding = 'base64-der'
+            const decodedKey = crypto.createPublicKey({ key: Buffer.from(cpk, 'base64'), format: 'der', type: 'spki' })
+            identityTokenCpkP384 = decodedKey.asymmetricKeyType === 'ec' && decodedKey.asymmetricKeyDetails?.namedCurve === 'secp384r1'
+            if (identityTokenCpkP384) publicKey = decodedKey
+          } else if (cpk && typeof cpk === 'object') {
+            identityTokenCpkEncoding = 'other-object'
+          }
+
+          if (identityFingerprintJwsDetached) {
+            const fingerprintHeader = JSON.parse(Buffer.from(fingerprintParts[0], 'base64url').toString('utf8'))
+            identityFingerprintJwsAlgorithm = typeof fingerprintHeader.alg === 'string' ? fingerprintHeader.alg : ''
+            if (publicKey && identityFingerprintJwsAlgorithm === 'ES384') {
+              const fingerprints = lines
+                .filter(line => line.startsWith('a=fingerprint:'))
+                .map(line => {
+                  const parts = line.slice('a=fingerprint:'.length).trim().split(/\s+/)
+                  return { algorithm: parts[0], digest: parts[1] }
+                })
+              const payload = Buffer.from(JSON.stringify({ fingerprint: fingerprints }), 'utf8').toString('base64url')
+              const signingInput = fingerprintParts[0] + '.' + payload
+              identityFingerprintSignatureValidForTokenCpk = crypto.verify(
+                'sha384',
+                Buffer.from(signingInput, 'utf8'),
+                { key: publicKey, dsaEncoding: 'ieee-p1363' },
+                Buffer.from(fingerprintParts[2], 'base64url')
+              )
+            }
+          }
+        } catch {}
+      }
     } catch {}
   }
 
@@ -142,9 +198,16 @@ const OFFER_DIAGNOSTIC_HELPER_SOURCE = String.raw`function summarizeOfferSdp (sd
     identityAssertionValid,
     identityProtocolDefault,
     identityDomainPresent,
+    identityDomainHasTrailingSlash,
     identityDomainMatchesMinecraftIssuer,
     identityTokenJwtShapeValid,
-    identityFingerprintJwsDetached
+    identityTokenAlgorithm,
+    identityTokenAudienceMatchesMinecraftMultiplayer,
+    identityTokenCpkEncoding,
+    identityTokenCpkP384,
+    identityFingerprintJwsDetached,
+    identityFingerprintJwsAlgorithm,
+    identityFingerprintSignatureValidForTokenCpk
   }
 } // BEDROCK_BOT_CONSOLE_OFFER_DIAGNOSTIC_HELPER`
 
@@ -197,6 +260,14 @@ function patchCreateClientSource (source) {
 }
 
 function patchIdentityDomainSource (source) {
+  if (typeof source !== 'string') throw new TypeError('bedrock-protocol/src/client.js source must be a string')
+  if (source.includes(IDENTITY_MARKER) && source.includes(IDENTITY_PREVIOUS_DOMAIN)) {
+    const occurrences = source.split(IDENTITY_PREVIOUS_DOMAIN).length - 1
+    if (occurrences !== 1) throw new Error(`bedrock-protocol/src/client.js: legacy issuer setting found ${occurrences} times; refusing to migrate.`)
+    const migrated = source.replace(IDENTITY_PREVIOUS_DOMAIN, "domain: 'https://authorization.franchise.minecraft-services.net/'")
+    new vm.Script(migrated, { filename: 'bedrock-protocol/src/client.js' })
+    return { source: migrated, changed: true }
+  }
   return applySingleReplace(source, IDENTITY_ORIGINAL, IDENTITY_REPLACEMENT, IDENTITY_MARKER, 'bedrock-protocol/src/client.js')
 }
 
