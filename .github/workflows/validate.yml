@@ -1,0 +1,35 @@
+name: Validate 0.3.4
+
+on:
+  push:
+    branches: ["main", "maintenance/**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 26
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+
+      - name: Extract application ZIP
+        run: |
+          mkdir -p app
+          unzip -q Bedrock-Bot-Console-Prototype-0.3.4.zip -d app
+          test -f app/bedrock-bot-console-0.3.4/package.json
+
+      - name: Install pinned dependencies
+        working-directory: app/bedrock-bot-console-0.3.4
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        run: npm install --no-audit --no-fund
+
+      - name: Run syntax checks and unit tests
+        working-directory: app/bedrock-bot-console-0.3.4
+        run: npm run check
