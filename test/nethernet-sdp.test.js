@@ -53,6 +53,16 @@ test('leaves different media fingerprints untouched to avoid changing DTLS seman
   assert.equal(normalizeFingerprintScope(sdp), sdp)
 })
 
+test('does not promote a fingerprint across media sections that do not share it', () => {
+  const sdp = [
+    'v=0', 'o=- 1 1 IN IP4 0.0.0.0', 's=-', 't=0 0',
+    'm=application 9 UDP/DTLS/SCTP webrtc-datachannel',
+    'a=fingerprint:sha-256 AA:BB',
+    'm=application 9 UDP/DTLS/SCTP webrtc-datachannel', ''
+  ].join('\\r\\n')
+  assert.equal(normalizeFingerprintScope(sdp), sdp)
+})
+
 test('leaves already session-level fingerprints untouched', () => {
   const sdp = [
     'v=0', 'o=- 1 1 IN IP4 0.0.0.0', 's=-', 't=0 0',
