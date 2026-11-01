@@ -106,6 +106,9 @@ test('patches app and nested Mineflayer protocol copies without touching options
       assert.match(clientSource, /authorization\.franchise\.minecraft-services\.net/)
       assert.equal(fs.readFileSync(path.join(target, 'src', 'options.js'), 'utf8'), 'const mcData = require(\'minecraft-data\')\n')
     }
+    const identitySource = fs.readFileSync(path.join(nethernetRoot, 'src', 'signalling', 'sdpIdentity.js'), 'utf8')
+    assert.match(identitySource, /BEDROCK_BOT_CONSOLE_SESSION_FINGERPRINT_SCOPE/)
+    assert.match(identitySource, /normalizeFingerprintScope\(sdp\)/)
     const second = applyPatch(tempRoot)
     assert.deepEqual(second.map(result => result.changed), [false, false, false, false, false, false, false])
   } finally {
