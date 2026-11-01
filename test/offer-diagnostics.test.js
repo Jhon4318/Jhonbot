@@ -69,10 +69,10 @@ test('summarizes a signed client identity without exposing token or signature ma
     'o=- 123 456 IN IP4 0.0.0.0',
     's=-',
     't=0 0',
-    'a=fingerprint:sha-256 ' + digest,
     'a=identity:' + identity,
     'm=application 9 UDP/DTLS/SCTP webrtc-datachannel',
     'c=IN IP4 0.0.0.0',
+    'a=fingerprint:sha-256 ' + digest,
     'a=ice-ufrag:PRIVATE_UFRAG',
     'a=ice-pwd:PRIVATE_ICE_PASSWORD',
     'a=setup:actpass',
@@ -89,6 +89,7 @@ test('summarizes a signed client identity without exposing token or signature ma
   assert.equal(summary.identityDomainPresent, true)
   assert.equal(summary.identityDomainHasTrailingSlash, true)
   assert.equal(summary.identityDomainMatchesMinecraftIssuer, true)
+  assert.equal(summary.sessionFingerprintCount, 0)
   assert.equal(summary.identityTokenJwtShapeValid, true)
   assert.equal(summary.identityTokenAlgorithm, 'RS256')
   assert.equal(summary.identityTokenAudienceMatchesMinecraftMultiplayer, true)
