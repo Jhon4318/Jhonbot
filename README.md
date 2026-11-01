@@ -50,4 +50,4 @@ npm start
 
 Windowsでは `start.bat` でも起動できます。`npm run check` はJavaScript構文と53件の単体テストを実行します。テスト成功は、実際のMicrosoft認証、The Hive接続、またはMinecraftワールド上でのスポーンを保証しません。
 
-配布ZIP内の元READMEは `docs/README-0.3.5.md` に保存しています。GitHub Actionsの `validate.yml` はリポジトリ直下のソースに対して、Node.js 26で依存関係のインストールとテストを行います。
+GitHub Actionsの `validate.yml` はリポジトリ直下のソースに対して、Node.js 26で依存関係のインストールとテストを行います。配布ZIPは `package.json` のバージョンに合わせて自動生成されます。
