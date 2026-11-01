@@ -48,7 +48,7 @@ function initializeDiagnosticLog () {
         fsSync.renameSync(diagnosticLogPath, previous)
       }
     } catch {}
-    writeDiagnosticLog('\n===== Bedrock Bot Console 0.3.5 起動 =====')
+    writeDiagnosticLog('\n===== Bedrock Bot Console 0.3.6 起動 =====')
     writeDiagnosticLog(`platform=${process.platform} arch=${process.arch} node=${process.versions.node} electron=${process.versions.electron}`)
     writeDiagnosticLog(`logFile=${diagnosticLogPath}`)
 
