@@ -36,7 +36,7 @@ Minecraft Bedrock Edition 向けの複数Bot管理デスクトップアプリで
 
 ## 診断ログとプライバシー
 
-0.3.5ではNetherNet HTTPのSDP送信前に構造診断を記録します。JWTの署名方式、公開鍵形式、指紋署名のローカル検証結果も記録しますが、候補IP/ポート、ICEパスワード、DTLS fingerprint値、JWT、署名、SDP本文などの秘密値は出力しません。ログ共有時もMicrosoftのパスワード、デバイスコード、アクセストークンを含めないでください。
+0.3.5ではNetherNet HTTPのSDP送信前に構造診断を記録します。JWTヘッダーの署名アルゴリズム・audクレーム、公開鍵形式、cpkを使ったDTLS指紋署名のローカル検証結果も記録します。JWT自体のMicrosoft署名検証は行わず、これらは送信内容の整合性診断です。候補IP/ポート、ICEパスワード、DTLS fingerprint値、JWT、署名、SDP本文などの秘密値は出力しません。ログ共有時もMicrosoftのパスワード、デバイスコード、アクセストークンを含めないでください。
 
 ## 開発者向け
 
