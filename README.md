@@ -48,6 +48,6 @@ npm run check
 npm start
 ```
 
-Windowsでは `start.bat` でも起動できます。`npm run check` はJavaScript構文と58件の単体テストを実行します。テスト成功は、実際のMicrosoft認証、The Hive接続、またはMinecraftワールド上でのスポーンを保証しません。
+Windowsでは `start.bat` でも起動できます。`npm run check` はJavaScript構文と59件の単体テストを実行します。テスト成功は、実際のMicrosoft認証、The Hive接続、またはMinecraftワールド上でのスポーンを保証しません。
 
 GitHub Actionsの `validate.yml` はリポジトリ直下のソースに対して、Node.js 26で依存関係のインストールとテストを行います。配布ZIPは `package.json` のバージョンに合わせて自動生成されます。
