@@ -2,18 +2,24 @@
 
 Minecraft Bedrock Edition 向けの複数Bot管理デスクトップアプリです。Windows 11での利用を想定し、対象プロトコルは **Bedrock 1.26.60** です。
 
-## 現在の配布版
+## 配布版
 
-**Prototype 0.3.6**
+**Prototype 0.3.7**
 
-[0.3.6 ZIPをダウンロード](./Bedrock-Bot-Console-Prototype-0.3.6.zip)
+[最新版のWindowsインストーラー（Setup.exe）をダウンロード](https://github.com/Jhon4318/Jhonbot/releases/latest)
 
-1. ZIPを新しいフォルダーに展開します。
-2. Windows 11で `start.bat` を実行します。
-3. 初回起動時に依存パッケージがインストールされます。
-4. アプリ内でBotを追加し、BotごとにMicrosoft/Xbox認証を行い、参加先を選択します。
+1. Setup.exeを実行します。現在のWindowsユーザー用にインストールされ、通常は管理者権限を必要としません。
+2. デスクトップまたはスタートメニューの「Bedrock Bot Console」から起動します。
+3. アプリ内でBotを追加し、BotごとにMicrosoft/Xbox認証を行い、参加先を選択します。
 
-必要環境: Windows 11 64-bit、Node.js 24以降（開発時の利用者環境はNode.js 26.13.0）。
+**Node.jsやnpm、個別の依存パッケージのインストールは不要です。** Electron本体と実行に必要な依存パッケージはインストーラーに含まれます。
+
+### バージョン更新とデータ保存
+
+- 新しいバージョンが公開されたら、アプリを終了して新しいSetup.exeを実行するだけで更新できます。
+- 以前のバージョンと同じアプリ識別子・ユーザーデータ保存先を使用するため、Bot一覧、接続先、設定、保存済み認証キャッシュは通常そのまま引き継がれます。
+- アプリのインストール先とユーザーデータは別の場所です。更新やアンインストールでユーザーデータを自動削除しない設定にしています。
+- ユーザーデータは通常 `%APPDATA%\\bedrock-bot-console` に保存されます。完全に初期化したい場合は、アプリをアンインストールした後にこのフォルダーを手動で削除してください。
 
 ## 主な機能
 
@@ -36,11 +42,11 @@ Minecraft Bedrock Edition 向けの複数Bot管理デスクトップアプリで
 
 ## 診断ログとプライバシー
 
-0.3.6ではNetherNet HTTPのSDP送信前に構造診断を記録します。SDP送信前に、共通のDTLS fingerprintがメディア領域にしかない場合はセッション領域へ移動し、fingerprintをa=identityより前に配置します。異なるfingerprintが複数ある場合はSDPの意味を変えないよう自動変更しません。JWTヘッダーの署名アルゴリズム・audクレーム、公開鍵形式、cpkを使ったDTLS指紋署名のローカル検証結果も記録します。JWT自体のMicrosoft署名検証は行わず、これらは送信内容の整合性診断です。候補IP/ポート、ICEパスワード、DTLS fingerprint値、JWT、署名、SDP本文などの秘密値は出力しません。ログ共有時もMicrosoftのパスワード、デバイスコード、アクセストークンを含めないでください。
+0.3.7ではNetherNet HTTPのSDP送信前に構造診断を記録します。SDP送信前に、共通のDTLS fingerprintがメディア領域にしかない場合はセッション領域へ移動し、fingerprintをa=identityより前に配置します。異なるfingerprintが複数ある場合はSDPの意味を変えないよう自動変更しません。JWTヘッダーの署名アルゴリズム・audクレーム、公開鍵形式、cpkを使ったDTLS指紋署名のローカル検証結果も記録します。JWT自体のMicrosoft署名検証は行わず、これらは送信内容の整合性診断です。候補IP/ポート、ICEパスワード、DTLS fingerprint値、JWT、署名、SDP本文などの秘密値は出力しません。ログ共有時もMicrosoftのパスワード、デバイスコード、アクセストークンを含めないでください。
 
 ## 開発者向け
 
-リポジトリ直下にソースを展開しています。Node.js 24以降で次を実行します。
+通常の利用者は上記インストーラーを使ってください。ソースから開発する場合は、Node.js 24以降でリポジトリ直下から次を実行します。
 
 ```powershell
 npm install
@@ -48,6 +54,6 @@ npm run check
 npm start
 ```
 
-Windowsでは `start.bat` でも起動できます。`npm run check` はJavaScript構文と60件の単体テストを実行します。テスト成功は、実際のMicrosoft認証、The Hive接続、またはMinecraftワールド上でのスポーンを保証しません。
+Windows向けインストーラーを手元でビルドする場合は `npm run dist:win` を実行します。開発用の `start.bat` はソース実行時にのみ使用します。
 
-GitHub Actionsの `validate.yml` はリポジトリ直下のソースに対して、Node.js 26で依存関係のインストールとテストを行います。配布ZIPは `package.json` のバージョンに合わせて自動生成されます。
+`npm run check` はJavaScript構文、インストーラー設定と単体テストを確認します。CIではWindows x64のNSISインストーラーを実際に生成し、GitHub Releasesへ公開します。自動テストとビルド成功は、実際のMicrosoft認証、The Hive接続、またはMinecraftワールド上でのスポーンを保証しません。
