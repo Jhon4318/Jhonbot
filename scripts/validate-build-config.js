@@ -12,6 +12,7 @@ assert.ok(winTargets.some(target => target?.target === 'nsis' && target.arch?.in
 assert.equal(build.nsis?.oneClick, true, 'Installer should use one-click setup')
 assert.equal(build.nsis?.perMachine, false, 'Installer should install per user')
 assert.equal(build.nsis?.deleteAppDataOnUninstall, false, 'Uninstall must preserve user data')
+assert.equal(build.nsis?.language, '1041', 'Installer language must be Japanese (LCID 1041)')
 assert.ok(build.files?.includes('src/**/*'), 'Application source must be packaged')
 assert.ok(build.files?.includes('package.json'), 'Package metadata must be packaged')
 
