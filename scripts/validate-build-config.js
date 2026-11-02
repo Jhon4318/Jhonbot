@@ -18,6 +18,8 @@ assert.equal(pkg.overrides?.['@shinyoshiaki/binary-data'], 'npm:@seydx/binary-da
 assert.equal(build.appId, 'com.jhonbot.bedrockbotconsole', 'appId must remain stable across upgrades')
 assert.ok(mainSource.includes('app.setName(PACKAGE.name)'), 'Electron userData folder name must remain stable across upgrades')
 assert.ok(mainSource.includes('appVersion: APP_VERSION'), 'Reported app version must follow package.json')
+assert.ok(mainSource.includes("require('electron-updater')"), 'Packaged main process must load electron-updater')
+assert.ok(mainSource.includes('startAutoUpdates()'), 'Packaged main process must start update checks')
 assert.equal(build.asar, true, 'Application files should be packaged in app.asar')
 assert.ok(winTargets.some(target => target?.target === 'nsis' && target.arch?.includes('x64')), 'Windows x64 NSIS target is required')
 assert.equal(build.nsis?.oneClick, true, 'Installer should use one-click setup')
