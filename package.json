@@ -7,7 +7,7 @@
   "scripts": {
     "start": "electron .",
     "dist:win": "electron-builder --win nsis --x64 --publish never",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/runtime-guards.js && node --check src/auth-cache.js && node --check src/account-state.js && node --check src/destinations.js && node --check scripts/patch-bedrock-protocol.js && node --check scripts/patch-nethernet-sdp.js && node --check scripts/validate-build-config.js && node scripts/validate-build-config.js && node --test",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/runtime-guards.js && node --check src/auth-cache.js && node --check src/account-state.js && node --check src/destinations.js && node --check scripts/patch-bedrock-protocol.js && node --check scripts/patch-nethernet-sdp.js && node --check scripts/enable-auto-updater.js && node --check scripts/validate-build-config.js && node scripts/validate-build-config.js && node --test",
     "postinstall": "node scripts/patch-bedrock-protocol.js && node scripts/enable-auto-updater.js",
     "prestart": "node scripts/patch-bedrock-protocol.js && node scripts/enable-auto-updater.js"
   },
