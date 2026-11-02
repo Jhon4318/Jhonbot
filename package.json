@@ -59,7 +59,6 @@
       "allowElevation": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "createUninstallShortcut": true,
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": true,
       "language": "1041"
