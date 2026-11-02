@@ -8,5 +8,6 @@ const assert = require('node:assert/strict')
 // startup smoke test so a broken transitive package cannot ship in Setup.exe.
 test('loads the Mineflayer Bedrock runtime dependency chain', () => {
   const mineflayer = require('mineflayer')
-  assert.equal(typeof mineflayer, 'function')
+  assert.ok(mineflayer && typeof mineflayer === 'object')
+  assert.equal(typeof mineflayer.createBot, 'function')
 })
