@@ -1,6 +1,6 @@
 {
   "name": "bedrock-bot-console",
-  "version": "0.3.9",
+  "version": "0.4.0",
   "private": true,
   "description": "Minecraft Bedrock Edition 1.26.60 multi-bot desktop app with NetherNet HTTP SDP fingerprint normalization",
   "main": "src/main.js",
@@ -8,8 +8,8 @@
     "start": "electron .",
     "dist:win": "electron-builder --win nsis --x64 --publish never",
     "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/runtime-guards.js && node --check src/auth-cache.js && node --check src/account-state.js && node --check src/destinations.js && node --check scripts/patch-bedrock-protocol.js && node --check scripts/patch-nethernet-sdp.js && node --check scripts/validate-build-config.js && node scripts/validate-build-config.js && node --test",
-    "postinstall": "node scripts/patch-bedrock-protocol.js",
-    "prestart": "node scripts/patch-bedrock-protocol.js"
+    "postinstall": "node scripts/patch-bedrock-protocol.js && node scripts/enable-auto-updater.js",
+    "prestart": "node scripts/patch-bedrock-protocol.js && node scripts/enable-auto-updater.js"
   },
   "engines": {
     "node": ">=24"
@@ -18,7 +18,8 @@
     "bedrock-protocol": "github:PrismarineJS/bedrock-protocol#b4160368b7e5272ccdd435f75459220c167fe4e4",
     "mineflayer": "https://github.com/Pix3lPirat3/mineflayer/archive/b24015aeeec68a5c94f54444f104f0e563595a30.tar.gz",
     "mineflayer-pathfinder": "2.4.5",
-    "prismarine-auth": "3.1.1"
+    "prismarine-auth": "3.1.1",
+    "electron-updater": "^6.6.2"
   },
   "overrides": {
     "@shinyoshiaki/binary-data": "npm:@seydx/binary-data@0.6.2",
@@ -37,6 +38,14 @@
     "directories": {
       "output": "dist"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Jhon4318",
+        "repo": "Jhonbot",
+        "releaseType": "release"
+      }
+    ],
     "files": [
       "src/**/*",
       "scripts/**/*",
