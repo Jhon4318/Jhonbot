@@ -2,6 +2,8 @@
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const crypto = require('node:crypto')
+const vm = require('node:vm')
 const {
   EXPECTED_VERSION,
   EXPECTED_NETHERNET_VERSION,
@@ -10,7 +12,10 @@ const {
   HTTP_ERROR_ORIGINAL,
   HTTP_ERROR_MARKER,
   patchIdentityDomainSource,
-  patchHttpErrorSource
+  patchHttpErrorSource,
+  VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL,
+  VERIFY_SERVER_IDENTITY_PUBLIC_KEY_MARKER,
+  patchServerIdentityPublicKeySource
 } = require('../scripts/patch-bedrock-protocol')
 
 test('pins the exact bedrock-protocol and nethernet versions whose source is patched', () => {
@@ -51,4 +56,49 @@ test('exposes bounded HTTP error response details without logging the SDP reques
   assert.match(patched.source, new RegExp(HTTP_ERROR_MARKER))
   assert.doesNotMatch(patched.source, /body: body/)
   assert.equal(patchHttpErrorSource(patched.source).changed, false)
+})
+
+test('patches NetherNet server identity verification to import DER SPKI and JWK CPK claims', () => {
+  const fixture = [
+    "const crypto = require('crypto')",
+    'function importServerPublicKey (claims) {',
+    VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL,
+    '  return key',
+    '}',
+    'module.exports = importServerPublicKey'
+  ].join('\n')
+
+  const patched = patchServerIdentityPublicKeySource(fixture)
+  assert.equal(patched.changed, true)
+  assert.match(patched.source, new RegExp(VERIFY_SERVER_IDENTITY_PUBLIC_KEY_MARKER))
+  assert.match(patched.source, /format: 'der', type: 'spki'/)
+  assert.equal(patchServerIdentityPublicKeySource(patched.source).changed, false)
+
+  const module = { exports: {} }
+  vm.runInNewContext(patched.source, {
+    Buffer,
+    module,
+    require: (name) => {
+      assert.equal(name, 'crypto')
+      return crypto
+    }
+  })
+
+  const { publicKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'secp384r1' })
+  const der = publicKey.export({ type: 'spki', format: 'der' })
+  const derKey = module.exports({ cpk: der.toString('base64') })
+  assert.equal(derKey.type, 'public')
+  assert.equal(derKey.asymmetricKeyType, 'ec')
+  assert.equal(derKey.asymmetricKeyDetails?.namedCurve, 'secp384r1')
+  assert.deepEqual(derKey.export({ type: 'spki', format: 'der' }), der)
+
+  const jwkKey = module.exports({ cpk: publicKey.export({ format: 'jwk' }) })
+  assert.equal(jwkKey.type, 'public')
+  assert.equal(jwkKey.asymmetricKeyType, 'ec')
+  assert.equal(jwkKey.asymmetricKeyDetails?.namedCurve, 'secp384r1')
+
+  const pemKey = module.exports({ cpk: publicKey.export({ type: 'spki', format: 'pem' }) })
+  assert.equal(pemKey.asymmetricKeyType, 'ec')
+  assert.throws(() => module.exports({ cpk: 'not-a-public-key' }), /Invalid Nethernet server identity public key encoding/)
+  assert.throws(() => module.exports({ cpk: null }), /Unsupported Nethernet server identity public key format/)
 })

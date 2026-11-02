@@ -6,7 +6,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 const packageJson = require('../package.json')
-const { EXPECTED_VERSION, EXPECTED_NETHERNET_VERSION, ORIGINAL, REPLACEMENT, MARKER, IDENTITY_ORIGINAL, HTTP_ERROR_ORIGINAL, OFFER_DIAGNOSTIC_FUNCTION_ORIGINAL, OFFER_DIAGNOSTIC_FETCH_ORIGINAL, patchCreateClientSource } = require('../scripts/patch-bedrock-protocol')
+const { EXPECTED_VERSION, EXPECTED_NETHERNET_VERSION, ORIGINAL, REPLACEMENT, MARKER, IDENTITY_ORIGINAL, HTTP_ERROR_ORIGINAL, OFFER_DIAGNOSTIC_FUNCTION_ORIGINAL, OFFER_DIAGNOSTIC_FETCH_ORIGINAL, patchCreateClientSource, VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL } = require('../scripts/patch-bedrock-protocol')
 const { ATTACH_IDENTITY_ORIGINAL } = require('../scripts/patch-nethernet-sdp')
 
 const projectRoot = path.join(__dirname, '..')
@@ -94,10 +94,10 @@ test('patches app and nested Mineflayer protocol copies without touching options
     fs.writeFileSync(path.join(nethernetRoot, 'package.json'), JSON.stringify({ name: 'nethernet', version: EXPECTED_NETHERNET_VERSION }))
     fs.writeFileSync(path.join(nethernetRoot, 'index.js'), 'module.exports = {}')
     fs.writeFileSync(path.join(nethernetRoot, 'src', 'signalling', 'http.js'), `const body = 'sdp'\n${OFFER_DIAGNOSTIC_FUNCTION_ORIGINAL}\n${HTTP_ERROR_ORIGINAL}\n${OFFER_DIAGNOSTIC_FETCH_ORIGINAL}\n    method: 'POST',\n    body\n  })\n  return response\n}\nmodule.exports = { exchangeOffer }\n`)
-    fs.writeFileSync(path.join(nethernetRoot, 'src', 'signalling', 'sdpIdentity.js'), `function buildIdentityAttribute (sdp) { return 'identity:' + sdp }\n${ATTACH_IDENTITY_ORIGINAL}\nmodule.exports = { attachIdentity }\n`)
+    fs.writeFileSync(path.join(nethernetRoot, 'src', 'signalling', 'sdpIdentity.js'), `const crypto = require('crypto')\nfunction buildIdentityAttribute (sdp) { return 'identity:' + sdp }\n${ATTACH_IDENTITY_ORIGINAL}\nfunction verifyServerIdentity (claims) {\n${VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL}\n  return key\n}\nmodule.exports = { attachIdentity, verifyServerIdentity }\n`)
 
     const first = applyPatch(tempRoot)
-    assert.equal(first.length, 7)
+    assert.equal(first.length, 8)
     for (const target of [rootProtocol, nestedProtocol]) {
       const source = fs.readFileSync(path.join(target, 'src', 'createClient.js'), 'utf8')
       assert.ok(source.includes(MARKER))
@@ -110,7 +110,7 @@ test('patches app and nested Mineflayer protocol copies without touching options
     assert.match(identitySource, /BEDROCK_BOT_CONSOLE_SESSION_FINGERPRINT_SCOPE/)
     assert.match(identitySource, /normalizeFingerprintScope\(sdp\)/)
     const second = applyPatch(tempRoot)
-    assert.deepEqual(second.map(result => result.changed), [false, false, false, false, false, false, false])
+    assert.deepEqual(second.map(result => result.changed), [false, false, false, false, false, false, false, false])
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true })
   }
