@@ -19,7 +19,7 @@ if %NODE_MAJOR% LSS 24 (
 )
 
 set "LOG_FILE=%USERPROFILE%\Desktop\bot-console-start.log"
-echo ===== Bedrock Bot Console 0.3.5 ===== > "%LOG_FILE%"
+echo ===== Bedrock Bot Console 0.3.7 ===== > "%LOG_FILE%"
 echo Started: %DATE% %TIME% >> "%LOG_FILE%"
 echo Node: >> "%LOG_FILE%"
 node --version >> "%LOG_FILE%" 2>&1
