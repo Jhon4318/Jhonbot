@@ -47,6 +47,36 @@ const HTTP_ERROR_REPLACEMENT = [
 ].join('\n')
 const HTTP_ERROR_MARKER = 'BEDROCK_BOT_CONSOLE_HTTP_ERROR_BODY'
 
+const VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL = "  const key = crypto.createPublicKey({ key: claims?.cpk, format: 'jwk' })"
+const VERIFY_SERVER_IDENTITY_PUBLIC_KEY_MARKER = 'BEDROCK_BOT_CONSOLE_CPK_PUBLIC_KEY_FORMAT'
+const VERIFY_SERVER_IDENTITY_PUBLIC_KEY_REPLACEMENT = [
+  '  const cpk = claims?.cpk',
+  '  let key',
+  '  if (typeof cpk === \'string\') {',
+  '    const encoded = cpk.trim()',
+  '    if (encoded.startsWith(\'-----BEGIN PUBLIC KEY-----\')) {',
+  '      key = crypto.createPublicKey(encoded)',
+  '    } else {',
+  '      const compact = encoded.replace(/\\s+/g, \'\')',
+  '      const der = Buffer.from(compact, \'base64\')',
+  '      const supplied = compact.replace(/=+$/, \'\')',
+  '      const standard = der.toString(\'base64\').replace(/=+$/, \'\')',
+  '      const urlSafe = der.toString(\'base64url\')',
+  '      if (!der.length || (supplied !== standard && supplied !== urlSafe)) {',
+  '        throw new Error(\'Invalid Nethernet server identity public key encoding\')',
+  '      }',
+  '      key = crypto.createPublicKey({ key: der, format: \'der\', type: \'spki\' })',
+  '    }',
+  '  } else if (cpk && typeof cpk === \'object\' && !Array.isArray(cpk)) {',
+  '    key = crypto.createPublicKey({ key: cpk, format: \'jwk\' })',
+  '  } else {',
+  '    throw new Error(\'Unsupported Nethernet server identity public key format\')',
+  '  }',
+  '  if (key.asymmetricKeyType !== \'ec\') {',
+  '    throw new Error(\'Nethernet server identity public key must be an EC key\')',
+  '  } // BEDROCK_BOT_CONSOLE_CPK_PUBLIC_KEY_FORMAT'
+].join('\\n')
+
 
 const OFFER_DIAGNOSTIC_HELPER_MARKER = 'BEDROCK_BOT_CONSOLE_OFFER_DIAGNOSTIC_HELPER'
 const OFFER_DIAGNOSTIC_LOG_MARKER = 'BEDROCK_BOT_CONSOLE_OFFER_DIAGNOSTIC_LOG'
@@ -272,6 +302,15 @@ function patchIdentityDomainSource (source) {
   return applySingleReplace(source, IDENTITY_ORIGINAL, IDENTITY_REPLACEMENT, IDENTITY_MARKER, 'bedrock-protocol/src/client.js')
 }
 
+function patchServerIdentityPublicKeySource (source) {
+  return applySingleReplace(
+    source,
+    VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL,
+    VERIFY_SERVER_IDENTITY_PUBLIC_KEY_REPLACEMENT,
+    VERIFY_SERVER_IDENTITY_PUBLIC_KEY_MARKER,
+    'nethernet/src/signalling/sdpIdentity.js server public key import'
+  )
+}
 function patchHttpErrorSource (source) {
   return applySingleReplace(source, HTTP_ERROR_ORIGINAL, HTTP_ERROR_REPLACEMENT, HTTP_ERROR_MARKER, 'nethernet/src/signalling/http.js')
 }
@@ -374,6 +413,7 @@ function applyPatch (projectRoot = path.resolve(__dirname, '..')) {
     results.push(replaceFile(path.join(copy.root, 'src', 'signalling', 'http.js'), patchHttpErrorSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'signalling', 'http.js'), patchHttpOfferDiagnosticsSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'signalling', 'sdpIdentity.js'), patchSdpIdentitySource))
+    results.push(replaceFile(path.join(copy.root, 'src', 'signalling', 'sdpIdentity.js'), patchServerIdentityPublicKeySource))
   }
   return results
 }
@@ -412,6 +452,10 @@ module.exports = {
   patchCreateClientSource,
   patchIdentityDomainSource,
   patchHttpErrorSource,
+  VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL,
+  VERIFY_SERVER_IDENTITY_PUBLIC_KEY_MARKER,
+  VERIFY_SERVER_IDENTITY_PUBLIC_KEY_REPLACEMENT,
+  patchServerIdentityPublicKeySource,
   patchHttpOfferDiagnosticsSource,
   applyPatch
 }
