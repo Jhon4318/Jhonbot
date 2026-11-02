@@ -4,13 +4,15 @@ Minecraft Bedrock Edition 向けの複数Bot管理デスクトップアプリで
 
 ## 配布版
 
-**Prototype 0.3.8**
+**Prototype 0.3.9**
 
 [最新版のWindowsインストーラー（Setup.exe）をダウンロード](https://github.com/Jhon4318/Jhonbot/releases/latest)
 
 1. Setup.exeを実行します。現在のWindowsユーザー用にインストールされ、通常は管理者権限を必要としません。
 2. デスクトップまたはスタートメニューの「Bedrock Bot Console」から起動します。
 3. アプリ内でBotを追加し、BotごとにMicrosoft/Xbox認証を行い、参加先を選択します。
+
+**0.3.9ではNetherNet HTTPのサーバー公開鍵を、Base64 DER/SPKI・PEM・JWK形式で正しく読み込むよう修正しています。**
 
 **Node.jsやnpm、個別の依存パッケージのインストールは不要です。** Electron本体と実行に必要な依存パッケージはインストーラーに含まれます。
 
