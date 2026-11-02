@@ -1,12 +1,13 @@
 {
   "name": "bedrock-bot-console",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "private": true,
   "description": "Minecraft Bedrock Edition 1.26.60 multi-bot desktop app with NetherNet HTTP SDP fingerprint normalization",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/runtime-guards.js && node --check src/auth-cache.js && node --check src/account-state.js && node --check src/destinations.js && node --check scripts/patch-bedrock-protocol.js && node --check scripts/patch-nethernet-sdp.js && node --test",
+    "dist:win": "electron-builder --win nsis --x64 --publish never",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js && node --check src/runtime-guards.js && node --check src/auth-cache.js && node --check src/account-state.js && node --check src/destinations.js && node --check scripts/patch-bedrock-protocol.js && node --check scripts/patch-nethernet-sdp.js && node --check scripts/validate-build-config.js && node scripts/validate-build-config.js && node --test",
     "postinstall": "node scripts/patch-bedrock-protocol.js",
     "prestart": "node scripts/patch-bedrock-protocol.js"
   },
@@ -26,6 +27,41 @@
     "bedrock-protocol": "github:PrismarineJS/bedrock-protocol#b4160368b7e5272ccdd435f75459220c167fe4e4"
   },
   "devDependencies": {
-    "electron": "45.2.1"
+    "electron": "45.2.1",
+    "electron-builder": "26.18.1"
+  },
+  "build": {
+    "appId": "com.jhonbot.bedrockbotconsole",
+    "productName": "Bedrock Bot Console",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "scripts/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Bedrock-Bot-Console-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "language": "1041"
+    }
   }
 }

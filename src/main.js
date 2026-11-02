@@ -1,6 +1,12 @@
 'use strict'
 
 const { app, BrowserWindow, ipcMain, safeStorage, shell, dialog } = require('electron')
+const PACKAGE = require('../package.json')
+const APP_VERSION = PACKAGE.version
+
+// Keep the same Electron userData directory used by the ZIP builds.
+app.setName(PACKAGE.name)
+if (process.platform === 'win32') app.setAppUserModelId('com.jhonbot.bedrockbotconsole')
 const path = require('node:path')
 const fs = require('node:fs/promises')
 const fsSync = require('node:fs')
@@ -48,7 +54,7 @@ function initializeDiagnosticLog () {
         fsSync.renameSync(diagnosticLogPath, previous)
       }
     } catch {}
-    writeDiagnosticLog('\n===== Bedrock Bot Console 0.3.6 起動 =====')
+    writeDiagnosticLog(`\n===== Bedrock Bot Console ${APP_VERSION} 起動 =====`)
     writeDiagnosticLog(`platform=${process.platform} arch=${process.arch} node=${process.versions.node} electron=${process.versions.electron}`)
     writeDiagnosticLog(`logFile=${diagnosticLogPath}`)
 
@@ -970,7 +976,7 @@ function createWindow () {
 
 ipcMain.handle('app:get-state', () => ({
   version: MC_VERSION,
-  appVersion: '0.3.5',
+  appVersion: APP_VERSION,
   servers: publicServerProfiles(),
   bots: Array.from(bots.values()).map(publicBot),
   logs: logBuffer

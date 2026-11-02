@@ -25,3 +25,36 @@ jobs:
 
       - name: Run syntax checks and unit tests
         run: npm run check
+
+  windows-package:
+    if: github.event_name == 'pull_request'
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 26
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run syntax checks and unit tests
+        run: npm run check
+
+      - name: Build Windows x64 NSIS installer
+        run: npm run dist:win
+
+      - name: Verify installer output
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem -Path dist -Filter '*.exe' -File)
+          if ($installers.Count -ne 1) {
+            throw "Expected exactly one installer, found $($installers.Count)."
+          }
+          if ($installers[0].Length -lt 10000000) {
+            throw "Installer is unexpectedly small ($($installers[0].Length) bytes)."
+          }
+          Write-Host "Verified $($installers[0].Name) ($($installers[0].Length) bytes)."
