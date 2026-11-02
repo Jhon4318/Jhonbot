@@ -75,7 +75,7 @@ const VERIFY_SERVER_IDENTITY_PUBLIC_KEY_REPLACEMENT = [
   '  if (key.asymmetricKeyType !== \'ec\') {',
   '    throw new Error(\'Nethernet server identity public key must be an EC key\')',
   '  } // BEDROCK_BOT_CONSOLE_CPK_PUBLIC_KEY_FORMAT'
-].join('\\n')
+].join('\n')
 
 
 const OFFER_DIAGNOSTIC_HELPER_MARKER = 'BEDROCK_BOT_CONSOLE_OFFER_DIAGNOSTIC_HELPER'
