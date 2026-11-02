@@ -57,4 +57,12 @@ jobs:
           if ($installers[0].Length -lt 10000000) {
             throw "Installer is unexpectedly small ($($installers[0].Length) bytes)."
           }
-          Write-Host "Verified $($installers[0].Name) ($($installers[0].Length) bytes)."
+          $metadata = Join-Path dist "latest.yml"
+          $blockmap = Join-Path dist ($installers[0].Name + ".blockmap")
+          if (!(Test-Path $metadata -PathType Leaf)) {
+            throw "electron-updater metadata latest.yml was not generated."
+          }
+          if (!(Test-Path $blockmap -PathType Leaf)) {
+            throw "NSIS differential update blockmap was not generated."
+          }
+          Write-Host "Verified $($installers[0].Name) ($($installers[0].Length) bytes), latest.yml, and NSIS blockmap."
