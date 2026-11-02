@@ -66,7 +66,7 @@ test('patches NetherNet server identity verification to import DER SPKI and JWK 
     '  return key',
     '}',
     'module.exports = importServerPublicKey'
-  ].join('\\n')
+  ].join('\n')
 
   const patched = patchServerIdentityPublicKeySource(fixture)
   assert.equal(patched.changed, true)
