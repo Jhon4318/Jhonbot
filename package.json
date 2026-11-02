@@ -46,7 +46,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "artifactName": "Bedrock-Bot-Console-Setup.${ext}"
@@ -60,7 +62,7 @@
       "createUninstallShortcut": true,
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": true,
-      "language": 1041
+      "language": "1041"
     }
   }
 }
