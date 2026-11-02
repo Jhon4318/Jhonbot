@@ -4,7 +4,7 @@ Minecraft Bedrock Edition 向けの複数Bot管理デスクトップアプリで
 
 ## 配布版
 
-**Prototype 0.3.7**
+**Prototype 0.3.8**
 
 [最新版のWindowsインストーラー（Setup.exe）をダウンロード](https://github.com/Jhon4318/Jhonbot/releases/latest)
 
@@ -19,7 +19,7 @@ Minecraft Bedrock Edition 向けの複数Bot管理デスクトップアプリで
 - 新しいバージョンが公開されたら、アプリを終了して新しいSetup.exeを実行するだけで更新できます。
 - 以前のバージョンと同じアプリ識別子・ユーザーデータ保存先を使用するため、Bot一覧、接続先、設定、保存済み認証キャッシュは通常そのまま引き継がれます。
 - アプリのインストール先とユーザーデータは別の場所です。更新やアンインストールでユーザーデータを自動削除しない設定にしています。
-- ユーザーデータは通常 `%APPDATA%\bedrock-bot-console` に保存されます。完全に初期化したい場合は、アプリをアンインストールした後にこのフォルダーを手動で削除してください。
+- ユーザーデータは通常 `%APPDATA%\\bedrock-bot-console` に保存されます。完全に初期化したい場合は、アプリをアンインストールした後にこのフォルダーを手動で削除してください。
 
 ## 主な機能
 
@@ -56,4 +56,4 @@ npm start
 
 Windows向けインストーラーを手元でビルドする場合は `npm run dist:win` を実行します。開発用の `start.bat` はソース実行時にのみ使用します。
 
-`npm run check` はJavaScript構文、インストーラー設定と単体テストを確認します。CIではWindows x64のNSISインストーラーを実際に生成し、GitHub Releasesへ公開します。自動テストとビルド成功は、実際のMicrosoft認証、The Hive接続、またはMinecraftワールド上でのスポーンを保証しません。
+`npm run check` はJavaScript構文、インストーラー設定、単体テストに加え、Mineflayer / Bedrock Protocolの実行時依存関係が読み込めることを確認します。CIではWindows x64のNSISインストーラーを実際に生成し、GitHub Releasesへ公開します。自動テストとビルド成功は、実際のMicrosoft認証、The Hive接続、またはMinecraftワールド上でのスポーンを保証しません。

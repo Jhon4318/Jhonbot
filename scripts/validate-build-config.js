@@ -8,6 +8,7 @@ const winTargets = Array.isArray(build.win?.target) ? build.win.target : [build.
 assert.equal(pkg.main, 'src/main.js', 'Electron entry point must remain src/main.js')
 assert.ok(pkg.devDependencies?.electron, 'Electron must be available for development and packaging')
 assert.ok(pkg.devDependencies?.['electron-builder'], 'electron-builder must be installed')
+assert.equal(pkg.overrides?.['@shinyoshiaki/binary-data'], 'npm:@seydx/binary-data@0.6.2', 'werift binary-data dependency must use the working compatibility package')
 assert.equal(build.appId, 'com.jhonbot.bedrockbotconsole', 'appId must remain stable across upgrades')
 assert.ok(mainSource.includes('app.setName(PACKAGE.name)'), 'Electron userData folder name must remain stable across upgrades')
 assert.ok(mainSource.includes('appVersion: APP_VERSION'), 'Reported app version must follow package.json')

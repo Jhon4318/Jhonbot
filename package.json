@@ -1,6 +1,6 @@
 {
   "name": "bedrock-bot-console",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "private": true,
   "description": "Minecraft Bedrock Edition 1.26.60 multi-bot desktop app with NetherNet HTTP SDP fingerprint normalization",
   "main": "src/main.js",
@@ -21,6 +21,7 @@
     "prismarine-auth": "3.1.1"
   },
   "overrides": {
+    "@shinyoshiaki/binary-data": "npm:@seydx/binary-data@0.6.2",
     "prismarine-physics": "github:Pix3lPirat3/prismarine-physics#feat/bedrock-edition",
     "prismarine-chunk": "github:Pix3lPirat3/prismarine-chunk#feat/bedrock-1.26-chunks",
     "nethernet": "github:PrismarineJS/node-nethernet#c46db7da4f0e97ec04487648f5759e3f23ff8e9c",
