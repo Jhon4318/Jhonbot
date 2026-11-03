@@ -52,12 +52,12 @@ const CLIENT_SERVICES_SIGNAL_ORIGINAL = [
   '        this.nethernet.signalling.connect()',
   '          .then(() => { if (!this._closed) this._connect(sessionData) })',
   '          .catch(error => this.onConnectionError(error))'
-].join('\\n')
+].join('\n')
 const CLIENT_SERVICES_SIGNAL_MARKER = 'BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_DIAGNOSTICS'
 const CLIENT_CONNECTED_ORIGINAL = [
   '    this.connection.onConnected = () => {',
   '      this.status = ClientStatus.Connecting'
-].join('\\n')
+].join('\n')
 const CLIENT_CONNECTED_MARKER = 'BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TRANSPORT_CONNECTED'
 const CLIENT_TIMEOUT_ORIGINAL = [
   '    this.connectTimeout = setTimeout(() => {',
@@ -65,7 +65,7 @@ const CLIENT_TIMEOUT_ORIGINAL = [
   "        this.onConnectionError(Error('Connect timed out'))",
   '      }',
   '    }, this.options.connectTimeout || 9000)'
-].join('\\n')
+].join('\n')
 const CLIENT_TIMEOUT_MARKER = 'BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TIMEOUT_DIAGNOSTICS'
 
 const NETHERNET_OPTIONS_ORIGINAL = [
@@ -74,7 +74,7 @@ const NETHERNET_OPTIONS_ORIGINAL = [
   '          http: { url: signallingUrl({ ...options, nethernet: options }), serverKey: options.serverKey, onServerKey: options.onServerKey },',
   '          responseTimeoutMs: options.signallingConnectTimeout',
   '        })'
-].join('\\n')
+].join('\n')
 const NETHERNET_OPTIONS_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_TIMEOUT_OPTIONS'
 
 const VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL = "  const key = crypto.createPublicKey({ key: claims?.cpk, format: 'jwk' })"
@@ -364,7 +364,7 @@ function patchClientConnectionDiagnosticsSource (source) {
       "            this.conLog?.('[NetherNet] Xbox services signalling failed: ' + error.message)",
       '            this.onConnectionError(error)',
       '          }) // BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_DIAGNOSTICS'
-    ].join('\\n'),
+    ].join('\n'),
     CLIENT_SERVICES_SIGNAL_MARKER,
     'bedrock-protocol/src/client.js Xbox services signalling diagnostics'
   )
@@ -377,7 +377,7 @@ function patchClientConnectionDiagnosticsSource (source) {
       "      if (this.options.transport === 'nethernet' && this.options.nethernet.signalling === 'services') {",
       "        this.conLog?.('[NetherNet] WebRTC transport connected; starting Bedrock network handshake.')",
       '      } // BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TRANSPORT_CONNECTED'
-    ].join('\\n'),
+    ].join('\n'),
     CLIENT_CONNECTED_MARKER,
     'bedrock-protocol/src/client.js transport-connected diagnostics'
   )
@@ -394,7 +394,7 @@ function patchClientConnectionDiagnosticsSource (source) {
       "        this.onConnectionError(Error('Connect timed out'))",
       '      }',
       '    }, connectTimeoutMs) // BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TIMEOUT_DIAGNOSTICS'
-    ].join('\\n'),
+    ].join('\n'),
     CLIENT_TIMEOUT_MARKER,
     'bedrock-protocol/src/client.js transport-timeout diagnostics'
   )
@@ -412,7 +412,7 @@ function patchNethernetTimeoutOptionsSource (source) {
       "        ...(options.signalling === 'http' && {",
       '          http: { url: signallingUrl({ ...options, nethernet: options }), serverKey: options.serverKey, onServerKey: options.onServerKey }',
       '        }) // BEDROCK_BOT_CONSOLE_NETHERNET_TIMEOUT_OPTIONS'
-    ].join('\\n'),
+    ].join('\n'),
     NETHERNET_OPTIONS_MARKER,
     'bedrock-protocol/src/nethernet/index.js timeout option forwarding'
   )

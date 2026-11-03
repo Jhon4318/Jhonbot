@@ -25,7 +25,7 @@ test('adds safe stage diagnostics to Xbox services NetherNet connection flow', (
     '    }',
     CLIENT_TIMEOUT_ORIGINAL,
     '}'
-  ].join('\\n')
+  ].join('\n')
 
   const patched = patchClientConnectionDiagnosticsSource(fixture)
   assert.equal(patched.changed, true)
@@ -47,7 +47,7 @@ test('forwards response and inactivity deadlines to NetherNet in both HTTP and s
     NETHERNET_OPTIONS_ORIGINAL,
     '  })',
     '}'
-  ].join('\\n')
+  ].join('\n')
 
   const patched = patchNethernetTimeoutOptionsSource(fixture)
   assert.equal(patched.changed, true)

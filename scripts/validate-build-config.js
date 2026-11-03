@@ -16,7 +16,7 @@ assert.equal(build.publish, undefined, 'No public update provider or public sour
 assert.equal(build.appId, 'com.jhonbot.bedrockbotconsole', 'appId must remain stable across upgrades')
 assert.ok(mainSource.includes('app.setName(PACKAGE.name)'), 'Electron userData folder name must remain stable across upgrades')
 assert.ok(mainSource.includes('appVersion: APP_VERSION'), 'Reported app version must follow package.json')
-assert.ok(mainSource.includes("signallingConnectTimeout: 30000,\\n          inactivityTimeoutMs: 15000\\n        },\\n        // The outer watchdog"), 'Friend-world NetherNet deadlines must remain explicitly configured')
+assert.ok(mainSource.includes("signallingConnectTimeout: 30000,\n          inactivityTimeoutMs: 15000\n        },\n        // The outer watchdog"), 'Friend-world NetherNet deadlines must remain explicitly configured')
 assert.ok(mainSource.includes('connectTimeout: 60000'), 'Friend-world connection watchdog must leave room for its 30s + 15s transport deadlines')
 assert.equal(build.asar, true, 'Application files should be packaged in app.asar')
 assert.ok(winTargets.some(target => target?.target === 'nsis' && target.arch?.includes('x64')), 'Windows x64 NSIS target is required')
