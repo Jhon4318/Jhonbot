@@ -30,6 +30,7 @@ assert.ok(updatePackager.includes('minimumSupportedVersion'), 'Manual update pac
 assert.ok(updateApplier.includes('app.asar'), 'Manual update applier must replace app.asar')
 assert.ok(updateApplier.includes('app.asar.backup'), 'Manual update applier must preserve a rollback copy')
 assert.ok(updateApplier.includes('Get-FileHash'), 'Manual update applier must verify the downloaded application payload')
+assert.ok(updateApplier.includes('electron=([0-9]+'), 'Manual update applier must verify the installed Electron runtime version')
 assert.ok(fs.existsSync(path.join(__dirname, 'Apply-Update.bat')), 'Manual update package must include a double-click launcher')
 
 console.log(`Windows installer and manual update configuration is valid for Bedrock Bot Console ${pkg.version}.`)

@@ -60,6 +60,19 @@ try {
     throw "現在のv$currentVersionは更新対象のv$targetVersion以上です。"
   }
 
+  $runtimeLog = Join-Path $env:APPDATA 'bedrock-bot-console\logs\bot-console.log'
+  if (!(Test-Path $runtimeLog -PathType Leaf)) {
+    throw 'Electronの実行バージョンを確認できません。アプリを一度起動してから再試行するか、Setup.exeを使用してください。'
+  }
+  $electronLine = Get-Content -LiteralPath $runtimeLog -Tail 500 | Select-String -Pattern 'electron=([0-9]+(?:\.[0-9]+){1,3})' | Select-Object -Last 1
+  if (!$electronLine) {
+    throw 'ログからElectronの実行バージョンを確認できません。Setup.exeを使用してください。'
+  }
+  $installedElectronVersion = $electronLine.Matches[0].Groups[1].Value
+  if ($installedElectronVersion -ne [string]$manifest.electronVersion) {
+    throw "Electronランタイムが異なります（現在: $installedElectronVersion / 更新ファイル: $($manifest.electronVersion)）。通常版Setup.exeを使用してください。"
+  }
+
   $candidateRoots = @()
   if (![string]::IsNullOrWhiteSpace([string]$entry.InstallLocation)) {
     $candidateRoots += [string]$entry.InstallLocation
