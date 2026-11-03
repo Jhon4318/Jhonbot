@@ -1,9 +1,10 @@
 'use strict'
 
-// Keep the experimental NetherNet HTTP path safe and reproducible on Windows:
+// Keep the experimental NetherNet paths safe and reproducible on Windows:
 // 1) use pure-JS RakNet for discovery;
 // 2) include the actual Minecraft services issuer in the SDP identity assertion;
-// 3) preserve the server's HTTP error body for actionable diagnostics.
+// 3) preserve the server's HTTP error body for actionable diagnostics;
+// 4) configure and log Xbox-friend-world WebRTC connection deadlines.
 
 const fs = require('node:fs')
 const path = require('node:path')
@@ -46,6 +47,35 @@ const HTTP_ERROR_REPLACEMENT = [
   '  } // BEDROCK_BOT_CONSOLE_HTTP_ERROR_BODY'
 ].join('\n')
 const HTTP_ERROR_MARKER = 'BEDROCK_BOT_CONSOLE_HTTP_ERROR_BODY'
+
+const CLIENT_SERVICES_SIGNAL_ORIGINAL = [
+  '        this.nethernet.signalling.connect()',
+  '          .then(() => { if (!this._closed) this._connect(sessionData) })',
+  '          .catch(error => this.onConnectionError(error))'
+].join('\n')
+const CLIENT_SERVICES_SIGNAL_MARKER = 'BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_DIAGNOSTICS'
+const CLIENT_CONNECTED_ORIGINAL = [
+  '    this.connection.onConnected = () => {',
+  '      this.status = ClientStatus.Connecting'
+].join('\n')
+const CLIENT_CONNECTED_MARKER = 'BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TRANSPORT_CONNECTED'
+const CLIENT_TIMEOUT_ORIGINAL = [
+  '    this.connectTimeout = setTimeout(() => {',
+  '      if (this.status === ClientStatus.Disconnected) {',
+  "        this.onConnectionError(Error('Connect timed out'))",
+  '      }',
+  '    }, this.options.connectTimeout || 9000)'
+].join('\n')
+const CLIENT_TIMEOUT_MARKER = 'BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TIMEOUT_DIAGNOSTICS'
+
+const NETHERNET_OPTIONS_ORIGINAL = [
+  '        webrtcBackend: options.webrtcBackend,',
+  "        ...(options.signalling === 'http' && {",
+  '          http: { url: signallingUrl({ ...options, nethernet: options }), serverKey: options.serverKey, onServerKey: options.onServerKey },',
+  '          responseTimeoutMs: options.signallingConnectTimeout',
+  '        })'
+].join('\n')
+const NETHERNET_OPTIONS_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_TIMEOUT_OPTIONS'
 
 const VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL = "  const key = crypto.createPublicKey({ key: claims?.cpk, format: 'jwk' })"
 const VERIFY_SERVER_IDENTITY_PUBLIC_KEY_MARKER = 'BEDROCK_BOT_CONSOLE_CPK_PUBLIC_KEY_FORMAT'
@@ -319,6 +349,74 @@ function patchHttpErrorSource (source) {
   return applySingleReplace(source, HTTP_ERROR_ORIGINAL, HTTP_ERROR_REPLACEMENT, HTTP_ERROR_MARKER, 'nethernet/src/signalling/http.js')
 }
 
+function patchClientConnectionDiagnosticsSource (source) {
+  const signal = applySingleReplace(
+    source,
+    CLIENT_SERVICES_SIGNAL_ORIGINAL,
+    [
+      '        this.nethernet.signalling.connect()',
+      '          .then(() => {',
+      '            if (this._closed) return',
+      "            this.conLog?.('[NetherNet] Xbox services signalling is ready; starting WebRTC transport.')",
+      '            this._connect(sessionData)',
+      '          })',
+      '          .catch(error => {',
+      "            this.conLog?.('[NetherNet] Xbox services signalling failed: ' + error.message)",
+      '            this.onConnectionError(error)',
+      '          }) // BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_DIAGNOSTICS'
+    ].join('\n'),
+    CLIENT_SERVICES_SIGNAL_MARKER,
+    'bedrock-protocol/src/client.js Xbox services signalling diagnostics'
+  )
+  const connected = applySingleReplace(
+    signal.source,
+    CLIENT_CONNECTED_ORIGINAL,
+    [
+      '    this.connection.onConnected = () => {',
+      '      this.status = ClientStatus.Connecting',
+      "      if (this.options.transport === 'nethernet' && this.options.nethernet.signalling === 'services') {",
+      "        this.conLog?.('[NetherNet] WebRTC transport connected; starting Bedrock network handshake.')",
+      '      } // BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TRANSPORT_CONNECTED'
+    ].join('\n'),
+    CLIENT_CONNECTED_MARKER,
+    'bedrock-protocol/src/client.js transport-connected diagnostics'
+  )
+  const timeout = applySingleReplace(
+    connected.source,
+    CLIENT_TIMEOUT_ORIGINAL,
+    [
+      "    const isXboxServicesNethernet = this.options.transport === 'nethernet' && this.options.nethernet.signalling === 'services'",
+      '    const connectTimeoutMs = this.options.connectTimeout || 9000',
+      "    if (isXboxServicesNethernet) this.conLog?.('[NetherNet] Waiting for WebRTC transport connection (timeout=' + connectTimeoutMs + ' ms).')",
+      '    this.connectTimeout = setTimeout(() => {',
+      '      if (this.status === ClientStatus.Disconnected) {',
+      "        if (isXboxServicesNethernet) this.conLog?.('[NetherNet] WebRTC transport did not connect before the configured timeout.')",
+      "        this.onConnectionError(Error('Connect timed out'))",
+      '      }',
+      '    }, connectTimeoutMs) // BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TIMEOUT_DIAGNOSTICS'
+    ].join('\n'),
+    CLIENT_TIMEOUT_MARKER,
+    'bedrock-protocol/src/client.js transport-timeout diagnostics'
+  )
+  return { source: timeout.source, changed: signal.changed || connected.changed || timeout.changed }
+}
+
+function patchNethernetTimeoutOptionsSource (source) {
+  return applySingleReplace(
+    source,
+    NETHERNET_OPTIONS_ORIGINAL,
+    [
+      '        webrtcBackend: options.webrtcBackend,',
+      '        responseTimeoutMs: options.signallingConnectTimeout,',
+      '        inactivityTimeoutMs: options.inactivityTimeoutMs,',
+      "        ...(options.signalling === 'http' && {",
+      '          http: { url: signallingUrl({ ...options, nethernet: options }), serverKey: options.serverKey, onServerKey: options.onServerKey }',
+      '        }) // BEDROCK_BOT_CONSOLE_NETHERNET_TIMEOUT_OPTIONS'
+    ].join('\n'),
+    NETHERNET_OPTIONS_MARKER,
+    'bedrock-protocol/src/nethernet/index.js timeout option forwarding'
+  )
+}
 
 function patchHttpOfferDiagnosticsSource (source) {
   const helper = applySingleReplace(
@@ -406,6 +504,8 @@ function applyPatch (projectRoot = path.resolve(__dirname, '..')) {
     }
     results.push(replaceFile(path.join(copy.root, 'src', 'createClient.js'), patchCreateClientSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'client.js'), patchIdentityDomainSource))
+    results.push(replaceFile(path.join(copy.root, 'src', 'client.js'), patchClientConnectionDiagnosticsSource))
+    results.push(replaceFile(path.join(copy.root, 'src', 'nethernet', 'index.js'), patchNethernetTimeoutOptionsSource))
   }
 
   const nethernetCopies = resolveNethernetCopies(projectRoot, protocolCopies)
@@ -456,6 +556,16 @@ module.exports = {
   patchCreateClientSource,
   patchIdentityDomainSource,
   patchHttpErrorSource,
+  CLIENT_SERVICES_SIGNAL_ORIGINAL,
+  CLIENT_SERVICES_SIGNAL_MARKER,
+  CLIENT_CONNECTED_ORIGINAL,
+  CLIENT_CONNECTED_MARKER,
+  CLIENT_TIMEOUT_ORIGINAL,
+  CLIENT_TIMEOUT_MARKER,
+  NETHERNET_OPTIONS_ORIGINAL,
+  NETHERNET_OPTIONS_MARKER,
+  patchClientConnectionDiagnosticsSource,
+  patchNethernetTimeoutOptionsSource,
   VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL,
   VERIFY_SERVER_IDENTITY_PUBLIC_KEY_MARKER,
   VERIFY_SERVER_IDENTITY_PUBLIC_KEY_REPLACEMENT,
