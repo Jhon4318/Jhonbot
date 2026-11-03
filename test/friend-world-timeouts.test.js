@@ -22,6 +22,7 @@ test('adds safe stage diagnostics to Xbox services NetherNet connection flow', (
     'function connect (sessionData) {',
     CLIENT_SERVICES_SIGNAL_ORIGINAL,
     CLIENT_CONNECTED_ORIGINAL,
+    '    }',
     CLIENT_TIMEOUT_ORIGINAL,
     '}'
   ].join('\\n')
