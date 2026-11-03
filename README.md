@@ -6,26 +6,27 @@ Minecraft Bedrock Edition 向けの複数Bot管理デスクトップアプリで
 
 **Prototype 0.4.0**
 
-[最新版のWindowsインストーラー（Setup.exe）をダウンロード](https://github.com/Jhon4318/Jhonbot/releases/latest)
+[最新版のWindows配布ページ（Setup.exe / 手動更新ZIP）](https://github.com/Jhon4318/Jhonbot/releases/latest)
 
-1. 初回のみSetup.exeを実行します。現在のWindowsユーザー用にインストールされ、通常は管理者権限を必要としません。
-2. デスクトップまたはスタートメニューの「Bedrock Bot Console」から起動します。
-3. アプリ起動時に更新を自動確認し、新しいバージョンがあればバックグラウンドでダウンロードします。
-4. ダウンロード完了後、「今すぐ再起動して更新」または「後で」を選択できます。後でを選んでも、アプリ終了時に更新を適用します。
-5. アプリ内でBotを追加し、BotごとにMicrosoft/Xbox認証を行い、参加先を選択します。
+### 更新方法
 
-**0.3.9ではNetherNet HTTPのサーバー公開鍵を、Base64 DER/SPKI・PEM・JWK形式で正しく読み込むよう修正しています。**
+既存インストールを更新するときは、通常は **手動更新ZIP** を使ってください。
 
-**Node.jsやnpm、個別の依存パッケージのインストールは不要です。** Electron本体と実行に必要な依存パッケージはインストーラーに含まれます。
+1. Releaseページから `Bedrock-Bot-Console-Update-0.4.0.zip`（最新版のバージョン番号）をダウンロードします。
+2. ZIPをフォルダーにすべて展開します。
+3. Botを切断し、Bedrock Bot Consoleを終了します。
+4. 展開したフォルダー内の `Apply-Update.bat` をダブルクリックします。
+5. 完了メッセージが表示されたらアプリを起動します。
 
-### バージョン更新とデータ保存
+手動更新ZIPはアプリ本体の `app.asar` と必要な展開済みアプリファイルだけを置き換えます。Electronランタイムやインストール全体を入れ直すものではありません。更新前のアプリ本体はバックアップされます。更新に失敗した場合や差分更新の対象外のバージョンの場合は、同じReleaseページにある通常版 `Setup.exe` を実行してください。
 
-- 0.4.0以降は、アプリ起動時にGitHub Releasesを確認し、NSIS blockmapを使った差分更新を自動ダウンロードします。
-- 差分更新データが利用できない場合は、electron-updaterが通常の更新ダウンロードへフォールバックします。
-- 0.3.9以前から0.4.0への移行時だけ、新しいSetup.exeを一度実行してください。以後の更新はアプリ内で行えます。
-- 以前のバージョンと同じアプリ識別子・ユーザーデータ保存先を使用するため、Bot一覧、接続先、設定、保存済み認証キャッシュは通常そのまま引き継がれます。
-- アプリのインストール先とユーザーデータは別の場所です。更新やアンインストールでユーザーデータを自動削除しない設定にしています。
-- ユーザーデータは通常 `%APPDATA%\\bedrock-bot-console` に保存されます。完全に初期化したい場合は、アプリをアンインストールした後にこのフォルダーを手動で削除してください。
+**0.3.9から0.4.0への更新も、手動更新ZIPで適用できます。** これまでのアプリ識別子・ユーザーデータ保存先は維持し、Bot一覧、接続先、設定、保存済み認証キャッシュには触れません。ユーザーデータは通常 `%APPDATA%\\bedrock-bot-console` に保存されます。
+
+手動更新ZIPはアプリのプログラム部分を入れ替える方式です。Electron本体のバージョンを更新するリリースでは、通常版Setup.exeを使います。Node.jsやnpmは通常利用時には不要です。
+
+## 初回インストール
+
+初めて利用する場合、または手動更新ZIPの適用対象外になった場合はReleaseページの `Bedrock-Bot-Console-Setup.exe` を実行してください。現在のWindowsユーザー用にインストールされ、通常は管理者権限を必要としません。デスクトップまたはスタートメニューの「Bedrock Bot Console」から起動できます。
 
 ## 主な機能
 
@@ -52,7 +53,7 @@ Minecraft Bedrock Edition 向けの複数Bot管理デスクトップアプリで
 
 ## 開発者向け
 
-通常の利用者は上記インストーラーを使ってください。ソースから開発する場合は、Node.js 24以降でリポジトリ直下から次を実行します。
+通常の利用者はReleaseページの配布ファイルを使ってください。ソースから開発する場合は、Node.js 24以降でリポジトリ直下から次を実行します。
 
 ```powershell
 npm install
@@ -62,4 +63,4 @@ npm start
 
 Windows向けインストーラーを手元でビルドする場合は `npm run dist:win` を実行します。開発用の `start.bat` はソース実行時にのみ使用します。
 
-`npm run check` はJavaScript構文、インストーラー設定、単体テストに加え、Mineflayer / Bedrock Protocolの実行時依存関係が読み込めることを確認します。CIではWindows x64のNSISインストーラーを実際に生成し、GitHub Releasesへ公開します。自動テストとビルド成功は、実際のMicrosoft認証、The Hive接続、またはMinecraftワールド上でのスポーンを保証しません。
+`npm run check` はJavaScript構文、インストーラー設定、単体テストに加え、Mineflayer / Bedrock Protocolの実行時依存関係が読み込めることを確認します。CIではWindows x64のNSISインストーラーと手動更新ZIPを生成し、GitHub Releasesへ添付します。自動テストとビルド成功は、実際のMicrosoft認証、The Hive接続、またはMinecraftワールド上でのスポーンを保証しません。
