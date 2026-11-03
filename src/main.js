@@ -629,7 +629,14 @@ async function connectBot (botId) {
     } else if (bot.targetType === 'friend-world') {
       connectionOptions = {
         world: { pickSession: (sessions) => askForWorldSelection(bot, sessions, attemptId) },
-        nethernet: { webrtcBackend: 'werift' }
+        nethernet: {
+          webrtcBackend: 'werift',
+          signallingConnectTimeout: 30000,
+          inactivityTimeoutMs: 15000
+        },
+        // The outer watchdog is longer than the 30s response + 15s inactivity windows,
+        // leaving room for timer scheduling without masking the more specific timeout.
+        connectTimeout: 60000
       }
       pushLog(`${bot.label}: Xboxで参加可能なフレンドのワールドを検索します。`, 'info', bot.id)
     } else if (bot.targetType === 'lan-world') {
