@@ -91,7 +91,7 @@ test('patches app and nested Mineflayer protocol copies without touching options
     fs.mkdirSync(path.join(root, 'src', 'nethernet'), { recursive: true })
     fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'bedrock-protocol', version: EXPECTED_VERSION }))
     fs.writeFileSync(path.join(root, 'index.js'), "module.exports = require('./src/createClient.js')")
-    fs.writeFileSync(path.join(root, 'src', 'createClient.js'), `${ORIGINAL}\\n`)
+    fs.writeFileSync(path.join(root, 'src', 'createClient.js'), `${ORIGINAL}\n`)
     const clientSource = [
       'function setup (sessionData) {',
       IDENTITY_ORIGINAL,
@@ -102,7 +102,7 @@ test('patches app and nested Mineflayer protocol copies without touching options
       CLIENT_TIMEOUT_ORIGINAL,
       '  }',
       '}'
-    ].join('\\n')
+    ].join('\n')
     fs.writeFileSync(path.join(root, 'src', 'client.js'), clientSource)
     const nethernetSource = [
       "const { Client } = require('nethernet')",
@@ -112,9 +112,9 @@ test('patches app and nested Mineflayer protocol copies without touching options
       NETHERNET_OPTIONS_ORIGINAL,
       '  })',
       '}'
-    ].join('\\n')
+    ].join('\n')
     fs.writeFileSync(path.join(root, 'src', 'nethernet', 'index.js'), nethernetSource)
-    fs.writeFileSync(path.join(root, 'src', 'options.js'), 'const mcData = require(\\'minecraft-data\\')\\n')
+    fs.writeFileSync(path.join(root, 'src', 'options.js'), 'const mcData = require(\'minecraft-data\')\n')
   }
   try {
     const rootProtocol = path.join(tempRoot, 'node_modules', 'bedrock-protocol')
@@ -140,14 +140,14 @@ test('patches app and nested Mineflayer protocol copies without touching options
       assert.ok(source.includes(MARKER))
       assert.ok(!source.includes(ORIGINAL))
       const clientSource = fs.readFileSync(path.join(target, 'src', 'client.js'), 'utf8')
-      assert.match(clientSource, /authorization\\.franchise\\.minecraft-services\\.net/)
+      assert.match(clientSource, /authorization\.franchise\.minecraft-services\.net/)
       assert.match(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_DIAGNOSTICS/)
       assert.match(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TRANSPORT_CONNECTED/)
       assert.match(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TIMEOUT_DIAGNOSTICS/)
       const nethernetOptionsSource = fs.readFileSync(path.join(target, 'src', 'nethernet', 'index.js'), 'utf8')
       assert.match(nethernetOptionsSource, /BEDROCK_BOT_CONSOLE_NETHERNET_TIMEOUT_OPTIONS/)
       assert.match(nethernetOptionsSource, /inactivityTimeoutMs: options.inactivityTimeoutMs/)
-      assert.equal(fs.readFileSync(path.join(target, 'src', 'options.js'), 'utf8'), 'const mcData = require(\\'minecraft-data\\')\\n')
+      assert.equal(fs.readFileSync(path.join(target, 'src', 'options.js'), 'utf8'), 'const mcData = require(\'minecraft-data\')\n')
     }
     const identitySource = fs.readFileSync(path.join(nethernetRoot, 'src', 'signalling', 'sdpIdentity.js'), 'utf8')
     assert.match(identitySource, /BEDROCK_BOT_CONSOLE_SESSION_FINGERPRINT_SCOPE/)
