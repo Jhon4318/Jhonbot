@@ -6,7 +6,23 @@ const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 const packageJson = require('../package.json')
-const { EXPECTED_VERSION, EXPECTED_NETHERNET_VERSION, ORIGINAL, REPLACEMENT, MARKER, IDENTITY_ORIGINAL, HTTP_ERROR_ORIGINAL, OFFER_DIAGNOSTIC_FUNCTION_ORIGINAL, OFFER_DIAGNOSTIC_FETCH_ORIGINAL, patchCreateClientSource, VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL } = require('../scripts/patch-bedrock-protocol')
+const {
+  EXPECTED_VERSION,
+  EXPECTED_NETHERNET_VERSION,
+  ORIGINAL,
+  REPLACEMENT,
+  MARKER,
+  IDENTITY_ORIGINAL,
+  HTTP_ERROR_ORIGINAL,
+  OFFER_DIAGNOSTIC_FUNCTION_ORIGINAL,
+  OFFER_DIAGNOSTIC_FETCH_ORIGINAL,
+  patchCreateClientSource,
+  VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL,
+  CLIENT_SERVICES_SIGNAL_ORIGINAL,
+  CLIENT_CONNECTED_ORIGINAL,
+  CLIENT_TIMEOUT_ORIGINAL,
+  NETHERNET_OPTIONS_ORIGINAL
+} = require('../scripts/patch-bedrock-protocol')
 const { ATTACH_IDENTITY_ORIGINAL } = require('../scripts/patch-nethernet-sdp')
 
 const projectRoot = path.join(__dirname, '..')
@@ -72,12 +88,33 @@ test('patches app and nested Mineflayer protocol copies without touching options
   const { applyPatch } = require('../scripts/patch-bedrock-protocol')
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bedrock-bot-patch-test-'))
   const writeProtocol = (root) => {
-    fs.mkdirSync(path.join(root, 'src'), { recursive: true })
+    fs.mkdirSync(path.join(root, 'src', 'nethernet'), { recursive: true })
     fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'bedrock-protocol', version: EXPECTED_VERSION }))
     fs.writeFileSync(path.join(root, 'index.js'), "module.exports = require('./src/createClient.js')")
-    fs.writeFileSync(path.join(root, 'src', 'createClient.js'), `${ORIGINAL}\n`)
-    fs.writeFileSync(path.join(root, 'src', 'client.js'), `${IDENTITY_ORIGINAL}\n`)
-    fs.writeFileSync(path.join(root, 'src', 'options.js'), 'const mcData = require(\'minecraft-data\')\n')
+    fs.writeFileSync(path.join(root, 'src', 'createClient.js'), `${ORIGINAL}\\n`)
+    const clientSource = [
+      'function setup (sessionData) {',
+      IDENTITY_ORIGINAL,
+      '  function connect (sessionData) {',
+      CLIENT_SERVICES_SIGNAL_ORIGINAL,
+      CLIENT_CONNECTED_ORIGINAL,
+      '    }',
+      CLIENT_TIMEOUT_ORIGINAL,
+      '  }',
+      '}'
+    ].join('\\n')
+    fs.writeFileSync(path.join(root, 'src', 'client.js'), clientSource)
+    const nethernetSource = [
+      "const { Client } = require('nethernet')",
+      "const { signallingUrl } = require('./http')",
+      'function create (options) {',
+      '  return new Client(0n, options.host, {',
+      NETHERNET_OPTIONS_ORIGINAL,
+      '  })',
+      '}'
+    ].join('\\n')
+    fs.writeFileSync(path.join(root, 'src', 'nethernet', 'index.js'), nethernetSource)
+    fs.writeFileSync(path.join(root, 'src', 'options.js'), 'const mcData = require(\\'minecraft-data\\')\\n')
   }
   try {
     const rootProtocol = path.join(tempRoot, 'node_modules', 'bedrock-protocol')
@@ -97,20 +134,27 @@ test('patches app and nested Mineflayer protocol copies without touching options
     fs.writeFileSync(path.join(nethernetRoot, 'src', 'signalling', 'sdpIdentity.js'), `const crypto = require('crypto')\nfunction buildIdentityAttribute (sdp) { return 'identity:' + sdp }\n${ATTACH_IDENTITY_ORIGINAL}\nfunction verifyServerIdentity (claims) {\n${VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL}\n  return key\n}\nmodule.exports = { attachIdentity, verifyServerIdentity }\n`)
 
     const first = applyPatch(tempRoot)
-    assert.equal(first.length, 8)
+    assert.equal(first.length, 12)
     for (const target of [rootProtocol, nestedProtocol]) {
       const source = fs.readFileSync(path.join(target, 'src', 'createClient.js'), 'utf8')
       assert.ok(source.includes(MARKER))
       assert.ok(!source.includes(ORIGINAL))
       const clientSource = fs.readFileSync(path.join(target, 'src', 'client.js'), 'utf8')
-      assert.match(clientSource, /authorization\.franchise\.minecraft-services\.net/)
-      assert.equal(fs.readFileSync(path.join(target, 'src', 'options.js'), 'utf8'), 'const mcData = require(\'minecraft-data\')\n')
+      assert.match(clientSource, /authorization\\.franchise\\.minecraft-services\\.net/)
+      assert.match(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_DIAGNOSTICS/)
+      assert.match(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TRANSPORT_CONNECTED/)
+      assert.match(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TIMEOUT_DIAGNOSTICS/)
+      const nethernetOptionsSource = fs.readFileSync(path.join(target, 'src', 'nethernet', 'index.js'), 'utf8')
+      assert.match(nethernetOptionsSource, /BEDROCK_BOT_CONSOLE_NETHERNET_TIMEOUT_OPTIONS/)
+      assert.match(nethernetOptionsSource, /inactivityTimeoutMs: options.inactivityTimeoutMs/)
+      assert.equal(fs.readFileSync(path.join(target, 'src', 'options.js'), 'utf8'), 'const mcData = require(\\'minecraft-data\\')\\n')
     }
     const identitySource = fs.readFileSync(path.join(nethernetRoot, 'src', 'signalling', 'sdpIdentity.js'), 'utf8')
     assert.match(identitySource, /BEDROCK_BOT_CONSOLE_SESSION_FINGERPRINT_SCOPE/)
     assert.match(identitySource, /normalizeFingerprintScope\(sdp\)/)
     const second = applyPatch(tempRoot)
-    assert.deepEqual(second.map(result => result.changed), [false, false, false, false, false, false, false, false])
+    assert.equal(second.length, 12)
+    assert.deepEqual(second.map(result => result.changed), Array(12).fill(false))
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true })
   }
