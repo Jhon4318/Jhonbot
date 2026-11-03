@@ -47,14 +47,24 @@ jobs:
       - name: Build Windows x64 NSIS installer
         run: npm run dist:win
 
-      - name: Verify installer output
+      - name: Create manual application update package
+        shell: pwsh
+        run: ./scripts/create-manual-update-package.ps1 -DistDirectory dist
+
+      - name: Verify manual update package
         shell: pwsh
         run: |
-          $installers = @(Get-ChildItem -Path dist -Filter '*.exe' -File)
-          if ($installers.Count -ne 1) {
-            throw "Expected exactly one installer, found $($installers.Count)."
+          $updates = @(Get-ChildItem -Path dist -Filter '*-Update-*.zip' -File)
+          if ($updates.Count -ne 1) {
+            throw "Expected one manual update ZIP, found $($updates.Count)."
           }
-          if ($installers[0].Length -lt 10000000) {
-            throw "Installer is unexpectedly small ($($installers[0].Length) bytes)."
+          $checkDir = Join-Path $env:RUNNER_TEMP 'jhonbot-update-verify'
+          if (Test-Path $checkDir) { Remove-Item $checkDir -Recurse -Force }
+          Expand-Archive -LiteralPath $updates[0].FullName -DestinationPath $checkDir
+          if (!(Test-Path (Join-Path $checkDir 'resources/app.asar'))) {
+            throw "Update ZIP is missing app.asar."
           }
-          Write-Host "Verified $($installers[0].Name) ($($installers[0].Length) bytes)."
+          if (!(Test-Path (Join-Path $checkDir 'Apply-Update.bat'))) {
+            throw "Update ZIP is missing its launcher."
+          }
+          Write-Host "Verified $($updates[0].Name) ($($updates[0].Length) bytes)."

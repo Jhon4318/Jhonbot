@@ -1,4 +1,4 @@
-name: Build Windows Installer
+name: Build Windows Installer and Manual Update
 
 on:
   push:
@@ -43,23 +43,48 @@ jobs:
       - name: Build Windows x64 NSIS installer
         run: npm run dist:win
 
-      - name: Verify installer output
+      - name: Create manual application update package
+        shell: pwsh
+        run: ./scripts/create-manual-update-package.ps1 -DistDirectory dist
+
+      - name: Verify installer and manual update package
         shell: pwsh
         run: |
           $installers = @(Get-ChildItem -Path dist -Filter '*.exe' -File)
+          $updates = @(Get-ChildItem -Path dist -Filter '*-Update-*.zip' -File)
           if ($installers.Count -ne 1) {
             throw "Expected exactly one installer, found $($installers.Count)."
           }
           if ($installers[0].Length -lt 10000000) {
             throw "Installer is unexpectedly small ($($installers[0].Length) bytes)."
           }
-          Write-Host "Verified $($installers[0].Name) ($($installers[0].Length) bytes)."
+          if ($updates.Count -ne 1 -or $updates[0].Length -lt 1000000) {
+            throw "Manual update ZIP is missing or unexpectedly small."
+          }
+          $checkDir = Join-Path $env:RUNNER_TEMP 'jhonbot-update-verify'
+          if (Test-Path $checkDir) { Remove-Item $checkDir -Recurse -Force }
+          Expand-Archive -LiteralPath $updates[0].FullName -DestinationPath $checkDir
+          if (!(Test-Path (Join-Path $checkDir 'resources/app.asar'))) {
+            throw "Manual update ZIP does not contain resources/app.asar."
+          }
+          if (!(Test-Path (Join-Path $checkDir 'Apply-Update.bat'))) {
+            throw "Manual update ZIP does not contain Apply-Update.bat."
+          }
+          if (!(Test-Path (Join-Path $checkDir 'Apply-Update.ps1'))) {
+            throw "Manual update ZIP does not contain Apply-Update.ps1."
+          }
+          if (!(Test-Path (Join-Path $checkDir 'update-manifest.json'))) {
+            throw "Manual update ZIP does not contain update-manifest.json."
+          }
+          Write-Host "Verified $($installers[0].Name) ($($installers[0].Length) bytes) and $($updates[0].Name) ($($updates[0].Length) bytes)."
 
-      - name: Upload installer as workflow artifact
+      - name: Upload installer and update package as workflow artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Bedrock-Bot-Console-Setup
-          path: dist/*.exe
+          name: Bedrock-Bot-Console-v${{ steps.version.outputs.value }}
+          path: |
+            dist/*.exe
+            dist/*-Update-*.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -71,15 +96,19 @@ jobs:
           tag_name: v${{ steps.version.outputs.value }}
           name: Bedrock Bot Console v${{ steps.version.outputs.value }}
           target_commitish: main
-          files: dist/*.exe
+          files: |
+            dist/*.exe
+            dist/*-Update-*.zip
           fail_on_unmatched_files: true
           overwrite_files: true
           generate_release_notes: true
           draft: false
           prerelease: false
           body: |
-            Windows 11 x64 installer.
+            Windows 11 x64 full installer and manual application update package.
 
-            Install mode: current Windows user (no administrator permission normally required).
-            Upgrades keep the existing application data and authentication cache.
+            Recommended for existing installations: download the Update ZIP, extract it, then run Apply-Update.bat.
+            The update package replaces the application payload (app.asar and any unpacked application files) without reinstalling the Electron runtime.
+            Existing application data and authentication cache are preserved.
+            Setup.exe remains available as a full-install / recovery option.
             Node.js and npm are not required for normal use.
