@@ -4,7 +4,7 @@ Minecraft Bedrock Edition 向けの複数Bot管理デスクトップアプリで
 
 ## 配布版
 
-**Prototype 0.4.0**
+**Prototype 0.4.1**
 
 [最新版のWindows配布ページ（Setup.exe / 手動更新ZIP）](https://github.com/Jhon4318/Jhonbot/releases/latest)
 
@@ -12,7 +12,7 @@ Minecraft Bedrock Edition 向けの複数Bot管理デスクトップアプリで
 
 既存インストールを更新するときは、通常は **手動更新ZIP** を使ってください。
 
-1. Releaseページから `Bedrock-Bot-Console-Update-0.4.0.zip`（最新版のバージョン番号）をダウンロードします。
+1. Releaseページから `Bedrock-Bot-Console-Update-0.4.1.zip`（最新版のバージョン番号）をダウンロードします。
 2. ZIPをフォルダーにすべて展開します。
 3. Botを切断し、Bedrock Bot Consoleを終了します。
 4. 展開したフォルダー内の `Apply-Update.bat` をダブルクリックします。
@@ -20,7 +20,7 @@ Minecraft Bedrock Edition 向けの複数Bot管理デスクトップアプリで
 
 手動更新ZIPはアプリ本体の `app.asar` と必要な展開済みアプリファイルだけを置き換えます。Electronランタイムやインストール全体を入れ直すものではありません。更新前のアプリ本体はバックアップされます。更新に失敗した場合や差分更新の対象外のバージョンの場合は、同じReleaseページにある通常版 `Setup.exe` を実行してください。
 
-**0.3.9から0.4.0への更新も、手動更新ZIPで適用できます。** これまでのアプリ識別子・ユーザーデータ保存先は維持し、Bot一覧、接続先、設定、保存済み認証キャッシュには触れません。ユーザーデータは通常 `%APPDATA%\\bedrock-bot-console` に保存されます。
+**0.4.0から0.4.1への更新も、手動更新ZIPで適用できます。** これまでのアプリ識別子・ユーザーデータ保存先は維持し、Bot一覧、接続先、設定、保存済み認証キャッシュには触れません。ユーザーデータは通常 `%APPDATA%\\bedrock-bot-console` に保存されます。
 
 手動更新ZIPはアプリのプログラム部分を入れ替える方式です。Electron本体のバージョンを更新するリリースでは、通常版Setup.exeを使います。Node.jsやnpmは通常利用時には不要です。
 
