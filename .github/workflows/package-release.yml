@@ -78,6 +78,13 @@ jobs:
           }
           Write-Host "Verified $($installers[0].Name) ($($installers[0].Length) bytes) and $($updates[0].Name) ($($updates[0].Length) bytes)."
 
+      - name: Verify short-path manual update package
+        shell: pwsh
+        run: |
+          $update = Get-ChildItem -Path dist -Filter '*-Update-*.zip' -File | Select-Object -First 1
+          if (!$update) { throw 'Manual update ZIP not found.' }
+          ./scripts/verify-manual-update-package.ps1 -UpdateZip $update.FullName
+
       - name: Upload installer and update package as workflow artifacts
         uses: actions/upload-artifact@v4
         with:

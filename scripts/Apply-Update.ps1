@@ -1,5 +1,8 @@
 ﻿#requires -version 5.1
 $ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+$workDirectory = $null
 
 function Get-InstalledAppEntry {
   $roots = @(
@@ -17,14 +20,6 @@ function Get-InstalledAppEntry {
     }
   }
   return $null
-}
-
-function Copy-DirectoryContents {
-  param([string]$Source, [string]$Destination)
-  New-Item -ItemType Directory -Path $Destination -Force | Out-Null
-  Get-ChildItem -LiteralPath $Source -Force | ForEach-Object {
-    Copy-Item -LiteralPath $_.FullName -Destination $Destination -Recurse -Force
-  }
 }
 
 try {
@@ -54,7 +49,7 @@ try {
   }
   $currentVersion = [version]$entry.DisplayVersion
   if ($currentVersion -lt $minimumVersion) {
-    throw "現在のv$currentVersionは差分更新の対象外です。v$($manifest.minimumSupportedVersion)以降にSetup.exeで更新してください。"
+    throw "現在のv$currentVersionは手動更新の対象外です。v$($manifest.minimumSupportedVersion)以降にSetup.exeで更新してください。"
   }
   if ($currentVersion -ge $targetVersion) {
     throw "現在のv$currentVersionは更新対象のv$targetVersion以上です。"
@@ -92,7 +87,6 @@ try {
     throw 'インストール先を特定できません。通常版Setup.exeで更新してください。'
   }
 
-  $exePath = Join-Path $installRoot 'Bedrock Bot Console.exe'
   $running = @(Get-Process -Name 'Bedrock Bot Console' -ErrorAction SilentlyContinue)
   if ($running.Count -gt 0) {
     throw 'Bedrock Bot Consoleが起動中です。Botを切断してアプリを終了してから、Apply-Update.batをもう一度実行してください。'
@@ -105,23 +99,48 @@ try {
     throw "インストール先にapp.asarが見つかりません: $targetAsar"
   }
 
+  $hasNewUnpacked = [bool]$manifest.hasUnpacked
+  $unpackedArchive = Join-Path $PSScriptRoot 'resources\app.asar.unpacked.zip'
+  if ($hasNewUnpacked) {
+    if (!(Test-Path $unpackedArchive -PathType Leaf)) {
+      throw '更新ZIP内のresources\app.asar.unpacked.zipが見つかりません。もう一度ZIPを展開してください。'
+    }
+    $unpackedHash = (Get-FileHash -LiteralPath $unpackedArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($unpackedHash -ne ([string]$manifest.unpackedArchiveSha256).ToLowerInvariant()) {
+      throw '展開済みアプリファイルの整合性確認に失敗しました。ZIPを再ダウンロードしてください。'
+    }
+  }
+
+  # Extract the nested archive into a short temporary path. This avoids adding
+  # the user's Downloads/extraction folder to every deep node_modules filename.
+  $workDirectory = Join-Path ([System.IO.Path]::GetTempPath()) ('jbu-' + [guid]::NewGuid().ToString('N').Substring(0, 12))
+  New-Item -ItemType Directory -Path $workDirectory -Force | Out-Null
+  $sourceUnpacked = Join-Path $workDirectory 'source-app.asar.unpacked'
+  if ($hasNewUnpacked) {
+    Expand-Archive -LiteralPath $unpackedArchive -DestinationPath $sourceUnpacked -Force
+    if (!(Test-Path $sourceUnpacked -PathType Container)) {
+      throw '内側の更新アーカイブを展開できませんでした。'
+    }
+  }
+
   $backupRoot = Join-Path $env:LOCALAPPDATA 'bedrock-bot-console\update-backups'
   New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
   $backupName = "v$currentVersion-to-v$targetVersion-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
   $backupDir = Join-Path $backupRoot $backupName
   New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+
   $backupAsar = Join-Path $backupDir 'app.asar.backup'
   Copy-Item -LiteralPath $targetAsar -Destination $backupAsar
 
   $hadUnpacked = Test-Path $targetUnpacked -PathType Container
-  $backupUnpacked = Join-Path $backupDir 'app.asar.unpacked.backup'
+  $backupUnpackedArchive = Join-Path $backupDir 'app.asar.unpacked.backup.zip'
   if ($hadUnpacked) {
-    Copy-Item -LiteralPath $targetUnpacked -Destination $backupUnpacked -Recurse
-  }
-
-  $sourceUnpacked = Join-Path $PSScriptRoot 'resources\app.asar.unpacked'
-  if ([bool]$manifest.hasUnpacked -and !(Test-Path $sourceUnpacked -PathType Container)) {
-    throw '更新ZIP内のapp.asar.unpackedが見つかりません。'
+    [System.IO.Compression.ZipFile]::CreateFromDirectory(
+      $targetUnpacked,
+      $backupUnpackedArchive,
+      [System.IO.Compression.CompressionLevel]::Optimal,
+      $false
+    )
   }
 
   $stagedAsar = Join-Path $resources 'app.asar.update-temp'
@@ -129,7 +148,7 @@ try {
   if (Test-Path $stagedAsar) { Remove-Item -LiteralPath $stagedAsar -Force }
   if (Test-Path $stagedUnpacked) { Remove-Item -LiteralPath $stagedUnpacked -Recurse -Force }
   Copy-Item -LiteralPath $sourceAsar -Destination $stagedAsar
-  if ([bool]$manifest.hasUnpacked) {
+  if ($hasNewUnpacked) {
     Copy-Item -LiteralPath $sourceUnpacked -Destination $stagedUnpacked -Recurse
   }
 
@@ -138,7 +157,7 @@ try {
     if (Test-Path $targetUnpacked) {
       Remove-Item -LiteralPath $targetUnpacked -Recurse -Force
     }
-    if ([bool]$manifest.hasUnpacked) {
+    if ($hasNewUnpacked) {
       Move-Item -LiteralPath $stagedUnpacked -Destination $targetUnpacked
     }
 
@@ -150,10 +169,17 @@ try {
     if (Test-Path $targetAsar) { Remove-Item -LiteralPath $targetAsar -Force }
     Copy-Item -LiteralPath $backupAsar -Destination $targetAsar
     if (Test-Path $targetUnpacked) { Remove-Item -LiteralPath $targetUnpacked -Recurse -Force }
-    if ($hadUnpacked -and (Test-Path $backupUnpacked)) {
-      Copy-Item -LiteralPath $backupUnpacked -Destination $targetUnpacked -Recurse
+    if ($hadUnpacked -and (Test-Path $backupUnpackedArchive -PathType Leaf)) {
+      $rollbackUnpacked = Join-Path $workDirectory 'rollback-app.asar.unpacked'
+      Expand-Archive -LiteralPath $backupUnpackedArchive -DestinationPath $rollbackUnpacked -Force
+      Move-Item -LiteralPath $rollbackUnpacked -Destination $targetUnpacked
     }
     throw
+  }
+
+  if ($workDirectory -and (Test-Path $workDirectory)) {
+    Remove-Item -LiteralPath $workDirectory -Recurse -Force
+    $workDirectory = $null
   }
 
   Write-Host ''
@@ -163,6 +189,9 @@ try {
   Write-Host 'アプリを起動して動作を確認してください。'
   exit 0
 } catch {
+  if ($workDirectory -and (Test-Path $workDirectory)) {
+    try { Remove-Item -LiteralPath $workDirectory -Recurse -Force } catch {}
+  }
   Write-Host ''
   Write-Host "更新できませんでした: $($_.Exception.Message)" -ForegroundColor Red
   Write-Host '問題が解決しない場合は、GitHub ReleaseのSetup.exeを実行してください。'
