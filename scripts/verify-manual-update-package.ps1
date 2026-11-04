@@ -44,8 +44,15 @@ try {
   $outer.Dispose()
 }
 
-$verifyRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('jbu-outer-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
-$innerRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('jbu-inner-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+# Use the runner's short temp directory when available. The update applier
+# also chooses a short same-volume path, so this verifies the same path budget.
+$tempBase = if (![string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {
+  $env:RUNNER_TEMP
+} else {
+  [System.IO.Path]::GetTempPath()
+}
+$verifyRoot = Join-Path $tempBase ('jbu-outer-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+$innerRoot = Join-Path $tempBase ('jbu-inner-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
 try {
   New-Item -ItemType Directory -Path $verifyRoot -Force | Out-Null
   Expand-Archive -LiteralPath $resolvedZip -DestinationPath $verifyRoot -Force
