@@ -28,7 +28,7 @@ assert.equal(build.nsis?.deleteAppDataOnUninstall, false, 'Uninstall must preser
 assert.equal(build.nsis?.language, '1041', 'Installer language must be Japanese (LCID 1041)')
 assert.equal(build.nsis?.include, 'build/installer.nsh', 'NSIS must include the legacy long-path migration script')
 assert.ok(installerSource.includes('customInit'), 'NSIS installer must migrate the legacy Jest cache before uninstalling the previous version')
-assert.ok(installerSource.includes('node_modules\\\\@shinyoshiaki\\\\binary-data\\\\.jest-cache'), 'NSIS migration must target only the known disposable Jest cache')
+assert.ok(installerSource.includes('node_modules\\@shinyoshiaki\\binary-data\\.jest-cache'), 'NSIS migration must target only the known disposable Jest cache')
 assert.ok(installerSource.includes('GetTempFileName') && installerSource.includes('Rename') && installerSource.includes('RMDir /r'), 'NSIS migration must move the cache to a short temporary path before removing it')
 assert.ok(build.files?.includes('src/**/*'), 'Application source must be packaged')
 assert.ok(build.files?.includes('package.json'), 'Package metadata must be packaged')
