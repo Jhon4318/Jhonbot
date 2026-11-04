@@ -33,6 +33,12 @@ assert.ok(updateApplier.includes('app.asar'), 'Manual update applier must replac
 assert.ok(updateApplier.includes('app.asar.backup'), 'Manual update applier must preserve a rollback copy')
 assert.ok(updateApplier.includes('Get-FileHash'), 'Manual update applier must verify the downloaded application payload')
 assert.ok(updateApplier.includes('electron=([0-9]+'), 'Manual update applier must verify the installed Electron runtime version')
+assert.ok(updateApplier.includes('Get-ShortestSameVolumeDirectory'), 'Update work directory must be short and on the installation volume')
+assert.ok(updateApplier.includes('Move-Item -LiteralPath $targetUnpacked -Destination $backupUnpacked'), 'Old unpacked files must be moved into backup instead of copied through long paths')
+assert.ok(updateApplier.includes('Move-Item -LiteralPath $sourceUnpacked -Destination $targetUnpacked'), 'New unpacked files must be moved into place from the same volume')
+assert.ok(!updateApplier.includes('Copy-Item -LiteralPath $sourceUnpacked -Destination $stagedUnpacked'), 'Update applier must not copy deeply nested files into a long installation path')
+assert.ok(updateVerifier.includes('Outer ZIP contains unexpectedly long paths'), 'CI must reject long paths in the outer ZIP')
+assert.ok(updateVerifier.includes('Expand-Archive'), 'CI must test extraction of the nested ZIP')
 assert.ok(fs.existsSync(path.join(__dirname, 'Apply-Update.bat')), 'Manual update package must include a double-click launcher')
 
 console.log(`Windows installer and manual update configuration is valid for Bedrock Bot Console ${pkg.version}.`)
