@@ -262,7 +262,15 @@ try {
     if ($oldAsarMoved -and (Test-Path $previousAsar -PathType Leaf)) {
       try {
         Move-Item -LiteralPath $previousAsar -Destination $targetAsar
-      } catch { $rollbackErrors += "以前のapp.asarを復元できませんでした: $($_.Exception.Message)" }
+      } catch {
+        try {
+          if (!(Test-Path $targetAsar -PathType Leaf)) {
+            Copy-Item -LiteralPath $backupAsar -Destination $targetAsar
+          } else {
+            throw '復元先にapp.asarが残っています。'
+          }
+        } catch { $rollbackErrors += "以前のapp.asarを復元できませんでした: $($_.Exception.Message)" }
+      }
     }
 
     if ($rollbackErrors.Count -gt 0) {
