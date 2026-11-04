@@ -126,7 +126,8 @@ try {
   $workParent = Get-ShortestSameVolumeDirectory -TargetPath $installRoot -Candidates @(
     $env:USERPROFILE,
     $env:LOCALAPPDATA,
-    $env:TEMP
+    $env:TEMP,
+    $installRoot
   )
   if (!$workParent) {
     throw 'インストール先と同じドライブに短い一時フォルダーを作成できません。通常版Setup.exeを使用してください。'
