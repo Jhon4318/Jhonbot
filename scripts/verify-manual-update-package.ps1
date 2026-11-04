@@ -6,6 +6,14 @@ param(
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
+$applyScriptPath = Join-Path $PSScriptRoot 'Apply-Update.ps1'
+$tokens = $null
+$parseErrors = $null
+[System.Management.Automation.Language.Parser]::ParseFile($applyScriptPath, [ref]$tokens, [ref]$parseErrors) | Out-Null
+if ($parseErrors.Count -gt 0) {
+  throw "Apply-Update.ps1 has PowerShell syntax errors: $($parseErrors -join '; ')"
+}
+
 if (!(Test-Path $UpdateZip -PathType Leaf)) {
   throw "Update ZIP not found: $UpdateZip"
 }
