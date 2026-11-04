@@ -1,6 +1,6 @@
 {
   "name": "bedrock-bot-console",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "description": "Minecraft Bedrock Edition 1.26.60 multi-bot desktop app with NetherNet HTTP SDP fingerprint normalization",
   "main": "src/main.js",
