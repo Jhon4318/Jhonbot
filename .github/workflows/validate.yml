@@ -51,6 +51,10 @@ jobs:
         shell: pwsh
         run: ./scripts/create-manual-update-package.ps1 -DistDirectory dist
 
+      - name: Verify short-path manual update package
+        shell: pwsh
+        run: ./scripts/verify-manual-update-package.ps1 -UpdateZip (Get-ChildItem -Path dist -Filter '*-Update-*.zip' -File | Select-Object -First 1).FullName
+
       - name: Verify manual update package
         shell: pwsh
         run: |
