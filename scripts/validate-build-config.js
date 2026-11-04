@@ -6,6 +6,7 @@ const build = pkg.build || {}
 const mainSource = fs.readFileSync(require.resolve('../src/main.js'), 'utf8')
 const updatePackager = fs.readFileSync(path.join(__dirname, 'create-manual-update-package.ps1'), 'utf8')
 const updateApplier = fs.readFileSync(path.join(__dirname, 'Apply-Update.ps1'), 'utf8')
+const updateVerifier = fs.readFileSync(path.join(__dirname, 'verify-manual-update-package.ps1'), 'utf8')
 const winTargets = Array.isArray(build.win?.target) ? build.win.target : [build.win?.target]
 
 assert.equal(pkg.main, 'src/main.js', 'Electron entry point must remain src/main.js')
