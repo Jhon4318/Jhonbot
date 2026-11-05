@@ -13,6 +13,13 @@ $parseErrors = $null
 if ($parseErrors.Count -gt 0) {
   throw "Apply-Update.ps1 has PowerShell syntax errors: $($parseErrors -join '; ')"
 }
+$applierSource = Get-Content -LiteralPath $applyScriptPath -Raw
+if (!$applierSource.Contains('CloseMainWindow')) {
+  throw 'Apply-Update.ps1 must request a graceful application shutdown before updating.'
+}
+if (!$applierSource.Contains('updateLogPath')) {
+  throw 'Apply-Update.ps1 must write an update diagnostic log.'
+}
 
 if (!(Test-Path $UpdateZip -PathType Leaf)) {
   throw "Update ZIP not found: $UpdateZip"
@@ -60,6 +67,9 @@ try {
   $manifest = Get-Content -LiteralPath (Join-Path $verifyRoot 'update-manifest.json') -Raw | ConvertFrom-Json
   if ($manifest.appId -ne 'com.jhonbot.bedrockbotconsole') {
     throw 'Update manifest appId is invalid.'
+  }
+  if ([version]$manifest.minimumSupportedVersion -ne [version]'0.3.4') {
+    throw 'Manual update minimum supported version must be 0.3.4.'
   }
   $actualAsarHash = (Get-FileHash -LiteralPath (Join-Path $verifyRoot 'resources/app.asar') -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($actualAsarHash -ne ([string]$manifest.appAsarSha256).ToLowerInvariant()) {
