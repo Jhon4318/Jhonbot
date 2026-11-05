@@ -77,6 +77,61 @@ const NETHERNET_OPTIONS_ORIGINAL = [
 ].join('\n')
 const NETHERNET_OPTIONS_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_TIMEOUT_OPTIONS'
 
+const NETHERNET_CLIENT_DIAGNOSTIC_OPTION_ORIGINAL = '    this.webrtc = getWebRTC(options.webrtcBackend)'
+const NETHERNET_CLIENT_DIAGNOSTIC_METHOD_ORIGINAL = '  reportError (error) {'
+const NETHERNET_CLIENT_DIAGNOSTIC_TIMEOUT_ORIGINAL = [
+  '    this._negotiationTimeout = setTimeout(() => {',
+  '      this.failNegotiation(this.serverNetworkId, code)',
+  '    }, timeoutMs)'
+].join('\n')
+const NETHERNET_CLIENT_DIAGNOSTIC_ANSWER_ORIGINAL = [
+  '      await rtcConnection.setRemoteDescription(answer)',
+  '      if (this._closed || this.rtcConnection !== rtcConnection) return',
+  "      debug('Set remote description (answer)')"
+].join('\n')
+const NETHERNET_CLIENT_DIAGNOSTIC_CONNECTION_STATE_ORIGINAL = [
+  '      const state = rtcConnection.connectionState',
+  "      debug('Client connection state changed:', state)"
+].join('\n')
+const NETHERNET_CLIENT_DIAGNOSTIC_ICE_STATE_ORIGINAL = [
+  '      const state = rtcConnection.iceConnectionState',
+  "      debug('Client ICE state changed:', state)"
+].join('\n')
+const NETHERNET_CLIENT_DIAGNOSTIC_LOCAL_DESCRIPTION_ORIGINAL = [
+  '      await rtcConnection.setLocalDescription(offer)',
+  '      if (!isCurrent()) return'
+].join('\n')
+const NETHERNET_CLIENT_DIAGNOSTIC_CONNECT_REQUEST_ORIGINAL = [
+  '      this._signalHandler(',
+  '        new SignalStructure(SignalType.ConnectRequest, this.connectionId, sdp, this.serverNetworkId)',
+  '      )'
+].join('\n')
+const NETHERNET_CLIENT_DIAGNOSTIC_SIGNAL_ERROR_ORIGINAL = '    this._signalHandler(new SignalStructure(SignalType.ConnectError, this.connectionId, String(code), networkId))'
+const NETHERNET_CLIENT_DIAGNOSTIC_HANDLE_SIGNAL_ORIGINAL = [
+  '    switch (signal.type) {',
+  '      case SignalType.ConnectResponse:',
+  '        this.handleAnswer(signal)',
+  '        break',
+  '      case SignalType.CandidateAdd:',
+  '        this.handleCandidate(signal)',
+  '        break',
+  '      case SignalType.ConnectError:',
+  '        this.connection?.close(' + String.fromCharCode(96) + 'connecterror:${signal.data}' + String.fromCharCode(96) + ')',
+  '        break',
+  '    }'
+].join('\n')
+
+const NETHERNET_CLIENT_DIAGNOSTIC_OPTION_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_OPTION'
+const NETHERNET_CLIENT_DIAGNOSTIC_METHOD_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_METHOD'
+const NETHERNET_CLIENT_DIAGNOSTIC_TIMEOUT_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_TIMEOUT'
+const NETHERNET_CLIENT_DIAGNOSTIC_ANSWER_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_ANSWER'
+const NETHERNET_CLIENT_DIAGNOSTIC_CONNECTION_STATE_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_CONNECTION_STATE'
+const NETHERNET_CLIENT_DIAGNOSTIC_ICE_STATE_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_ICE_STATE'
+const NETHERNET_CLIENT_DIAGNOSTIC_LOCAL_DESCRIPTION_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_LOCAL_DESCRIPTION'
+const NETHERNET_CLIENT_DIAGNOSTIC_CONNECT_REQUEST_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_CONNECT_REQUEST'
+const NETHERNET_CLIENT_DIAGNOSTIC_SIGNAL_ERROR_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_SIGNAL_ERROR'
+const NETHERNET_CLIENT_DIAGNOSTIC_HANDLE_SIGNAL_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_HANDLE_SIGNAL'
+
 const VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL = "  const key = crypto.createPublicKey({ key: claims?.cpk, format: 'jwk' })"
 const VERIFY_SERVER_IDENTITY_PUBLIC_KEY_MARKER = 'BEDROCK_BOT_CONSOLE_CPK_PUBLIC_KEY_FORMAT'
 const VERIFY_SERVER_IDENTITY_PUBLIC_KEY_REPLACEMENT = [
@@ -407,6 +462,7 @@ function patchNethernetTimeoutOptionsSource (source) {
     NETHERNET_OPTIONS_ORIGINAL,
     [
       '        webrtcBackend: options.webrtcBackend,',
+      '        onDiagnostics: options.onDiagnostics,',
       '        responseTimeoutMs: options.signallingConnectTimeout,',
       '        inactivityTimeoutMs: options.inactivityTimeoutMs,',
       "        ...(options.signalling === 'http' && {",
@@ -416,6 +472,147 @@ function patchNethernetTimeoutOptionsSource (source) {
     NETHERNET_OPTIONS_MARKER,
     'bedrock-protocol/src/nethernet/index.js timeout option forwarding'
   )
+}
+
+
+function patchNethernetClientDiagnosticsSource (source) {
+  let current = source
+  let changed = false
+  const apply = (original, replacement, marker, label) => {
+    const result = applySingleReplace(current, original, replacement, marker, label)
+    current = result.source
+    changed = changed || result.changed
+  }
+
+  apply(
+    NETHERNET_CLIENT_DIAGNOSTIC_OPTION_ORIGINAL,
+    [
+      NETHERNET_CLIENT_DIAGNOSTIC_OPTION_ORIGINAL,
+      "    this.onDiagnostics = typeof options.onDiagnostics === 'function' ? options.onDiagnostics : null // BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_OPTION"
+    ].join('\n'),
+    NETHERNET_CLIENT_DIAGNOSTIC_OPTION_MARKER,
+    'nethernet/src/client.js diagnostics callback option'
+  )
+  apply(
+    NETHERNET_CLIENT_DIAGNOSTIC_METHOD_ORIGINAL,
+    [
+      '  reportDiagnostic (message) {',
+      '    if (!this.onDiagnostics) return',
+      '    try {',
+      '      this.onDiagnostics(String(message))',
+      '    } catch (error) {',
+      "      debug('Diagnostic callback failed:', error.message)",
+      '    }',
+      '  } // BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_METHOD',
+      '',
+      NETHERNET_CLIENT_DIAGNOSTIC_METHOD_ORIGINAL
+    ].join('\n'),
+    NETHERNET_CLIENT_DIAGNOSTIC_METHOD_MARKER,
+    'nethernet/src/client.js diagnostics callback method'
+  )
+  apply(
+    NETHERNET_CLIENT_DIAGNOSTIC_TIMEOUT_ORIGINAL,
+    [
+      "    this.reportDiagnostic('Negotiation response timer started: timeout=' + timeoutMs + 'ms, errorCode=' + code)",
+      '    this._negotiationTimeout = setTimeout(() => {',
+      "      this.reportDiagnostic('Negotiation response timed out: timeout=' + timeoutMs + 'ms, errorCode=' + code)",
+      '      this.failNegotiation(this.serverNetworkId, code)',
+      '    }, timeoutMs) // BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_TIMEOUT'
+    ].join('\n'),
+    NETHERNET_CLIENT_DIAGNOSTIC_TIMEOUT_MARKER,
+    'nethernet/src/client.js negotiation timeout diagnostics'
+  )
+  apply(
+    NETHERNET_CLIENT_DIAGNOSTIC_ANSWER_ORIGINAL,
+    [
+      '      await rtcConnection.setRemoteDescription(answer)',
+      '      if (this._closed || this.rtcConnection !== rtcConnection) return',
+      "      this.reportDiagnostic('ConnectResponse received and remote description applied')",
+      "      debug('Set remote description (answer)') // BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_ANSWER"
+    ].join('\n'),
+    NETHERNET_CLIENT_DIAGNOSTIC_ANSWER_MARKER,
+    'nethernet/src/client.js answer diagnostics'
+  )
+  apply(
+    NETHERNET_CLIENT_DIAGNOSTIC_CONNECTION_STATE_ORIGINAL,
+    [
+      '      const state = rtcConnection.connectionState',
+      "      this.reportDiagnostic('WebRTC connection state: ' + state)",
+      "      debug('Client connection state changed:', state) // BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_CONNECTION_STATE"
+    ].join('\n'),
+    NETHERNET_CLIENT_DIAGNOSTIC_CONNECTION_STATE_MARKER,
+    'nethernet/src/client.js connection-state diagnostics'
+  )
+  apply(
+    NETHERNET_CLIENT_DIAGNOSTIC_ICE_STATE_ORIGINAL,
+    [
+      '      const state = rtcConnection.iceConnectionState',
+      "      this.reportDiagnostic('ICE connection state: ' + state)",
+      "      debug('Client ICE state changed:', state) // BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_ICE_STATE"
+    ].join('\n'),
+    NETHERNET_CLIENT_DIAGNOSTIC_ICE_STATE_MARKER,
+    'nethernet/src/client.js ICE-state diagnostics'
+  )
+  apply(
+    NETHERNET_CLIENT_DIAGNOSTIC_LOCAL_DESCRIPTION_ORIGINAL,
+    [
+      '      await rtcConnection.setLocalDescription(offer)',
+      '      if (!isCurrent()) return',
+      "      const localSdp = String(rtcConnection.localDescription?.sdp || '')",
+      "      const candidateLines = localSdp.split(/\\r?\\n/).filter(line => line.startsWith('a=candidate:'))",
+      '      const candidateCounts = { host: 0, srflx: 0, relay: 0, other: 0 }',
+      '      for (const line of candidateLines) {',
+      '        const match = line.match(/\\btyp\\s+([a-z]+)/i)',
+      "        const type = match?.[1]?.toLowerCase() || 'other'",
+      "        candidateCounts[Object.hasOwn(candidateCounts, type) ? type : 'other']++",
+      '      }',
+      "      this.reportDiagnostic('Local ICE candidates gathered: total=' + candidateLines.length + ', host=' + candidateCounts.host + ', srflx=' + candidateCounts.srflx + ', relay=' + candidateCounts.relay + ', other=' + candidateCounts.other) // BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_LOCAL_DESCRIPTION"
+    ].join('\n'),
+    NETHERNET_CLIENT_DIAGNOSTIC_LOCAL_DESCRIPTION_MARKER,
+    'nethernet/src/client.js local ICE diagnostics'
+  )
+  apply(
+    NETHERNET_CLIENT_DIAGNOSTIC_CONNECT_REQUEST_ORIGINAL,
+    [
+      "      this.reportDiagnostic('Sending ConnectRequest (WebRTC offer)')",
+      ...NETHERNET_CLIENT_DIAGNOSTIC_CONNECT_REQUEST_ORIGINAL.split('\n'),
+      '      // BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_CONNECT_REQUEST'
+    ].join('\n'),
+    NETHERNET_CLIENT_DIAGNOSTIC_CONNECT_REQUEST_MARKER,
+    'nethernet/src/client.js ConnectRequest diagnostics'
+  )
+  apply(
+    NETHERNET_CLIENT_DIAGNOSTIC_SIGNAL_ERROR_ORIGINAL,
+    [
+      "    this.reportDiagnostic('Sending ConnectError code=' + code)",
+      NETHERNET_CLIENT_DIAGNOSTIC_SIGNAL_ERROR_ORIGINAL + ' // BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_SIGNAL_ERROR'
+    ].join('\n'),
+    NETHERNET_CLIENT_DIAGNOSTIC_SIGNAL_ERROR_MARKER,
+    'nethernet/src/client.js ConnectError diagnostics'
+  )
+  apply(
+    NETHERNET_CLIENT_DIAGNOSTIC_HANDLE_SIGNAL_ORIGINAL,
+    [
+      '    switch (signal.type) {',
+      '      case SignalType.ConnectResponse:',
+      "        this.reportDiagnostic('ConnectResponse received')",
+      '        this.handleAnswer(signal)',
+      '        break',
+      '      case SignalType.CandidateAdd:',
+      "        this.reportDiagnostic('ICE candidate signal received')",
+      '        this.handleCandidate(signal)',
+      '        break',
+      '      case SignalType.ConnectError:',
+      "        this.reportDiagnostic('ConnectError received: code=' + signal.data)",
+      "        this.connection?.close('connecterror:' + signal.data)",
+      '        break',
+      '    } // BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_HANDLE_SIGNAL'
+    ].join('\n'),
+    NETHERNET_CLIENT_DIAGNOSTIC_HANDLE_SIGNAL_MARKER,
+    'nethernet/src/client.js incoming signalling diagnostics'
+  )
+
+  return { source: current, changed }
 }
 
 function patchHttpOfferDiagnosticsSource (source) {
@@ -518,6 +715,7 @@ function applyPatch (projectRoot = path.resolve(__dirname, '..')) {
     results.push(replaceFile(path.join(copy.root, 'src', 'signalling', 'http.js'), patchHttpOfferDiagnosticsSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'signalling', 'sdpIdentity.js'), patchSdpIdentitySource))
     results.push(replaceFile(path.join(copy.root, 'src', 'signalling', 'sdpIdentity.js'), patchServerIdentityPublicKeySource))
+    results.push(replaceFile(path.join(copy.root, 'src', 'client.js'), patchNethernetClientDiagnosticsSource))
   }
   return results
 }
@@ -569,6 +767,17 @@ module.exports = {
   VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL,
   VERIFY_SERVER_IDENTITY_PUBLIC_KEY_MARKER,
   VERIFY_SERVER_IDENTITY_PUBLIC_KEY_REPLACEMENT,
+  NETHERNET_CLIENT_DIAGNOSTIC_OPTION_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_METHOD_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_TIMEOUT_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_ANSWER_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_CONNECTION_STATE_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_ICE_STATE_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_LOCAL_DESCRIPTION_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_CONNECT_REQUEST_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_SIGNAL_ERROR_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_HANDLE_SIGNAL_ORIGINAL,
+  patchNethernetClientDiagnosticsSource,
   patchServerIdentityPublicKeySource,
   patchHttpOfferDiagnosticsSource,
   applyPatch
