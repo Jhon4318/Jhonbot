@@ -138,7 +138,7 @@ test('adds safe WebRTC negotiation and ICE diagnostics to the pinned NetherNet c
   assert.match(patched.source, /WebRTC connection state:/)
   assert.match(patched.source, /ICE connection state:/)
   assert.match(patched.source, /Local ICE candidates gathered:/)
-  assert.doesNotMatch(patched.source, /reportDiagnostic\([^\\n]*(?:localSdp|candidateLines|candidate\\.candidate)/)
+  assert.doesNotMatch(patched.source, /this\.reportDiagnostic\((?:localSdp|candidateLines|candidate\.candidate)/)
   assert.equal(patchNethernetClientDiagnosticsSource(patched.source).changed, false)
   assert.doesNotThrow(() => new vm.Script(patched.source))
 })
