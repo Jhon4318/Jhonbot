@@ -21,7 +21,17 @@ const {
   CLIENT_SERVICES_SIGNAL_ORIGINAL,
   CLIENT_CONNECTED_ORIGINAL,
   CLIENT_TIMEOUT_ORIGINAL,
-  NETHERNET_OPTIONS_ORIGINAL
+  NETHERNET_OPTIONS_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_OPTION_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_METHOD_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_TIMEOUT_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_ANSWER_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_CONNECTION_STATE_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_ICE_STATE_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_LOCAL_DESCRIPTION_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_CONNECT_REQUEST_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_SIGNAL_ERROR_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_HANDLE_SIGNAL_ORIGINAL
 } = require('../scripts/patch-bedrock-protocol')
 const { ATTACH_IDENTITY_ORIGINAL } = require('../scripts/patch-nethernet-sdp')
 
@@ -132,9 +142,49 @@ test('patches app and nested Mineflayer protocol copies without touching options
     fs.writeFileSync(path.join(nethernetRoot, 'index.js'), 'module.exports = {}')
     fs.writeFileSync(path.join(nethernetRoot, 'src', 'signalling', 'http.js'), `const body = 'sdp'\n${OFFER_DIAGNOSTIC_FUNCTION_ORIGINAL}\n${HTTP_ERROR_ORIGINAL}\n${OFFER_DIAGNOSTIC_FETCH_ORIGINAL}\n    method: 'POST',\n    body\n  })\n  return response\n}\nmodule.exports = { exchangeOffer }\n`)
     fs.writeFileSync(path.join(nethernetRoot, 'src', 'signalling', 'sdpIdentity.js'), `const crypto = require('crypto')\nfunction buildIdentityAttribute (sdp) { return 'identity:' + sdp }\n${ATTACH_IDENTITY_ORIGINAL}\nfunction verifyServerIdentity (claims) {\n${VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL}\n  return key\n}\nmodule.exports = { attachIdentity, verifyServerIdentity }\n`)
+    const nethernetClientSource = [
+      'class Client extends EventEmitter {',
+      '  constructor (options) {',
+      NETHERNET_CLIENT_DIAGNOSTIC_OPTION_ORIGINAL,
+      '  }',
+      NETHERNET_CLIENT_DIAGNOSTIC_METHOD_ORIGINAL,
+      '  }',
+      '  armNegotiationTimeout (code, timeoutMs) {',
+      NETHERNET_CLIENT_DIAGNOSTIC_TIMEOUT_ORIGINAL,
+      '  }',
+      '  async handleAnswer (answer, rtcConnection) {',
+      '    try {',
+      NETHERNET_CLIENT_DIAGNOSTIC_ANSWER_ORIGINAL,
+      '    } catch (error) {}',
+      '  }',
+      '  attachStates (rtcConnection, isCurrent) {',
+      '    rtcConnection.onconnectionstatechange = () => {',
+      '      if (!isCurrent()) return',
+      NETHERNET_CLIENT_DIAGNOSTIC_CONNECTION_STATE_ORIGINAL,
+      '    }',
+      '    rtcConnection.oniceconnectionstatechange = () => {',
+      '      if (!isCurrent()) return',
+      NETHERNET_CLIENT_DIAGNOSTIC_ICE_STATE_ORIGINAL,
+      '    }',
+      '  }',
+      '  async createOffer (offer, rtcConnection, isCurrent, sdp) {',
+      '    try {',
+      NETHERNET_CLIENT_DIAGNOSTIC_LOCAL_DESCRIPTION_ORIGINAL,
+      '    } catch (error) {}',
+      NETHERNET_CLIENT_DIAGNOSTIC_CONNECT_REQUEST_ORIGINAL,
+      '  }',
+      '  signalError (networkId, code) {',
+      NETHERNET_CLIENT_DIAGNOSTIC_SIGNAL_ERROR_ORIGINAL,
+      '  }',
+      '  handleSignal (signal) {',
+      NETHERNET_CLIENT_DIAGNOSTIC_HANDLE_SIGNAL_ORIGINAL,
+      '  }',
+      '}'
+    ].join('\n')
+    fs.writeFileSync(path.join(nethernetRoot, 'src', 'client.js'), nethernetClientSource)
 
     const first = applyPatch(tempRoot)
-    assert.equal(first.length, 12)
+    assert.equal(first.length, 13)
     for (const target of [rootProtocol, nestedProtocol]) {
       const source = fs.readFileSync(path.join(target, 'src', 'createClient.js'), 'utf8')
       assert.ok(source.includes(MARKER))
@@ -153,8 +203,8 @@ test('patches app and nested Mineflayer protocol copies without touching options
     assert.match(identitySource, /BEDROCK_BOT_CONSOLE_SESSION_FINGERPRINT_SCOPE/)
     assert.match(identitySource, /normalizeFingerprintScope\(sdp\)/)
     const second = applyPatch(tempRoot)
-    assert.equal(second.length, 12)
-    assert.deepEqual(second.map(result => result.changed), Array(12).fill(false))
+    assert.equal(second.length, 13)
+    assert.deepEqual(second.map(result => result.changed), Array(13).fill(false))
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true })
   }
