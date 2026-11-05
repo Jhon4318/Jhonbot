@@ -116,7 +116,7 @@ const NETHERNET_CLIENT_DIAGNOSTIC_HANDLE_SIGNAL_ORIGINAL = [
   '        this.handleCandidate(signal)',
   '        break',
   '      case SignalType.ConnectError:',
-  '        this.connection?.close(\`connecterror:\${signal.data}\`)',
+  '        this.connection?.close(' + String.fromCharCode(96) + 'connecterror:${signal.data}' + String.fromCharCode(96) + ')',
   '        break',
   '    }'
 ].join('\n')
