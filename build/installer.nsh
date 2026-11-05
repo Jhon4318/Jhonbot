@@ -5,25 +5,26 @@
 ;
 ; Move only that disposable cache directory to a short path before the old
 ; uninstaller runs. This leaves app files and all user data untouched.
-
-Var JhonbotLegacyCacheSource
-Var JhonbotLegacyCacheStaging
+;
+; Use NSIS registers rather than custom variables: electron-builder's NSIS
+; compiler treats the customInit macro's source variable as unused in some
+; builds and promotes warning 6001 to a fatal error.
 
 !macro customInit
-  StrCpy $JhonbotLegacyCacheSource "$INSTDIR\resources\app.asar.unpacked\node_modules\@shinyoshiaki\binary-data\.jest-cache"
-  IfFileExists "$JhonbotLegacyCacheSource\*.*" jhonbotLegacyCacheFound jhonbotLegacyCacheDone
+  StrCpy $R0 "$INSTDIR\resources\app.asar.unpacked\node_modules\@shinyoshiaki\binary-data\.jest-cache"
+  IfFileExists "$R0\*.*" jhonbotLegacyCacheFound jhonbotLegacyCacheDone
 
   jhonbotLegacyCacheFound:
     CreateDirectory "$LOCALAPPDATA\Temp"
-    GetTempFileName $JhonbotLegacyCacheStaging "$LOCALAPPDATA\Temp"
-    Delete "$JhonbotLegacyCacheStaging"
+    GetTempFileName $R1 "$LOCALAPPDATA\Temp"
+    Delete "$R1"
     ClearErrors
-    Rename "$JhonbotLegacyCacheSource" "$JhonbotLegacyCacheStaging"
+    Rename "$R0" "$R1"
     IfErrors jhonbotLegacyCacheMoveFailed
 
     ; The staging path is short enough for NSIS to remove recursively.
     ClearErrors
-    RMDir /r "$JhonbotLegacyCacheStaging"
+    RMDir /r "$R1"
     IfErrors jhonbotLegacyCacheDeleteFailed
     Goto jhonbotLegacyCacheDone
 
@@ -34,7 +35,7 @@ Var JhonbotLegacyCacheStaging
   jhonbotLegacyCacheDeleteFailed:
     ; The long path is already outside the installation directory. Leaving
     ; this small disposable cache in Temp does not block the upgrade.
-    DetailPrint "The legacy Jest cache was moved but could not be deleted: $JhonbotLegacyCacheStaging"
+    DetailPrint "The legacy Jest cache was moved but could not be deleted: $R1"
     MessageBox MB_OK|MB_ICONEXCLAMATION "旧版の不要なテストキャッシュは退避しましたが、一時フォルダー内の削除は完了しませんでした。更新は続行します。"
 
   jhonbotLegacyCacheDone:
