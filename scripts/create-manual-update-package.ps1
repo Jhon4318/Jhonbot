@@ -21,7 +21,7 @@ if ($version -notmatch '^\d+\.\d+\.\d+') {
   throw "Invalid application version: $version"
 }
 
-$minimumSupportedVersion = '0.3.9'
+$minimumSupportedVersion = '0.3.4'
 $stageParent = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
 $stage = Join-Path $stageParent "JBU-$version"
 if (Test-Path $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
