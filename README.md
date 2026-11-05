@@ -4,7 +4,7 @@ Minecraft Bedrock Edition 向けの複数Bot管理デスクトップアプリで
 
 ## 配布版
 
-**Prototype 0.4.2**
+**Prototype 0.4.3**
 
 [最新版のWindows配布ページ（Setup.exe / 手動更新ZIP）](https://github.com/Jhon4318/Jhonbot/releases/latest)
 
@@ -12,13 +12,15 @@ Minecraft Bedrock Edition 向けの複数Bot管理デスクトップアプリで
 
 既存インストールが **v0.3.9以降** で、Electronの実行バージョンが同じ場合は、手動更新ZIPを使えます。
 
-1. Releaseページから最新版の `Bedrock-Bot-Console-Update-0.4.2.zip` をダウンロードします。
+1. Releaseページから最新版の `Bedrock-Bot-Console-Update-0.4.3.zip` をダウンロードします。
 2. ZIPを右クリックして「すべて展開」を選びます。展開先は通常のフォルダーで構いません。
 3. Botを切断し、Bedrock Bot Consoleを完全に終了します。
 4. 展開したフォルダー内の `Apply-Update.bat` をダブルクリックします。
 5. 更新成功のメッセージを確認してからアプリを起動します。
 
 更新ZIPの外側には短いファイル名だけを置き、深い階層の `app.asar.unpacked` は内側のZIPに格納しています。Apply-Update.batは内側のZIPをインストール先と同じドライブにある短い一時フォルダーへ展開し、展開済みフォルダーをコピーではなく移動して差し替えます。これにより、Windowsのパス長制限に引っかかりやすい長いパスを、ダウンロードZIPの展開時や更新時に再生成しないようにしています。
+
+v0.4.3では、以前の配布版に混入していたJestのテスト用キャッシュを新しいパッケージから除外しました。旧版からSetup.exeで更新する際は、既存インストール内に残る同キャッシュだけを短い一時パスへ移して削除し、NSISの長いパス制限による旧版削除失敗を避けます。このキャッシュは実行時に使用せず、Bot一覧や設定などのユーザーデータとも別のものです。
 
 更新前の `app.asar` と展開済みアプリファイルはバックアップされます。更新に失敗した場合は、可能な限り自動で元の状態へ戻します。Bot一覧、接続先、設定、保存済み認証情報は変更しません。Electronランタイムのバージョンが異なる場合、またはv0.3.9より古い場合は通常版 `Bedrock-Bot-Console-Setup.exe` を使用してください。
 

@@ -87,6 +87,12 @@ try {
         if ($relativePath.StartsWith('\') -or $relativePath.Contains(':') -or $relativePath -match '(^|\\)\.\.(\\|$)') {
           throw "Unsafe path in nested update ZIP: $($entry.FullName)"
         }
+        if ($relativePath -match '(^|\\)\.jest-cache(\\|$)') {
+          throw "Disposable Jest cache must not be included in the Windows application package: $($entry.FullName)"
+        }
+        if ($relativePath.TrimEnd('\').Length -gt 140) {
+          throw "Nested archive path exceeds the NSIS-safe relative path budget (140): $($entry.FullName)"
+        }
         if (($innerRoot.Length + 1 + $relativePath.TrimEnd('\').Length) -gt 240) {
           throw "Nested archive path is too long for a short Windows temp directory: $($entry.FullName)"
         }
