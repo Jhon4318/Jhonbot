@@ -149,8 +149,9 @@ try {
 
   $exePath = Join-Path $installRoot 'Bedrock Bot Console.exe'
   $exeVersionInfo = (Get-Item -LiteralPath $exePath).VersionInfo
-  $versionText = [string]$exeVersionInfo.ProductVersion
-  if ([string]::IsNullOrWhiteSpace($versionText)) { $versionText = [string]$exeVersionInfo.FileVersion }
+  # electron-builder sets Windows FileVersion from package.json's version by default.
+  $versionText = [string]$exeVersionInfo.FileVersion
+  if ([string]::IsNullOrWhiteSpace($versionText)) { $versionText = [string]$exeVersionInfo.ProductVersion }
   $versionMatch = [regex]::Match($versionText, '\d+(?:\.\d+){1,3}')
   if (!$versionMatch.Success -and $entry -and ![string]::IsNullOrWhiteSpace([string]$entry.DisplayVersion)) {
     $versionMatch = [regex]::Match([string]$entry.DisplayVersion, '\d+(?:\.\d+){1,3}')
