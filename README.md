@@ -4,7 +4,7 @@ Minecraft Bedrock Edition 向けの複数Bot管理デスクトップアプリで
 
 ## 配布版
 
-**Prototype 0.4.3**
+**Prototype 0.4.5**
 
 [最新版のWindows配布ページ（Setup.exe / 手動更新ZIP）](https://github.com/Jhon4318/Jhonbot/releases/latest)
 
@@ -12,11 +12,14 @@ Minecraft Bedrock Edition 向けの複数Bot管理デスクトップアプリで
 
 既存インストールが **v0.3.9以降** で、Electronの実行バージョンが同じ場合は、手動更新ZIPを使えます。
 
-1. Releaseページから最新版の `Bedrock-Bot-Console-Update-0.4.3.zip` をダウンロードします。
+1. Releaseページから最新版の `Bedrock-Bot-Console-Update-0.4.5.zip` をダウンロードします。
 2. ZIPを右クリックして「すべて展開」を選びます。展開先は通常のフォルダーで構いません。
-3. Botを切断し、Bedrock Bot Consoleを完全に終了します。
-4. 展開したフォルダー内の `Apply-Update.bat` をダブルクリックします。
-5. 更新成功のメッセージを確認してからアプリを起動します。
+3. 展開したフォルダー内の `Apply-Update.bat` をダブルクリックします。
+4. インストール情報がレジストリから取得できなくても、標準のインストール先とEXEのバージョン情報から検出します。独自の場所にインストールしている場合は、インストール先フォルダーの入力を求めます。
+5. アプリが起動中の場合、BATが確認を表示します。Botを切断してから「Y」を入力すると、アプリを通常終了して更新します。
+6. 更新成功のメッセージを確認してからアプリを起動します。
+
+失敗した場合は診断ログが `%AppData%\bedrock-bot-console\logs` に保存されます。
 
 更新ZIPの外側には短いファイル名だけを置き、深い階層の `app.asar.unpacked` は内側のZIPに格納しています。Apply-Update.batは内側のZIPをインストール先と同じドライブにある短い一時フォルダーへ展開し、展開済みフォルダーをコピーではなく移動して差し替えます。これにより、Windowsのパス長制限に引っかかりやすい長いパスを、ダウンロードZIPの展開時や更新時に再生成しないようにしています。
 

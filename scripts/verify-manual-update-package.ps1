@@ -13,6 +13,30 @@ $parseErrors = $null
 if ($parseErrors.Count -gt 0) {
   throw "Apply-Update.ps1 has PowerShell syntax errors: $($parseErrors -join '; ')"
 }
+$applierSource = Get-Content -LiteralPath $applyScriptPath -Raw
+if (!$applierSource.Contains('CloseMainWindow')) {
+  throw 'Apply-Update.ps1 must request a graceful application shutdown before updating.'
+}
+if (!$applierSource.Contains('updateLogPath')) {
+  throw 'Apply-Update.ps1 must write an update diagnostic log.'
+}
+if (!$applierSource.Contains('Bedrock\s+Bot\s+Console')) {
+  throw 'Apply-Update.ps1 must tolerate version-suffixed uninstall display names.'
+}
+if (!$applierSource.Contains('Programs\Bedrock Bot Console')) {
+  throw 'Apply-Update.ps1 must have a per-user standard install-path fallback.'
+}
+if (!$applierSource.Contains('ProductVersion') -or !$applierSource.Contains('FileVersion')) {
+  throw 'Apply-Update.ps1 must be able to read the installed EXE version.'
+}
+$fileVersionIndex = $applierSource.IndexOf('$versionText = [string]$exeVersionInfo.FileVersion')
+$productVersionIndex = $applierSource.IndexOf('$versionText = [string]$exeVersionInfo.ProductVersion')
+if ($fileVersionIndex -lt 0 -or $productVersionIndex -lt $fileVersionIndex) {
+  throw 'Apply-Update.ps1 must prefer FileVersion and use ProductVersion only as a fallback.'
+}
+if ($applierSource.Contains("インストール情報を確認できません。通常版Setup.exeで更新してください。")) {
+  throw 'Apply-Update.ps1 must not require uninstall registry metadata.'
+}
 
 if (!(Test-Path $UpdateZip -PathType Leaf)) {
   throw "Update ZIP not found: $UpdateZip"
@@ -60,6 +84,9 @@ try {
   $manifest = Get-Content -LiteralPath (Join-Path $verifyRoot 'update-manifest.json') -Raw | ConvertFrom-Json
   if ($manifest.appId -ne 'com.jhonbot.bedrockbotconsole') {
     throw 'Update manifest appId is invalid.'
+  }
+  if ([version]$manifest.minimumSupportedVersion -ne [version]'0.3.9') {
+    throw 'Manual update minimum supported version must be 0.3.9.'
   }
   $actualAsarHash = (Get-FileHash -LiteralPath (Join-Path $verifyRoot 'resources/app.asar') -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($actualAsarHash -ne ([string]$manifest.appAsarSha256).ToLowerInvariant()) {

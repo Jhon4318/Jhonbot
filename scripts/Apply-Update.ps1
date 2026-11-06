@@ -2,10 +2,27 @@
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
+$updateLogDirectory = Join-Path $env:APPDATA 'bedrock-bot-console\logs'
+try {
+  New-Item -ItemType Directory -Path $updateLogDirectory -Force | Out-Null
+} catch {
+  $updateLogDirectory = $env:TEMP
+}
+$updateLogPath = Join-Path $updateLogDirectory ("update-{0}.log" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+function Write-UpdateLog {
+  param([string]$Message, [string]$Level = 'INFO')
+  $line = "{0} [{1}] {2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Level, $Message
+  Write-Host $line
+  try { Add-Content -LiteralPath $updateLogPath -Value $line -Encoding UTF8 } catch {}
+}
+Write-UpdateLog "更新スクリプト開始。PowerShell=$($PSVersionTable.PSVersion) / PackagePath=$PSScriptRoot"
+
 $workDirectory = $null
 $preserveWorkDirectory = $false
 
 function Get-InstalledAppEntry {
+  # NSIS/electron-builder registry labels can differ between installer revisions.
+  # Match the product name loosely and also recognize the stable appId key.
   $roots = @(
     'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall',
     'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall',
@@ -16,7 +33,11 @@ function Get-InstalledAppEntry {
     foreach ($key in (Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue)) {
       try {
         $entry = Get-ItemProperty -LiteralPath $key.PSPath
-        if ($entry.DisplayName -eq 'Bedrock Bot Console') { return $entry }
+        $displayName = [string]$entry.DisplayName
+        $keyName = [string]$key.PSChildName
+        if ($displayName -match '(?i)Bedrock\s+Bot\s+Console' -or $keyName -match '(?i)jhonbot.*bedrockbotconsole') {
+          return $entry
+        }
       } catch {}
     }
   }
@@ -52,6 +73,7 @@ try {
   }
   $targetVersion = [version]$manifest.version
   $minimumVersion = [version]$manifest.minimumSupportedVersion
+  Write-UpdateLog "更新パッケージ v$targetVersion / 対応下限 v$minimumVersion"
   if ($targetVersion -le $minimumVersion) {
     throw '更新ファイルのバージョン情報が正しくありません。ZIPを再ダウンロードしてください。'
   }
@@ -62,19 +84,92 @@ try {
   }
 
   $entry = Get-InstalledAppEntry
-  if (!$entry) {
-    throw 'インストール情報を確認できません。通常版Setup.exeで更新してください。'
+  $candidateRoots = @()
+  if ($entry -and ![string]::IsNullOrWhiteSpace([string]$entry.InstallLocation)) {
+    $candidateRoots += [string]$entry.InstallLocation
   }
-  if ([string]::IsNullOrWhiteSpace([string]$entry.DisplayVersion)) {
-    throw '現在のバージョンを確認できません。通常版Setup.exeで更新してください。'
+
+  # Read executable paths from uninstall metadata even when InstallLocation is absent.
+  if ($entry) {
+    foreach ($metadataValue in @([string]$entry.DisplayIcon, [string]$entry.UninstallString)) {
+      if ([string]::IsNullOrWhiteSpace($metadataValue)) { continue }
+      $exeMatch = [regex]::Match($metadataValue, '^\s*"([^"]+\.exe)"', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+      if (!$exeMatch.Success) {
+        $exeMatch = [regex]::Match($metadataValue, '^\s*(.+?\.exe)(?:,|\s|$)', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+      }
+      if ($exeMatch.Success) { $candidateRoots += [System.IO.Path]::GetDirectoryName($exeMatch.Groups[1].Value.Trim('"')) }
+    }
   }
-  $currentVersion = [version]$entry.DisplayVersion
+
+  # The configured NSIS installer is per-user and uses this standard location.
+  # Do not require an uninstall registry entry to be present.
+  $candidateRoots += (Join-Path $env:LOCALAPPDATA 'Programs\Bedrock Bot Console')
+  $candidateRoots += (Join-Path $env:LOCALAPPDATA 'Programs\bedrock-bot-console')
+  if ($env:ProgramFiles) { $candidateRoots += (Join-Path $env:ProgramFiles 'Bedrock Bot Console') }
+  $programFilesX86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
+  if ($programFilesX86) { $candidateRoots += (Join-Path $programFilesX86 'Bedrock Bot Console') }
+
+  # When the app is running, its actual executable path is stronger evidence
+  # than a guessed directory and is captured before asking it to close.
+  foreach ($process in @(Get-Process -Name 'Bedrock Bot Console' -ErrorAction SilentlyContinue)) {
+    try {
+      if ($process.MainModule -and $process.MainModule.FileName) {
+        $candidateRoots += [System.IO.Path]::GetDirectoryName($process.MainModule.FileName)
+      }
+    } catch {
+      Write-UpdateLog "実行中プロセスのパスを取得できませんでした: PID=$($process.Id) / $($_.Exception.Message)" 'WARN'
+    }
+  }
+
+  $installRoot = $null
+  foreach ($candidate in $candidateRoots) {
+    if ([string]::IsNullOrWhiteSpace([string]$candidate)) { continue }
+    try { $candidateFull = [System.IO.Path]::GetFullPath([string]$candidate) } catch { continue }
+    if ((Test-Path (Join-Path $candidateFull 'Bedrock Bot Console.exe') -PathType Leaf) -and
+        (Test-Path (Join-Path $candidateFull 'resources\app.asar') -PathType Leaf)) {
+      $installRoot = $candidateFull
+      break
+    }
+  }
+
+  if (!$installRoot) {
+    Write-UpdateLog 'レジストリと標準インストール先からインストール先を特定できませんでした。手動入力を求めます。' 'WARN'
+    $manualRoot = (Read-Host 'Bedrock Bot Console.exe があるインストール先フォルダーを入力してください').Trim().Trim('"')
+    if (![string]::IsNullOrWhiteSpace($manualRoot)) {
+      try { $manualRoot = [System.IO.Path]::GetFullPath($manualRoot) } catch {}
+      if ((Test-Path (Join-Path $manualRoot 'Bedrock Bot Console.exe') -PathType Leaf) -and
+          (Test-Path (Join-Path $manualRoot 'resources\app.asar') -PathType Leaf)) {
+        $installRoot = $manualRoot
+      }
+    }
+  }
+  if (!$installRoot) {
+    throw 'インストール先を特定できません。Bedrock Bot Console.exe と resources\app.asar があるフォルダーを確認してください。'
+  }
+
+  $exePath = Join-Path $installRoot 'Bedrock Bot Console.exe'
+  $exeVersionInfo = (Get-Item -LiteralPath $exePath).VersionInfo
+  # electron-builder sets Windows FileVersion from package.json's version by default.
+  $versionText = [string]$exeVersionInfo.FileVersion
+  if ([string]::IsNullOrWhiteSpace($versionText)) { $versionText = [string]$exeVersionInfo.ProductVersion }
+  $versionMatch = [regex]::Match($versionText, '\d+(?:\.\d+){1,3}')
+  if (!$versionMatch.Success -and $entry -and ![string]::IsNullOrWhiteSpace([string]$entry.DisplayVersion)) {
+    $versionMatch = [regex]::Match([string]$entry.DisplayVersion, '\d+(?:\.\d+){1,3}')
+  }
+  if (!$versionMatch.Success) {
+    throw 'インストール済みバージョンを確認できません。EXEのバージョン情報がありません。'
+  }
+  $currentVersion = [version]$versionMatch.Value
+  $registryVersion = if ($entry) { [string]$entry.DisplayVersion } else { 'なし' }
+  Write-UpdateLog "インストール済みバージョン v$currentVersion（EXE=$($exeVersionInfo.ProductVersion) / レジストリ=$registryVersion）"
   if ($currentVersion -lt $minimumVersion) {
     throw "現在のv$currentVersionは手動更新の対象外です。v$($manifest.minimumSupportedVersion)以降にSetup.exeで更新してください。"
   }
   if ($currentVersion -ge $targetVersion) {
     throw "現在のv$currentVersionは更新対象のv$targetVersion以上です。"
   }
+
+  Write-UpdateLog "インストール先: $installRoot"
 
   $runtimeLog = Join-Path $env:APPDATA 'bedrock-bot-console\logs\bot-console.log'
   if (!(Test-Path $runtimeLog -PathType Leaf)) {
@@ -85,32 +180,47 @@ try {
     throw 'ログからElectronの実行バージョンを確認できません。Setup.exeを使用してください。'
   }
   $installedElectronVersion = $electronLine.Matches[0].Groups[1].Value
+  Write-UpdateLog "Electronランタイム: installed=$installedElectronVersion / package=$packageElectronVersion"
   if ($installedElectronVersion -ne $packageElectronVersion) {
     throw "Electronランタイムが異なります（現在: $installedElectronVersion / 更新ファイル: $packageElectronVersion）。通常版Setup.exeを使用してください。"
   }
 
-  $candidateRoots = @()
-  if (![string]::IsNullOrWhiteSpace([string]$entry.InstallLocation)) {
-    $candidateRoots += [string]$entry.InstallLocation
-  }
-  $candidateRoots += (Join-Path $env:LOCALAPPDATA 'Programs\Bedrock Bot Console')
-  $candidateRoots += (Join-Path $env:LOCALAPPDATA 'Programs\bedrock-bot-console')
-  $installRoot = $candidateRoots | Where-Object {
-    Test-Path (Join-Path $_ 'Bedrock Bot Console.exe') -PathType Leaf
-  } | Select-Object -First 1
-  if (!$installRoot) {
-    $manualRoot = Read-Host 'インストール先フォルダーを入力してください（通常は空欄のままEnter）'
-    if (![string]::IsNullOrWhiteSpace($manualRoot) -and (Test-Path (Join-Path $manualRoot 'Bedrock Bot Console.exe') -PathType Leaf)) {
-      $installRoot = $manualRoot
-    }
-  }
-  if (!$installRoot) {
-    throw 'インストール先を特定できません。通常版Setup.exeで更新してください。'
-  }
 
+  # Only close the app after explicit consent: the before-quit handler
+  # disconnects active bots, so the updater never silently kills the process.
   $running = @(Get-Process -Name 'Bedrock Bot Console' -ErrorAction SilentlyContinue)
   if ($running.Count -gt 0) {
-    throw 'Bedrock Bot Consoleが起動中です。Botを切断してアプリを終了してから、Apply-Update.batをもう一度実行してください。'
+    Write-UpdateLog "アプリの実行プロセスを検出: count=$($running.Count)" 'WARN'
+    Write-Host ''
+    Write-Host 'Bedrock Bot Console が起動しています。'
+    Write-Host 'アプリを閉じると、接続中のBotも切断されます。Botを切断してから続行してください。'
+    $closeChoice = Read-Host 'アプリを閉じて更新を続けますか？ (Y/N)'
+    if ($closeChoice -notmatch '^(y|yes)$') {
+      throw 'ユーザー操作により更新をキャンセルしました。'
+    }
+
+    foreach ($process in $running) {
+      try {
+        if ($process.MainWindowHandle -ne 0) {
+          [void]$process.CloseMainWindow()
+        }
+      } catch {
+        Write-UpdateLog "終了要求を送信できませんでした: PID=$($process.Id) / $($_.Exception.Message)" 'WARN'
+      }
+    }
+
+    $closeDeadline = (Get-Date).AddSeconds(30)
+    do {
+      Start-Sleep -Milliseconds 500
+      $running = @(Get-Process -Name 'Bedrock Bot Console' -ErrorAction SilentlyContinue)
+    } while ($running.Count -gt 0 -and (Get-Date) -lt $closeDeadline)
+
+    if ($running.Count -gt 0) {
+      throw 'アプリの終了を確認できませんでした。画面が閉じていることを確認し、タスクマネージャーにもプロセスが残っていない状態で、BATを再実行してください。'
+    }
+    Write-UpdateLog 'アプリの終了を確認しました。'
+  } else {
+    Write-UpdateLog 'アプリは起動していません。'
   }
 
   $resources = Join-Path $installRoot 'resources'
@@ -135,6 +245,7 @@ try {
 
   $workDirectory = Join-Path $workParent ('jbu-' + [guid]::NewGuid().ToString('N').Substring(0, 10))
   New-Item -ItemType Directory -Path $workDirectory -Force | Out-Null
+  Write-UpdateLog "更新ファイルの一時領域を作成: $workDirectory"
   $stagedAsar = Join-Path $workDirectory 'app.asar.new'
   Copy-Item -LiteralPath $packageAsar -Destination $stagedAsar
 
@@ -142,6 +253,7 @@ try {
   if ($asarHash -ne ([string]$manifest.appAsarSha256).ToLowerInvariant()) {
     throw 'app.asarの整合性確認に失敗しました。ZIPを再ダウンロードしてください。'
   }
+  Write-UpdateLog 'app.asarのSHA-256検証に成功しました。'
 
   $hasNewUnpacked = [bool]$manifest.hasUnpacked
   $sourceUnpacked = Join-Path $workDirectory 'app.asar.unpacked.new'
@@ -199,6 +311,7 @@ try {
   }
   $backupAsar = Join-Path $backupDir 'app.asar.backup'
   New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+  Write-UpdateLog "バックアップ先: $backupDir"
 
   $hadOldUnpacked = Test-Path $targetUnpacked -PathType Container
   if (Test-Path $backupAsar) {
@@ -287,18 +400,23 @@ try {
   Remove-Item -LiteralPath $workDirectory -Recurse -Force
   $workDirectory = $null
 
+  Write-UpdateLog "v$targetVersion への更新が完了しました。" 'SUCCESS'
   Write-Host ''
   Write-Host "Bedrock Bot Consoleをv$targetVersionに更新しました。" -ForegroundColor Green
   Write-Host '設定・Bot一覧・認証キャッシュは変更していません。'
   Write-Host "ロールバック用バックアップ: $backupDir"
   Write-Host 'アプリを起動して動作を確認してください。'
+  Write-Host "診断ログ: $updateLogPath"
   exit 0
 } catch {
   if (!$preserveWorkDirectory -and $workDirectory -and (Test-Path $workDirectory)) {
     try { Remove-Item -LiteralPath $workDirectory -Recurse -Force } catch {}
   }
+  Write-UpdateLog "更新失敗: $($_.Exception.Message)" 'ERROR'
+  if ($_.ScriptStackTrace) { Write-UpdateLog "Stack: $($_.ScriptStackTrace)" 'ERROR' }
   Write-Host ''
   Write-Host "更新できませんでした: $($_.Exception.Message)" -ForegroundColor Red
+  Write-Host "診断ログ: $updateLogPath"
   Write-Host '問題が解決しない場合は、GitHub ReleaseのSetup.exeを実行してください。'
   exit 1
 }
