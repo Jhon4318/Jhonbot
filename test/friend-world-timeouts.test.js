@@ -169,7 +169,8 @@ test('adds safe WebRTC negotiation and ICE diagnostics to the pinned NetherNet c
 
 
 test('forwards safe diagnostic callback into Xbox services signalling', () => {
-  const patched = patchClientSignallingOptionsSource(CLIENT_SERVICES_SIGNAL_OPTIONS_ORIGINAL)
+  const fixture = ['new NethernetSignal(', CLIENT_SERVICES_SIGNAL_OPTIONS_ORIGINAL, ')'].join('\n')
+  const patched = patchClientSignallingOptionsSource(fixture)
   assert.equal(patched.changed, true)
   assert.match(patched.source, new RegExp(CLIENT_SERVICES_SIGNAL_OPTIONS_MARKER))
   assert.match(patched.source, /onDiagnostics: this\.options\.nethernet\.onDiagnostics/)
@@ -218,7 +219,6 @@ test('adds privacy-safe Xbox signalling WebSocket diagnostics', () => {
     '    const message = \'encoded\'',
     NETHERNET_SIGNAL_DIAGNOSTIC_WRITE_ORIGINAL,
     '  }',
-    '  connect () {}',
     '}'
   ].join('\n')
   const patched = patchNethernetSignallingSource(fixture)
