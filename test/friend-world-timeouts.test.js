@@ -127,6 +127,7 @@ test('adds safe WebRTC negotiation and ICE diagnostics to the pinned NetherNet c
     '      if (!isCurrent()) return',
     NETHERNET_CLIENT_DIAGNOSTIC_ICE_STATE_ORIGINAL,
     '    }',
+    NETHERNET_CLIENT_DIAGNOSTIC_ICE_GATHERING_ORIGINAL,
     '  }',
     '  async createOffer (offer, rtcConnection, isCurrent, sdp) {',
     '    try {',
@@ -137,6 +138,11 @@ test('adds safe WebRTC negotiation and ICE diagnostics to the pinned NetherNet c
     '  signalError (networkId, code) {',
     NETHERNET_CLIENT_DIAGNOSTIC_SIGNAL_ERROR_ORIGINAL,
     '  }',
+    '  isExpectedSignal (signal) {',
+    NETHERNET_CLIENT_DIAGNOSTIC_UNEXPECTED_CONNECTION_ORIGINAL,
+    NETHERNET_CLIENT_DIAGNOSTIC_UNEXPECTED_NETWORK_ORIGINAL,
+    '      return true',
+    '    }',
     '  handleSignal (signal) {',
     NETHERNET_CLIENT_DIAGNOSTIC_HANDLE_SIGNAL_ORIGINAL,
     '  }',
@@ -153,6 +159,9 @@ test('adds safe WebRTC negotiation and ICE diagnostics to the pinned NetherNet c
   assert.match(patched.source, /WebRTC connection state:/)
   assert.match(patched.source, /ICE connection state:/)
   assert.match(patched.source, /Local ICE candidates gathered:/)
+  assert.match(patched.source, /ICE gathering state:/)
+  assert.match(patched.source, /Incoming signal ignored: connection ID mismatch/)
+  assert.match(patched.source, /Incoming signal ignored: network ID mismatch/)
   assert.doesNotMatch(patched.source, /this\.reportDiagnostic\((?:localSdp|candidateLines|candidate\.candidate)/)
   assert.equal(patchNethernetClientDiagnosticsSource(patched.source).changed, false)
   assert.doesNotThrow(() => new vm.Script(patched.source))
@@ -163,7 +172,7 @@ test('forwards safe diagnostic callback into Xbox services signalling', () => {
   const patched = patchClientSignallingOptionsSource(CLIENT_SERVICES_SIGNAL_OPTIONS_ORIGINAL)
   assert.equal(patched.changed, true)
   assert.match(patched.source, new RegExp(CLIENT_SERVICES_SIGNAL_OPTIONS_MARKER))
-  assert.match(patched.source, /onDiagnostics: this\.options\\.nethernet\\.onDiagnostics/)
+  assert.match(patched.source, /onDiagnostics: this\.options\.nethernet\.onDiagnostics/)
   assert.equal(patchClientSignallingOptionsSource(patched.source).changed, false)
   assert.doesNotThrow(() => new vm.Script(patched.source))
 })
