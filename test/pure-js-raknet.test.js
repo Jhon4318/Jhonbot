@@ -19,6 +19,20 @@ const {
   patchCreateClientSource,
   VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL,
   CLIENT_SERVICES_SIGNAL_ORIGINAL,
+  CLIENT_SERVICES_SIGNAL_OPTIONS_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_OPTIONS_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_METHOD_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_OPEN_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_CLOSE_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_TURN_AUTH_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_LEGACY_CREDENTIALS_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_LEGACY_SIGNAL_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_MESSAGE_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_JSONRPC_SIGNAL_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_WRITE_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_UNEXPECTED_CONNECTION_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_UNEXPECTED_NETWORK_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_ICE_GATHERING_ORIGINAL,
   CLIENT_CONNECTED_ORIGINAL,
   CLIENT_TIMEOUT_ORIGINAL,
   NETHERNET_OPTIONS_ORIGINAL,
@@ -107,6 +121,9 @@ test('patches app and nested Mineflayer protocol copies without touching options
       IDENTITY_ORIGINAL,
       '  function connect (sessionData) {',
       CLIENT_SERVICES_SIGNAL_ORIGINAL,
+      '    this.nethernet.signalling = new NethernetSignal(',
+      CLIENT_SERVICES_SIGNAL_OPTIONS_ORIGINAL,
+      '    )',
       CLIENT_CONNECTED_ORIGINAL,
       '    }',
       CLIENT_TIMEOUT_ORIGINAL,
@@ -114,6 +131,51 @@ test('patches app and nested Mineflayer protocol copies without touching options
       '}'
     ].join('\n')
     fs.writeFileSync(path.join(root, 'src', 'client.js'), clientSource)
+    const servicesSignallingSource = [
+      'const debug = () => {}',
+      'class NethernetSignal {',
+      '  constructor (options) {',
+      NETHERNET_SIGNAL_DIAGNOSTIC_OPTIONS_ORIGINAL,
+      '  }',
+      NETHERNET_SIGNAL_DIAGNOSTIC_METHOD_ORIGINAL,
+      '    return Promise.resolve()',
+      '  }',
+      '  onOpen () {',
+      NETHERNET_SIGNAL_DIAGNOSTIC_OPEN_ORIGINAL,
+      '  }',
+      '  onClose (code, reason) {',
+      NETHERNET_SIGNAL_DIAGNOSTIC_CLOSE_ORIGINAL,
+      '  }',
+      '  async _requestTurnAuth () {',
+      NETHERNET_SIGNAL_DIAGNOSTIC_TURN_AUTH_ORIGINAL,
+      '  }',
+      '  onMessage (res) {',
+      NETHERNET_SIGNAL_DIAGNOSTIC_MESSAGE_ORIGINAL,
+      '    debug(\'Received signalling message\', message.method || message.Type)',
+      '    switch (message.Type) {',
+      '      case LegacyMessageType.Credentials: {',
+      NETHERNET_SIGNAL_DIAGNOSTIC_LEGACY_CREDENTIALS_ORIGINAL,
+      '        break',
+      '      }',
+      '      case LegacyMessageType.Signal: {',
+      NETHERNET_SIGNAL_DIAGNOSTIC_LEGACY_SIGNAL_ORIGINAL,
+      '        break',
+      '      }',
+      '    }',
+      '  }',
+      '  _onJsonRpcMessage (message) {',
+      '    if (message.method === \'Signaling_ReceiveMessage_v1_0\') {',
+      NETHERNET_SIGNAL_DIAGNOSTIC_JSONRPC_SIGNAL_ORIGINAL,
+      '    }',
+      '  }',
+      '  write (signal) {',
+      '    const message = \'encoded\'',
+      NETHERNET_SIGNAL_DIAGNOSTIC_WRITE_ORIGINAL,
+      '  }',
+      '}',
+      'module.exports = { NethernetSignal }'
+    ].join('\n')
+    fs.writeFileSync(path.join(root, 'src', 'nethernet', 'signalling.js'), servicesSignallingSource)
     const nethernetSource = [
       "const { Client } = require('nethernet')",
       "const { signallingUrl } = require('./http')",
@@ -184,7 +246,7 @@ test('patches app and nested Mineflayer protocol copies without touching options
     fs.writeFileSync(path.join(nethernetRoot, 'src', 'client.js'), nethernetClientSource)
 
     const first = applyPatch(tempRoot)
-    assert.equal(first.length, 13)
+    assert.equal(first.length, 17)
     for (const target of [rootProtocol, nestedProtocol]) {
       const source = fs.readFileSync(path.join(target, 'src', 'createClient.js'), 'utf8')
       assert.ok(source.includes(MARKER))
@@ -194,6 +256,11 @@ test('patches app and nested Mineflayer protocol copies without touching options
       assert.match(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_DIAGNOSTICS/)
       assert.match(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TRANSPORT_CONNECTED/)
       assert.match(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TIMEOUT_DIAGNOSTICS/)
+      assert.match(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_OPTIONS/)
+      const serviceSignalSource = fs.readFileSync(path.join(target, 'src', 'nethernet', 'signalling.js'), 'utf8')
+      assert.match(serviceSignalSource, /BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_OPTIONS/)
+      assert.match(serviceSignalSource, /BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_WRITE/)
+      assert.match(serviceSignalSource, /Incoming legacy signal parsed/)
       const nethernetOptionsSource = fs.readFileSync(path.join(target, 'src', 'nethernet', 'index.js'), 'utf8')
       assert.match(nethernetOptionsSource, /BEDROCK_BOT_CONSOLE_NETHERNET_TIMEOUT_OPTIONS/)
       assert.match(nethernetOptionsSource, /inactivityTimeoutMs: options.inactivityTimeoutMs/)
@@ -203,8 +270,8 @@ test('patches app and nested Mineflayer protocol copies without touching options
     assert.match(identitySource, /BEDROCK_BOT_CONSOLE_SESSION_FINGERPRINT_SCOPE/)
     assert.match(identitySource, /normalizeFingerprintScope\(sdp\)/)
     const second = applyPatch(tempRoot)
-    assert.equal(second.length, 13)
-    assert.deepEqual(second.map(result => result.changed), Array(13).fill(false))
+    assert.equal(second.length, 17)
+    assert.deepEqual(second.map(result => result.changed), Array(17).fill(false))
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true })
   }
