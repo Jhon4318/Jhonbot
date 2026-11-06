@@ -7,6 +7,21 @@ const vm = require('node:vm')
 const {
   CLIENT_SERVICES_SIGNAL_ORIGINAL,
   CLIENT_SERVICES_SIGNAL_MARKER,
+  CLIENT_SERVICES_SIGNAL_OPTIONS_ORIGINAL,
+  CLIENT_SERVICES_SIGNAL_OPTIONS_MARKER,
+  NETHERNET_SIGNAL_DIAGNOSTIC_OPTIONS_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_METHOD_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_OPEN_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_CLOSE_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_MESSAGE_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_TURN_AUTH_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_LEGACY_CREDENTIALS_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_LEGACY_SIGNAL_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_JSONRPC_SIGNAL_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_WRITE_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_UNEXPECTED_CONNECTION_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_UNEXPECTED_NETWORK_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_ICE_GATHERING_ORIGINAL,
   CLIENT_CONNECTED_ORIGINAL,
   CLIENT_CONNECTED_MARKER,
   CLIENT_TIMEOUT_ORIGINAL,
@@ -24,6 +39,8 @@ const {
   NETHERNET_CLIENT_DIAGNOSTIC_SIGNAL_ERROR_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_HANDLE_SIGNAL_ORIGINAL,
   patchNethernetClientDiagnosticsSource,
+  patchClientSignallingOptionsSource,
+  patchNethernetSignallingSource,
   patchClientConnectionDiagnosticsSource,
   patchNethernetTimeoutOptionsSource
 } = require('../scripts/patch-bedrock-protocol')
@@ -138,5 +155,71 @@ test('adds safe WebRTC negotiation and ICE diagnostics to the pinned NetherNet c
   assert.match(patched.source, /Local ICE candidates gathered:/)
   assert.doesNotMatch(patched.source, /this\.reportDiagnostic\((?:localSdp|candidateLines|candidate\.candidate)/)
   assert.equal(patchNethernetClientDiagnosticsSource(patched.source).changed, false)
+  assert.doesNotThrow(() => new vm.Script(patched.source))
+})
+
+
+test('forwards safe diagnostic callback into Xbox services signalling', () => {
+  const patched = patchClientSignallingOptionsSource(CLIENT_SERVICES_SIGNAL_OPTIONS_ORIGINAL)
+  assert.equal(patched.changed, true)
+  assert.match(patched.source, new RegExp(CLIENT_SERVICES_SIGNAL_OPTIONS_MARKER))
+  assert.match(patched.source, /onDiagnostics: this\\.options\\.nethernet\\.onDiagnostics/)
+  assert.equal(patchClientSignallingOptionsSource(patched.source).changed, false)
+  assert.doesNotThrow(() => new vm.Script(patched.source))
+})
+
+test('adds privacy-safe Xbox signalling WebSocket diagnostics', () => {
+  const fixture = [
+    'class NethernetSignal {',
+    '  constructor (options) {',
+    NETHERNET_SIGNAL_DIAGNOSTIC_OPTIONS_ORIGINAL,
+    '  }',
+    NETHERNET_SIGNAL_DIAGNOSTIC_METHOD_ORIGINAL,
+    '    return true',
+    '  }',
+    '  onOpen () {',
+    NETHERNET_SIGNAL_DIAGNOSTIC_OPEN_ORIGINAL,
+    '  }',
+    '  onClose (code, reason) {',
+    NETHERNET_SIGNAL_DIAGNOSTIC_CLOSE_ORIGINAL,
+    '  }',
+    '  async _requestTurnAuth () {',
+    NETHERNET_SIGNAL_DIAGNOSTIC_TURN_AUTH_ORIGINAL,
+    '  }',
+    '  onMessage (res) {',
+    NETHERNET_SIGNAL_DIAGNOSTIC_MESSAGE_ORIGINAL,
+    '    debug(\'Received signalling message\', message.method || message.Type)',
+    '    switch (message.Type) {',
+    '      case LegacyMessageType.Credentials: {',
+    NETHERNET_SIGNAL_DIAGNOSTIC_LEGACY_CREDENTIALS_ORIGINAL,
+    '        break',
+    '      }',
+    '      case LegacyMessageType.Signal: {',
+    NETHERNET_SIGNAL_DIAGNOSTIC_LEGACY_SIGNAL_ORIGINAL,
+    '        break',
+    '      }',
+    '    }',
+    '  }',
+    '  _onJsonRpcMessage (message) {',
+    '    if (message.method === \'Signaling_ReceiveMessage_v1_0\') {',
+    NETHERNET_SIGNAL_DIAGNOSTIC_JSONRPC_SIGNAL_ORIGINAL,
+    '    }',
+    '  }',
+    '  write (signal) {',
+    '    const message = \'encoded\'',
+    NETHERNET_SIGNAL_DIAGNOSTIC_WRITE_ORIGINAL,
+    '  }',
+    '  connect () {}',
+    '}'
+  ].join('\\n')
+  const patched = patchNethernetSignallingSource(fixture)
+  assert.equal(patched.changed, true)
+  assert.match(patched.source, /Xbox signalling WebSocket opened/)
+  assert.match(patched.source, /TURN credentials received/)
+  assert.match(patched.source, /Incoming legacy signal parsed/)
+  assert.match(patched.source, /Incoming JSON-RPC signal parsed/)
+  assert.match(patched.source, /WebSocket send callback completed/)
+  assert.doesNotMatch(patched.source, /reportDiagnostic\\([^)]*(?:SDP|JWT|ICE password|connectionId|networkId)/i)
+  assert.equal(patchNethernetSignallingSource(patched.source).changed, false)
   assert.doesNotThrow(() => new vm.Script(patched.source))
 })
