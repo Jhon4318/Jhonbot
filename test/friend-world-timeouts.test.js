@@ -163,7 +163,7 @@ test('forwards safe diagnostic callback into Xbox services signalling', () => {
   const patched = patchClientSignallingOptionsSource(CLIENT_SERVICES_SIGNAL_OPTIONS_ORIGINAL)
   assert.equal(patched.changed, true)
   assert.match(patched.source, new RegExp(CLIENT_SERVICES_SIGNAL_OPTIONS_MARKER))
-  assert.match(patched.source, /onDiagnostics: this\\.options\\.nethernet\\.onDiagnostics/)
+  assert.match(patched.source, /onDiagnostics: this\.options\\.nethernet\\.onDiagnostics/)
   assert.equal(patchClientSignallingOptionsSource(patched.source).changed, false)
   assert.doesNotThrow(() => new vm.Script(patched.source))
 })
@@ -211,7 +211,7 @@ test('adds privacy-safe Xbox signalling WebSocket diagnostics', () => {
     '  }',
     '  connect () {}',
     '}'
-  ].join('\\n')
+  ].join('\n')
   const patched = patchNethernetSignallingSource(fixture)
   assert.equal(patched.changed, true)
   assert.match(patched.source, /Xbox signalling WebSocket opened/)
@@ -219,7 +219,7 @@ test('adds privacy-safe Xbox signalling WebSocket diagnostics', () => {
   assert.match(patched.source, /Incoming legacy signal parsed/)
   assert.match(patched.source, /Incoming JSON-RPC signal parsed/)
   assert.match(patched.source, /WebSocket send callback completed/)
-  assert.doesNotMatch(patched.source, /reportDiagnostic\\([^)]*(?:SDP|JWT|ICE password|connectionId|networkId)/i)
+  assert.doesNotMatch(patched.source, /reportDiagnostic\([^)]*(?:SDP|JWT|ICE password|connectionId|networkId)/i)
   assert.equal(patchNethernetSignallingSource(patched.source).changed, false)
   assert.doesNotThrow(() => new vm.Script(patched.source))
 })
