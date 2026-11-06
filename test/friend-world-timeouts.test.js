@@ -219,6 +219,9 @@ test('adds privacy-safe Xbox signalling WebSocket diagnostics', () => {
     '    const message = \'encoded\'',
     NETHERNET_SIGNAL_DIAGNOSTIC_WRITE_ORIGINAL,
     '  }',
+    NETHERNET_SIGNAL_DIAGNOSTIC_METHOD_ORIGINAL,
+    '    return Promise.resolve()',
+    '  }',
     '}'
   ].join('\n')
   const patched = patchNethernetSignallingSource(fixture)
