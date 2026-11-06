@@ -26,8 +26,13 @@ if (!$applierSource.Contains('Bedrock\s+Bot\s+Console')) {
 if (!$applierSource.Contains('Programs\Bedrock Bot Console')) {
   throw 'Apply-Update.ps1 must have a per-user standard install-path fallback.'
 }
-if (!$applierSource.Contains('ProductVersion')) {
+if (!$applierSource.Contains('ProductVersion') -or !$applierSource.Contains('FileVersion')) {
   throw 'Apply-Update.ps1 must be able to read the installed EXE version.'
+}
+$fileVersionIndex = $applierSource.IndexOf('$versionText = [string]$exeVersionInfo.FileVersion')
+$productVersionIndex = $applierSource.IndexOf('$versionText = [string]$exeVersionInfo.ProductVersion')
+if ($fileVersionIndex -lt 0 -or $productVersionIndex -lt $fileVersionIndex) {
+  throw 'Apply-Update.ps1 must prefer FileVersion and use ProductVersion only as a fallback.'
 }
 if ($applierSource.Contains("インストール情報を確認できません。通常版Setup.exeで更新してください。")) {
   throw 'Apply-Update.ps1 must not require uninstall registry metadata.'
