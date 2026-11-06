@@ -162,6 +162,8 @@ test('adds safe WebRTC negotiation and ICE diagnostics to the pinned NetherNet c
   assert.match(patched.source, /ICE gathering state:/)
   assert.match(patched.source, /Incoming signal ignored: connection ID mismatch/)
   assert.match(patched.source, /Incoming signal ignored: network ID mismatch/)
+  assert.doesNotMatch(patched.source, /debug\('Ignoring signal for unexpected connection:', signal\.connectionId\)/)
+  assert.doesNotMatch(patched.source, /debug\('Ignoring signal from unexpected network:', signal\.networkId\)/)
   assert.doesNotMatch(patched.source, /this\.reportDiagnostic\((?:localSdp|candidateLines|candidate\.candidate)/)
   assert.equal(patchNethernetClientDiagnosticsSource(patched.source).changed, false)
   assert.doesNotThrow(() => new vm.Script(patched.source))
