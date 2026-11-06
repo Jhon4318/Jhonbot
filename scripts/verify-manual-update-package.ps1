@@ -20,6 +20,18 @@ if (!$applierSource.Contains('CloseMainWindow')) {
 if (!$applierSource.Contains('updateLogPath')) {
   throw 'Apply-Update.ps1 must write an update diagnostic log.'
 }
+if (!$applierSource.Contains('Bedrock\s+Bot\s+Console')) {
+  throw 'Apply-Update.ps1 must tolerate version-suffixed uninstall display names.'
+}
+if (!$applierSource.Contains('Programs\Bedrock Bot Console')) {
+  throw 'Apply-Update.ps1 must have a per-user standard install-path fallback.'
+}
+if (!$applierSource.Contains('ProductVersion')) {
+  throw 'Apply-Update.ps1 must be able to read the installed EXE version.'
+}
+if ($applierSource.Contains("インストール情報を確認できません。通常版Setup.exeで更新してください。")) {
+  throw 'Apply-Update.ps1 must not require uninstall registry metadata.'
+}
 
 if (!(Test-Path $UpdateZip -PathType Leaf)) {
   throw "Update ZIP not found: $UpdateZip"
