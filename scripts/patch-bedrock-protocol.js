@@ -809,7 +809,7 @@ function patchNethernetClientDiagnosticsSource (source) {
     [
       '    if (signal.connectionId?.toString() !== this.connectionId.toString()) {',
       "      this.reportDiagnostic('Incoming signal ignored: connection ID mismatch')",
-      "      debug('Ignoring signal for unexpected connection:', signal.connectionId)",
+      "      debug('Ignoring signal for unexpected connection')",
       '      return false',
       '    } // BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_UNEXPECTED_CONNECTION'
     ].join('\n'),
@@ -821,7 +821,7 @@ function patchNethernetClientDiagnosticsSource (source) {
     [
       '    if (signal.networkId != null && signal.networkId.toString() !== this.serverNetworkId.toString()) {',
       "      this.reportDiagnostic('Incoming signal ignored: network ID mismatch')",
-      "      debug('Ignoring signal from unexpected network:', signal.networkId)",
+      "      debug('Ignoring signal from unexpected network')",
       '      return false',
       '    } // BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_UNEXPECTED_NETWORK'
     ].join('\n'),
