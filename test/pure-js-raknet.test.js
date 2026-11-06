@@ -228,6 +228,7 @@ test('patches app and nested Mineflayer protocol copies without touching options
       '      if (!isCurrent()) return',
       NETHERNET_CLIENT_DIAGNOSTIC_ICE_STATE_ORIGINAL,
       '    }',
+      NETHERNET_CLIENT_DIAGNOSTIC_ICE_GATHERING_ORIGINAL,
       '  }',
       '  async createOffer (offer, rtcConnection, isCurrent, sdp) {',
       '    try {',
@@ -237,6 +238,11 @@ test('patches app and nested Mineflayer protocol copies without touching options
       '  }',
       '  signalError (networkId, code) {',
       NETHERNET_CLIENT_DIAGNOSTIC_SIGNAL_ERROR_ORIGINAL,
+      '  }',
+      '  isExpectedSignal (signal) {',
+      NETHERNET_CLIENT_DIAGNOSTIC_UNEXPECTED_CONNECTION_ORIGINAL,
+      NETHERNET_CLIENT_DIAGNOSTIC_UNEXPECTED_NETWORK_ORIGINAL,
+      '    return true',
       '  }',
       '  handleSignal (signal) {',
       NETHERNET_CLIENT_DIAGNOSTIC_HANDLE_SIGNAL_ORIGINAL,
@@ -261,6 +267,7 @@ test('patches app and nested Mineflayer protocol copies without touching options
       assert.match(serviceSignalSource, /BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_OPTIONS/)
       assert.match(serviceSignalSource, /BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_WRITE/)
       assert.match(serviceSignalSource, /Incoming legacy signal parsed/)
+      assert.match(serviceSignalSource, /Outgoing Xbox signalling WebSocket send callback completed/)
       const nethernetOptionsSource = fs.readFileSync(path.join(target, 'src', 'nethernet', 'index.js'), 'utf8')
       assert.match(nethernetOptionsSource, /BEDROCK_BOT_CONSOLE_NETHERNET_TIMEOUT_OPTIONS/)
       assert.match(nethernetOptionsSource, /inactivityTimeoutMs: options.inactivityTimeoutMs/)
