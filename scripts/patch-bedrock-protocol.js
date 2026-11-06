@@ -54,6 +54,74 @@ const CLIENT_SERVICES_SIGNAL_ORIGINAL = [
   '          .catch(error => this.onConnectionError(error))'
 ].join('\n')
 const CLIENT_SERVICES_SIGNAL_MARKER = 'BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_DIAGNOSTICS'
+const CLIENT_SERVICES_SIGNAL_OPTIONS_ORIGINAL = '          { protocol: this.options.nethernet._signallingProtocol, host: this.options.nethernet._signallingHost, timeout: this.options.nethernet.signallingConnectTimeout }'
+const CLIENT_SERVICES_SIGNAL_OPTIONS_MARKER = 'BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_OPTIONS'
+
+const NETHERNET_SIGNAL_DIAGNOSTIC_OPTIONS_ORIGINAL = [
+  '    this.host = options.host || null',
+  '    this.timeout = options.timeout ?? 15000'
+].join('\\n')
+const NETHERNET_SIGNAL_DIAGNOSTIC_METHOD_ORIGINAL = '  connect () {'
+const NETHERNET_SIGNAL_DIAGNOSTIC_OPEN_ORIGINAL = "    debug('Connected to Signal')"
+const NETHERNET_SIGNAL_DIAGNOSTIC_CLOSE_ORIGINAL = '    debug(' + String.fromCharCode(96) + 'Signal Disconnected with code ${code} and reason ${reason}' + String.fromCharCode(96) + ')'
+const NETHERNET_SIGNAL_DIAGNOSTIC_MESSAGE_ORIGINAL = '    const message = parseJson(res)'
+const NETHERNET_SIGNAL_DIAGNOSTIC_TURN_AUTH_ORIGINAL = [
+  '    this.credentials = parseTurnAuth(result)',
+  "    this.emit('credentials', this.credentials)"
+].join('\\n')
+const NETHERNET_SIGNAL_DIAGNOSTIC_LEGACY_CREDENTIALS_ORIGINAL = [
+  '        this.credentials = parseTurnServers(message.Message)',
+  "        this.emit('credentials', this.credentials)"
+].join('\\n')
+const NETHERNET_SIGNAL_DIAGNOSTIC_LEGACY_SIGNAL_ORIGINAL = [
+  '        const signal = parseSignalMessage(message.Message)',
+  '        if (!signal) {',
+  "          debug('Could not parse signal', message.Message)",
+  '          return',
+  '        }',
+  '        signal.networkId = String(message.From)',
+  "        this.emit('signal', signal)"
+].join('\\n')
+const NETHERNET_SIGNAL_DIAGNOSTIC_JSONRPC_SIGNAL_ORIGINAL = [
+  '      const items = Array.isArray(message.params) ? message.params : [message.params]',
+  '      for (const item of items) {',
+  '        const signal = parseJsonRpcReceiveItem(item)',
+  "        if (signal) this.emit('signal', signal)",
+  '      }'
+].join('\\n')
+const NETHERNET_SIGNAL_DIAGNOSTIC_WRITE_ORIGINAL = [
+  "    debug('Sending Signal', signal.type)",
+  '',
+  '    this.ws.send(message)'
+].join('\\n')
+
+const NETHERNET_SIGNAL_DIAGNOSTIC_OPTIONS_MARKER = 'BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_OPTIONS'
+const NETHERNET_SIGNAL_DIAGNOSTIC_METHOD_MARKER = 'BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_METHOD'
+const NETHERNET_SIGNAL_DIAGNOSTIC_OPEN_MARKER = 'BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_OPEN'
+const NETHERNET_SIGNAL_DIAGNOSTIC_CLOSE_MARKER = 'BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_CLOSE'
+const NETHERNET_SIGNAL_DIAGNOSTIC_MESSAGE_MARKER = 'BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_MESSAGE'
+const NETHERNET_SIGNAL_DIAGNOSTIC_TURN_AUTH_MARKER = 'BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_TURN_AUTH'
+const NETHERNET_SIGNAL_DIAGNOSTIC_LEGACY_CREDENTIALS_MARKER = 'BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_LEGACY_CREDENTIALS'
+const NETHERNET_SIGNAL_DIAGNOSTIC_LEGACY_SIGNAL_MARKER = 'BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_LEGACY_SIGNAL'
+const NETHERNET_SIGNAL_DIAGNOSTIC_JSONRPC_SIGNAL_MARKER = 'BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_JSONRPC_SIGNAL'
+const NETHERNET_SIGNAL_DIAGNOSTIC_WRITE_MARKER = 'BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_WRITE'
+
+const NETHERNET_CLIENT_DIAGNOSTIC_UNEXPECTED_CONNECTION_ORIGINAL = [
+  '    if (signal.connectionId?.toString() !== this.connectionId.toString()) {',
+  "      debug('Ignoring signal for unexpected connection:', signal.connectionId)",
+  '      return false',
+  '    }'
+].join('\\n')
+const NETHERNET_CLIENT_DIAGNOSTIC_UNEXPECTED_NETWORK_ORIGINAL = [
+  '    if (signal.networkId != null && signal.networkId.toString() !== this.serverNetworkId.toString()) {',
+  "      debug('Ignoring signal from unexpected network:', signal.networkId)",
+  '      return false',
+  '    }'
+].join('\\n')
+const NETHERNET_CLIENT_DIAGNOSTIC_ICE_GATHERING_ORIGINAL = "    const reliableChannel = rtcConnection.createDataChannel('ReliableDataChannel', { ordered: true })"
+const NETHERNET_CLIENT_DIAGNOSTIC_ICE_GATHERING_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_ICE_GATHERING'
+const NETHERNET_CLIENT_DIAGNOSTIC_UNEXPECTED_CONNECTION_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_UNEXPECTED_CONNECTION'
+const NETHERNET_CLIENT_DIAGNOSTIC_UNEXPECTED_NETWORK_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_UNEXPECTED_NETWORK'
 const CLIENT_CONNECTED_ORIGINAL = [
   '    this.connection.onConnected = () => {',
   '      this.status = ClientStatus.Connecting'
@@ -404,6 +472,16 @@ function patchHttpErrorSource (source) {
   return applySingleReplace(source, HTTP_ERROR_ORIGINAL, HTTP_ERROR_REPLACEMENT, HTTP_ERROR_MARKER, 'nethernet/src/signalling/http.js')
 }
 
+function patchClientSignallingOptionsSource (source) {
+  return applySingleReplace(
+    source,
+    CLIENT_SERVICES_SIGNAL_OPTIONS_ORIGINAL,
+    '          { protocol: this.options.nethernet._signallingProtocol, host: this.options.nethernet._signallingHost, timeout: this.options.nethernet.signallingConnectTimeout, onDiagnostics: this.options.nethernet.onDiagnostics } // BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_OPTIONS',
+    CLIENT_SERVICES_SIGNAL_OPTIONS_MARKER,
+    'bedrock-protocol/src/client.js Xbox signalling diagnostics callback'
+  )
+}
+
 function patchClientConnectionDiagnosticsSource (source) {
   const signal = applySingleReplace(
     source,
@@ -475,6 +553,141 @@ function patchNethernetTimeoutOptionsSource (source) {
 }
 
 
+function patchNethernetSignallingSource (source) {
+  let current = source
+  let changed = false
+  const apply = (original, replacement, marker, label) => {
+    const result = applySingleReplace(current, original, replacement, marker, label)
+    current = result.source
+    changed = changed || result.changed
+  }
+
+  apply(
+    NETHERNET_SIGNAL_DIAGNOSTIC_OPTIONS_ORIGINAL,
+    [
+      '    this.host = options.host || null',
+      '    this.timeout = options.timeout ?? 15000',
+      "    this.onDiagnostics = typeof options.onDiagnostics === 'function' ? options.onDiagnostics : null // BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_OPTIONS"
+    ].join('\\n'),
+    NETHERNET_SIGNAL_DIAGNOSTIC_OPTIONS_MARKER,
+    'bedrock-protocol/src/nethernet/signalling.js callback option'
+  )
+  apply(
+    NETHERNET_SIGNAL_DIAGNOSTIC_METHOD_ORIGINAL,
+    [
+      '  reportDiagnostic (message) {',
+      "    if (typeof this.onDiagnostics !== 'function') return",
+      '    try {',
+      '      this.onDiagnostics(String(message))',
+      '    } catch (error) {',
+      "      debug('Diagnostic callback failed:', error.message)",
+      '    }',
+      '  } // BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_METHOD',
+      '',
+      NETHERNET_SIGNAL_DIAGNOSTIC_METHOD_ORIGINAL
+    ].join('\\n'),
+    NETHERNET_SIGNAL_DIAGNOSTIC_METHOD_MARKER,
+    'bedrock-protocol/src/nethernet/signalling.js diagnostic callback'
+  )
+  apply(
+    NETHERNET_SIGNAL_DIAGNOSTIC_OPEN_ORIGINAL,
+    [
+      "    this.reportDiagnostic('Xbox signalling WebSocket opened; protocol=' + this._protocol)",
+      NETHERNET_SIGNAL_DIAGNOSTIC_OPEN_ORIGINAL + ' // BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_OPEN'
+    ].join('\\n'),
+    NETHERNET_SIGNAL_DIAGNOSTIC_OPEN_MARKER,
+    'bedrock-protocol/src/nethernet/signalling.js WebSocket open diagnostics'
+  )
+  apply(
+    NETHERNET_SIGNAL_DIAGNOSTIC_CLOSE_ORIGINAL,
+    [
+      "    this.reportDiagnostic('Xbox signalling WebSocket closed; protocol=' + this._protocol + ', code=' + code)",
+      NETHERNET_SIGNAL_DIAGNOSTIC_CLOSE_ORIGINAL + ' // BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_CLOSE'
+    ].join('\\n'),
+    NETHERNET_SIGNAL_DIAGNOSTIC_CLOSE_MARKER,
+    'bedrock-protocol/src/nethernet/signalling.js WebSocket close diagnostics'
+  )
+  apply(
+    NETHERNET_SIGNAL_DIAGNOSTIC_TURN_AUTH_ORIGINAL,
+    [
+      '    this.credentials = parseTurnAuth(result)',
+      "    this.reportDiagnostic('TURN credentials received; protocol=jsonrpc')",
+      "    this.emit('credentials', this.credentials) // BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_TURN_AUTH"
+    ].join('\\n'),
+    NETHERNET_SIGNAL_DIAGNOSTIC_TURN_AUTH_MARKER,
+    'bedrock-protocol/src/nethernet/signalling.js JSON-RPC TURN credentials diagnostics'
+  )
+  apply(
+    NETHERNET_SIGNAL_DIAGNOSTIC_LEGACY_CREDENTIALS_ORIGINAL,
+    [
+      '        this.credentials = parseTurnServers(message.Message)',
+      "        this.reportDiagnostic('TURN credentials received; protocol=legacy')",
+      "        this.emit('credentials', this.credentials) // BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_LEGACY_CREDENTIALS"
+    ].join('\\n'),
+    NETHERNET_SIGNAL_DIAGNOSTIC_LEGACY_CREDENTIALS_MARKER,
+    'bedrock-protocol/src/nethernet/signalling.js legacy TURN credentials diagnostics'
+  )
+  apply(
+    NETHERNET_SIGNAL_DIAGNOSTIC_MESSAGE_ORIGINAL,
+    [
+      NETHERNET_SIGNAL_DIAGNOSTIC_MESSAGE_ORIGINAL,
+      "    this.reportDiagnostic('Xbox signalling frame received; protocol=' + this._protocol) // BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_MESSAGE"
+    ].join('\\n'),
+    NETHERNET_SIGNAL_DIAGNOSTIC_MESSAGE_MARKER,
+    'bedrock-protocol/src/nethernet/signalling.js incoming frame diagnostics'
+  )
+  apply(
+    NETHERNET_SIGNAL_DIAGNOSTIC_LEGACY_SIGNAL_ORIGINAL,
+    [
+      '        const signal = parseSignalMessage(message.Message)',
+      '        if (!signal) {',
+      "          this.reportDiagnostic('Incoming legacy signal could not be parsed')",
+      "          debug('Could not parse signal', message.Message)",
+      '          return',
+      '        }',
+      "        const safeType = ['CONNECTREQUEST', 'CONNECTRESPONSE', 'CANDIDATEADD', 'CONNECTERROR'].includes(signal.type) ? signal.type : 'unknown'",
+      "        this.reportDiagnostic('Incoming legacy signal parsed; type=' + safeType)",
+      '        signal.networkId = String(message.From)',
+      "        this.emit('signal', signal) // BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_LEGACY_SIGNAL"
+    ].join('\\n'),
+    NETHERNET_SIGNAL_DIAGNOSTIC_LEGACY_SIGNAL_MARKER,
+    'bedrock-protocol/src/nethernet/signalling.js legacy signal parsing diagnostics'
+  )
+  apply(
+    NETHERNET_SIGNAL_DIAGNOSTIC_JSONRPC_SIGNAL_ORIGINAL,
+    [
+      '      const items = Array.isArray(message.params) ? message.params : [message.params]',
+      "      this.reportDiagnostic('Xbox JSON-RPC signal delivery received; itemCount=' + items.length)",
+      '      for (const item of items) {',
+      '        const signal = parseJsonRpcReceiveItem(item)',
+      '        if (signal) {',
+      "          const safeType = ['CONNECTREQUEST', 'CONNECTRESPONSE', 'CANDIDATEADD', 'CONNECTERROR'].includes(signal.type) ? signal.type : 'unknown'",
+      "          this.reportDiagnostic('Incoming JSON-RPC signal parsed; type=' + safeType)",
+      "          this.emit('signal', signal)",
+      '        } else {',
+      "          this.reportDiagnostic('Incoming JSON-RPC signal item could not be parsed')",
+      '        }',
+      '      } // BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_JSONRPC_SIGNAL'
+    ].join('\\n'),
+    NETHERNET_SIGNAL_DIAGNOSTIC_JSONRPC_SIGNAL_MARKER,
+    'bedrock-protocol/src/nethernet/signalling.js JSON-RPC signal parsing diagnostics'
+  )
+  apply(
+    NETHERNET_SIGNAL_DIAGNOSTIC_WRITE_ORIGINAL,
+    [
+      "    const safeType = ['CONNECTREQUEST', 'CONNECTRESPONSE', 'CANDIDATEADD', 'CONNECTERROR'].includes(signal.type) ? signal.type : 'unknown'",
+      "    this.reportDiagnostic('Outgoing Xbox signalling WebSocket send queued; type=' + safeType)",
+      '    this.ws.send(message, error => {',
+      "      if (error) this.reportDiagnostic('Outgoing Xbox signalling WebSocket send failed; type=' + safeType)",
+      "      else this.reportDiagnostic('Outgoing Xbox signalling WebSocket send callback completed; type=' + safeType)",
+      '    }) // BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_DIAGNOSTIC_WRITE'
+    ].join('\\n'),
+    NETHERNET_SIGNAL_DIAGNOSTIC_WRITE_MARKER,
+    'bedrock-protocol/src/nethernet/signalling.js outgoing WebSocket send diagnostics'
+  )
+
+  return { source: current, changed }
+}
 function patchNethernetClientDiagnosticsSource (source) {
   let current = source
   let changed = false
@@ -558,6 +771,7 @@ function patchNethernetClientDiagnosticsSource (source) {
     [
       '      await rtcConnection.setLocalDescription(offer)',
       '      if (!isCurrent()) return',
+      "      this.reportDiagnostic('WebRTC states after local description: iceGatheringState=' + (rtcConnection.iceGatheringState || 'unknown') + ', iceConnectionState=' + (rtcConnection.iceConnectionState || 'unknown'))",
       "      const localSdp = String(rtcConnection.localDescription?.sdp || '')",
       "      const candidateLines = localSdp.split(/\\r?\\n/).filter(line => line.startsWith('a=candidate:'))",
       '      const candidateCounts = { host: 0, srflx: 0, relay: 0, other: 0 }',
@@ -589,6 +803,42 @@ function patchNethernetClientDiagnosticsSource (source) {
     ].join('\n'),
     NETHERNET_CLIENT_DIAGNOSTIC_SIGNAL_ERROR_MARKER,
     'nethernet/src/client.js ConnectError diagnostics'
+  )
+  apply(
+    NETHERNET_CLIENT_DIAGNOSTIC_UNEXPECTED_CONNECTION_ORIGINAL,
+    [
+      '    if (signal.connectionId?.toString() !== this.connectionId.toString()) {',
+      "      this.reportDiagnostic('Incoming signal ignored: connection ID mismatch')",
+      "      debug('Ignoring signal for unexpected connection:', signal.connectionId)",
+      '      return false',
+      '    } // BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_UNEXPECTED_CONNECTION'
+    ].join('\\n'),
+    NETHERNET_CLIENT_DIAGNOSTIC_UNEXPECTED_CONNECTION_MARKER,
+    'nethernet/src/client.js unexpected connection diagnostics'
+  )
+  apply(
+    NETHERNET_CLIENT_DIAGNOSTIC_UNEXPECTED_NETWORK_ORIGINAL,
+    [
+      '    if (signal.networkId != null && signal.networkId.toString() !== this.serverNetworkId.toString()) {',
+      "      this.reportDiagnostic('Incoming signal ignored: network ID mismatch')",
+      "      debug('Ignoring signal from unexpected network:', signal.networkId)",
+      '      return false',
+      '    } // BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_UNEXPECTED_NETWORK'
+    ].join('\\n'),
+    NETHERNET_CLIENT_DIAGNOSTIC_UNEXPECTED_NETWORK_MARKER,
+    'nethernet/src/client.js unexpected network diagnostics'
+  )
+  apply(
+    NETHERNET_CLIENT_DIAGNOSTIC_ICE_GATHERING_ORIGINAL,
+    [
+      '    rtcConnection.onicegatheringstatechange = () => {',
+      '      if (!isCurrent()) return',
+      "      this.reportDiagnostic('ICE gathering state: ' + rtcConnection.iceGatheringState)",
+      '    } // BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_ICE_GATHERING',
+      NETHERNET_CLIENT_DIAGNOSTIC_ICE_GATHERING_ORIGINAL
+    ].join('\\n'),
+    NETHERNET_CLIENT_DIAGNOSTIC_ICE_GATHERING_MARKER,
+    'nethernet/src/client.js ICE gathering diagnostics'
   )
   apply(
     NETHERNET_CLIENT_DIAGNOSTIC_HANDLE_SIGNAL_ORIGINAL,
@@ -702,6 +952,8 @@ function applyPatch (projectRoot = path.resolve(__dirname, '..')) {
     results.push(replaceFile(path.join(copy.root, 'src', 'createClient.js'), patchCreateClientSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'client.js'), patchIdentityDomainSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'client.js'), patchClientConnectionDiagnosticsSource))
+    results.push(replaceFile(path.join(copy.root, 'src', 'client.js'), patchClientSignallingOptionsSource))
+    results.push(replaceFile(path.join(copy.root, 'src', 'nethernet', 'signalling.js'), patchNethernetSignallingSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'nethernet', 'index.js'), patchNethernetTimeoutOptionsSource))
   }
 
@@ -756,6 +1008,21 @@ module.exports = {
   patchHttpErrorSource,
   CLIENT_SERVICES_SIGNAL_ORIGINAL,
   CLIENT_SERVICES_SIGNAL_MARKER,
+  CLIENT_SERVICES_SIGNAL_OPTIONS_ORIGINAL,
+  CLIENT_SERVICES_SIGNAL_OPTIONS_MARKER,
+  NETHERNET_SIGNAL_DIAGNOSTIC_OPTIONS_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_METHOD_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_OPEN_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_CLOSE_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_MESSAGE_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_TURN_AUTH_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_LEGACY_CREDENTIALS_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_LEGACY_SIGNAL_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_JSONRPC_SIGNAL_ORIGINAL,
+  NETHERNET_SIGNAL_DIAGNOSTIC_WRITE_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_UNEXPECTED_CONNECTION_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_UNEXPECTED_NETWORK_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_ICE_GATHERING_ORIGINAL,
   CLIENT_CONNECTED_ORIGINAL,
   CLIENT_CONNECTED_MARKER,
   CLIENT_TIMEOUT_ORIGINAL,
@@ -763,6 +1030,8 @@ module.exports = {
   NETHERNET_OPTIONS_ORIGINAL,
   NETHERNET_OPTIONS_MARKER,
   patchClientConnectionDiagnosticsSource,
+  patchClientSignallingOptionsSource,
+  patchNethernetSignallingSource,
   patchNethernetTimeoutOptionsSource,
   VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL,
   VERIFY_SERVER_IDENTITY_PUBLIC_KEY_MARKER,
