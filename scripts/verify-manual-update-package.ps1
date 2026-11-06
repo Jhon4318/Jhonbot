@@ -68,8 +68,8 @@ try {
   if ($manifest.appId -ne 'com.jhonbot.bedrockbotconsole') {
     throw 'Update manifest appId is invalid.'
   }
-  if ([version]$manifest.minimumSupportedVersion -ne [version]'0.3.4') {
-    throw 'Manual update minimum supported version must be 0.3.4.'
+  if ([version]$manifest.minimumSupportedVersion -ne [version]'0.3.9') {
+    throw 'Manual update minimum supported version must be 0.3.9.'
   }
   $actualAsarHash = (Get-FileHash -LiteralPath (Join-Path $verifyRoot 'resources/app.asar') -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($actualAsarHash -ne ([string]$manifest.appAsarSha256).ToLowerInvariant()) {
