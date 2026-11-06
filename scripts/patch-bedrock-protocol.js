@@ -642,7 +642,7 @@ function patchNethernetSignallingSource (source) {
       '        const signal = parseSignalMessage(message.Message)',
       '        if (!signal) {',
       "          this.reportDiagnostic('Incoming legacy signal could not be parsed')",
-      "          debug('Could not parse signal', message.Message)",
+      "          debug('Could not parse signal; message content omitted')",
       '          return',
       '        }',
       "        const safeType = ['CONNECTREQUEST', 'CONNECTRESPONSE', 'CANDIDATEADD', 'CONNECTERROR'].includes(signal.type) ? signal.type : 'unknown'",
