@@ -228,6 +228,8 @@ test('adds privacy-safe Xbox signalling WebSocket diagnostics', () => {
   assert.match(patched.source, /Incoming legacy signal parsed/)
   assert.match(patched.source, /Incoming JSON-RPC signal parsed/)
   assert.match(patched.source, /WebSocket send callback completed/)
+  assert.match(patched.source, /Could not parse signal; message content omitted/)
+  assert.doesNotMatch(patched.source, /debug\('Could not parse signal', message\.Message\)/)
   assert.doesNotMatch(patched.source, /reportDiagnostic\([^)]*(?:SDP|JWT|ICE password|connectionId|networkId)/i)
   assert.equal(patchNethernetSignallingSource(patched.source).changed, false)
   assert.doesNotThrow(() => new vm.Script(patched.source))
