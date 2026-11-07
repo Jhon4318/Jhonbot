@@ -648,6 +648,17 @@ function patchNethernetSignallingSource (source) {
     'bedrock-protocol/src/nethernet/signalling.js incoming frame diagnostics'
   )
   apply(
+    '    switch (message.Type) {',
+    [
+      "    const legacyType = message.Type === LegacyMessageType.RequestPing ? 'request-ping' : message.Type === LegacyMessageType.Signal ? 'signal' : message.Type === LegacyMessageType.Credentials ? 'credentials' : 'unknown'",
+      "    const senderRole = message.From === 'Server' ? 'server' : (message.From == null ? 'unknown' : 'peer')",
+      "    this.reportDiagnostic('Incoming legacy frame classified; type=' + legacyType + ', sender=' + senderRole)",
+      '    switch (message.Type) { // BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_LEGACY_FRAME_CLASSIFICATION'
+    ].join('\n'),
+    'BEDROCK_BOT_CONSOLE_XBOX_SIGNAL_LEGACY_FRAME_CLASSIFICATION',
+    'bedrock-protocol/src/nethernet/signalling.js legacy frame classification'
+  )
+  apply(
     NETHERNET_SIGNAL_DIAGNOSTIC_LEGACY_SIGNAL_ORIGINAL,
     [
       '        const signal = parseSignalMessage(message.Message)',
