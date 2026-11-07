@@ -57,6 +57,9 @@ const CLIENT_SERVICES_SIGNAL_MARKER = 'BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_D
 const CLIENT_SERVICES_SIGNAL_OPTIONS_ORIGINAL = '          { protocol: this.options.nethernet._signallingProtocol, host: this.options.nethernet._signallingHost, timeout: this.options.nethernet.signallingConnectTimeout }'
 const CLIENT_SERVICES_SIGNAL_OPTIONS_MARKER = 'BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_OPTIONS'
 
+const CLIENT_WORLD_CONNECTION_SELECTION_ORIGINAL = "  // Select the connection that advertises a NetherNet id. The ConnectionType value for NetherNet is not stable across\n  // client versions (a live 1.26.51 host advertises 7, this code assumed 3), so match on the NetherNetId itself.\n  const networkId = session.current.properties?.custom?.SupportedConnections?.find(e => e.NetherNetId)?.NetherNetId\n\n  if (!networkId) throw Error('Couldn\\'t find a Nethernet ID to connect to.')\n\n  await session.setActivity()\n  options.nethernet.networkId = BigInt(networkId)"
+const CLIENT_WORLD_CONNECTION_SELECTION_MARKER = 'BEDROCK_BOT_CONSOLE_XBOX_CONNECTIONTYPE_ROUTING'
+
 const NETHERNET_SIGNAL_DIAGNOSTIC_OPTIONS_ORIGINAL = [
   '    this.host = options.host || null',
   '    this.timeout = options.timeout ?? 15000'
@@ -493,6 +496,45 @@ function patchClientSignallingOptionsSource (source) {
   )
 }
 
+function patchClientWorldConnectionProtocolSource (source) {
+  const replacement = [
+    '  const supportedConnections = Array.isArray(session.current.properties?.custom?.SupportedConnections)',
+    '    ? session.current.properties.custom.SupportedConnections',
+    '    : []',
+    '  const modernConnection = supportedConnections.find(connection => {',
+    '    if (!connection || (connection.ConnectionType != null && Number(connection.ConnectionType) !== 7)) return false',
+    '    const pmsgId = connection.PmsgId ?? connection.pmsgId',
+    '    return connection.NetherNetId != null && pmsgId != null && String(pmsgId).trim() !== ""',
+    '  })',
+    '  const legacyConnection = supportedConnections.find(connection => {',
+    '    if (!connection || (connection.ConnectionType != null && Number(connection.ConnectionType) !== 3)) return false',
+    '    const webRtcNetworkId = connection.WebRTCNetworkId ?? connection.webRtcNetworkId ?? connection.NetherNetId',
+    '    return webRtcNetworkId != null && String(webRtcNetworkId).trim() !== ""',
+    '  })',
+    '  const selectedConnection = modernConnection || legacyConnection',
+    '  if (!selectedConnection) throw Error("Could not find a supported Xbox world connection (ConnectionType 7 with PmsgId or ConnectionType 3 with WebRTCNetworkId).")',
+    '  const isJsonRpc = Boolean(modernConnection)',
+    '  const protocol = isJsonRpc ? "jsonrpc" : "legacy"',
+    '  const connectionType = selectedConnection.ConnectionType ?? (isJsonRpc ? 7 : 3)',
+    '  const targetNetworkId = isJsonRpc',
+    '    ? (selectedConnection.PmsgId ?? selectedConnection.pmsgId)',
+    '    : (selectedConnection.WebRTCNetworkId ?? selectedConnection.webRtcNetworkId ?? selectedConnection.NetherNetId)',
+    '  const targetNetworkIdText = String(targetNetworkId).trim()',
+    '  if (!isJsonRpc && !/^\\d+$/.test(targetNetworkIdText)) throw Error("The selected legacy Xbox world has an invalid WebRTCNetworkId.")',
+    '  options.nethernet._signallingProtocol = protocol',
+    '  options.nethernet.networkId = isJsonRpc ? targetNetworkIdText : BigInt(targetNetworkIdText)',
+    '  options.nethernet.onDiagnostics?.("Selected Xbox world connection; ConnectionType=" + connectionType + ", protocol=" + protocol + ", targetIdKind=" + (isJsonRpc ? "pmsg" : "webrtc"))',
+    '  await session.setActivity() // BEDROCK_BOT_CONSOLE_XBOX_CONNECTIONTYPE_ROUTING'
+  ].join('\\n')
+  return applySingleReplace(
+    source,
+    CLIENT_WORLD_CONNECTION_SELECTION_ORIGINAL,
+    replacement,
+    CLIENT_WORLD_CONNECTION_SELECTION_MARKER,
+    'bedrock-protocol/src/client/auth.js Xbox ConnectionType routing'
+  )
+}
+
 function patchClientConnectionDiagnosticsSource (source) {
   const signal = applySingleReplace(
     source,
@@ -650,7 +692,7 @@ function patchNethernetSignallingSource (source) {
   apply(
     '    switch (message.Type) {',
     [
-      "    const legacyType = message.Type === LegacyMessageType.RequestPing ? 'request-ping' : message.Type === LegacyMessageType.Signal ? 'signal' : message.Type === LegacyMessageType.Credentials ? 'credentials' : 'unknown'",
+      "    const legacyType = message.Type === LegacyMessageType.RequestPing ? 'request-ping' : message.Type === LegacyMessageType.Signal ? 'signal' : message.Type === LegacyMessageType.Credentials ? 'credentials' : message.Type === 3 ? 'accepted' : message.Type === 4 ? 'ack' : 'unknown'",
       "    const legacyTypeCode = Number.isSafeInteger(message.Type) ? String(message.Type) : typeof message.Type",
       "    const legacyTypeDetail = legacyType === 'unknown' ? ', code=' + legacyTypeCode : ''",
       "    const senderRole = message.From === 'Server' ? 'server' : (message.From == null ? 'unknown' : 'peer')",
@@ -1007,6 +1049,7 @@ function applyPatch (projectRoot = path.resolve(__dirname, '..')) {
     results.push(replaceFile(path.join(copy.root, 'src', 'client.js'), patchIdentityDomainSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'client.js'), patchClientConnectionDiagnosticsSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'client.js'), patchClientSignallingOptionsSource))
+    results.push(replaceFile(path.join(copy.root, 'src', 'client', 'auth.js'), patchClientWorldConnectionProtocolSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'nethernet', 'signalling.js'), patchNethernetSignallingSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'nethernet', 'index.js'), patchNethernetTimeoutOptionsSource))
   }
@@ -1085,6 +1128,9 @@ module.exports = {
   NETHERNET_OPTIONS_MARKER,
   patchClientConnectionDiagnosticsSource,
   patchClientSignallingOptionsSource,
+  CLIENT_WORLD_CONNECTION_SELECTION_ORIGINAL,
+  CLIENT_WORLD_CONNECTION_SELECTION_MARKER,
+  patchClientWorldConnectionProtocolSource,
   patchNethernetSignallingSource,
   patchNethernetTimeoutOptionsSource,
   VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL,
