@@ -7,6 +7,7 @@ on:
       - "fix/friend-world-signalling-diagnostics-0.4.6"
       - "fix/xbox-signalling-order-0.4.7"
       - "fix/legacy-signal-frame-diagnostics-0.4.8"
+      - "fix/app-version-display-and-frame-code-0.4.9"
   pull_request:
   workflow_dispatch:
 
@@ -31,7 +32,7 @@ jobs:
         run: npm run check
 
   windows-package:
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/fix/legacy-signal-frame-diagnostics-0.4.8'
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/fix/app-version-display-and-frame-code-0.4.9'
     runs-on: windows-latest
     steps:
       - name: Check out repository
@@ -80,10 +81,10 @@ jobs:
       - name: Upload Windows installer and manual update package
         uses: actions/upload-artifact@v4
         with:
-          name: Bedrock-Bot-Console-0.4.8-Windows-x64
+          name: Bedrock-Bot-Console-0.4.9-Windows-x64
           path: |
             dist/Bedrock-Bot-Console-Setup.exe
-            dist/Bedrock-Bot-Console-Update-0.4.8.zip
+            dist/Bedrock-Bot-Console-Update-0.4.9.zip
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
