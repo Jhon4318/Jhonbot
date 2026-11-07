@@ -169,6 +169,17 @@ const NETHERNET_CLIENT_DIAGNOSTIC_LOCAL_DESCRIPTION_ORIGINAL = [
   '      await rtcConnection.setLocalDescription(offer)',
   '      if (!isCurrent()) return'
 ].join('\n')
+const NETHERNET_CLIENT_DIAGNOSTIC_CANDIDATE_HANDLER_ORIGINAL = [
+  '    rtcConnection.onicecandidate = (event) => {',
+  '      if (!this.http && event.candidate && isCurrent()) {',
+  "        debug('Sending CandidateAdd to networkId:', this.serverNetworkId)",
+  '        const signal = new SignalStructure(SignalType.CandidateAdd, this.connectionId, event.candidate.candidate, this.serverNetworkId)',
+  '',
+  '        this._signalHandler(signal)',
+  '      }',
+  '    }'
+].join('\n')
+const NETHERNET_CLIENT_DIAGNOSTIC_CANDIDATE_HANDLER_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_CANDIDATE_ORDER'
 const NETHERNET_CLIENT_DIAGNOSTIC_CONNECT_REQUEST_ORIGINAL = [
   '      this._signalHandler(',
   '        new SignalStructure(SignalType.ConnectRequest, this.connectionId, sdp, this.serverNetworkId)',
@@ -786,14 +797,44 @@ function patchNethernetClientDiagnosticsSource (source) {
     'nethernet/src/client.js local ICE diagnostics'
   )
   apply(
+    NETHERNET_CLIENT_DIAGNOSTIC_CANDIDATE_HANDLER_ORIGINAL,
+    [
+      '    const pendingCandidateSignals = []',
+      '    let connectRequestSent = false',
+      '    rtcConnection.onicecandidate = (event) => {',
+      '      if (!this.http && event.candidate && isCurrent()) {',
+      "        debug('Sending CandidateAdd to networkId:', this.serverNetworkId)",
+      '        const signal = new SignalStructure(SignalType.CandidateAdd, this.connectionId, event.candidate.candidate, this.serverNetworkId)',
+      '',
+      '        if (connectRequestSent) {',
+      '          this._signalHandler(signal)',
+      '        } else {',
+      '          pendingCandidateSignals.push(signal)',
+      "          this.reportDiagnostic('Queued ICE candidate until ConnectRequest is sent')",
+      '        }',
+      '      }',
+      '    } // BEDROCK_BOT_CONSOLE_NETHERNET_CANDIDATE_ORDER'
+    ].join('\n'),
+    NETHERNET_CLIENT_DIAGNOSTIC_CANDIDATE_HANDLER_MARKER,
+    'nethernet/src/client.js ordered ICE candidate signalling'
+  )
+  apply(
     NETHERNET_CLIENT_DIAGNOSTIC_CONNECT_REQUEST_ORIGINAL,
     [
       "      this.reportDiagnostic('Sending ConnectRequest (WebRTC offer)')",
       ...NETHERNET_CLIENT_DIAGNOSTIC_CONNECT_REQUEST_ORIGINAL.split('\n'),
+      '      connectRequestSent = true',
+      '      const queuedCandidateCount = pendingCandidateSignals.length',
+      '      if (queuedCandidateCount > 0) {',
+      "        this.reportDiagnostic('Sending queued ICE candidates after ConnectRequest; count=' + queuedCandidateCount)",
+      '        for (const pendingSignal of pendingCandidateSignals.splice(0)) {',
+      '          this._signalHandler(pendingSignal)',
+      '        }',
+      '      }',
       '      // BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_CONNECT_REQUEST'
     ].join('\n'),
     NETHERNET_CLIENT_DIAGNOSTIC_CONNECT_REQUEST_MARKER,
-    'nethernet/src/client.js ConnectRequest diagnostics'
+    'nethernet/src/client.js ConnectRequest diagnostics and candidate ordering'
   )
   apply(
     NETHERNET_CLIENT_DIAGNOSTIC_SIGNAL_ERROR_ORIGINAL,
@@ -1043,6 +1084,8 @@ module.exports = {
   NETHERNET_CLIENT_DIAGNOSTIC_CONNECTION_STATE_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_ICE_STATE_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_LOCAL_DESCRIPTION_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_CANDIDATE_HANDLER_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_CANDIDATE_HANDLER_MARKER,
   NETHERNET_CLIENT_DIAGNOSTIC_CONNECT_REQUEST_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_SIGNAL_ERROR_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_HANDLE_SIGNAL_ORIGINAL,
