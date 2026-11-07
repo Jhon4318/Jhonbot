@@ -241,7 +241,6 @@ test('adds privacy-safe Xbox signalling WebSocket diagnostics', () => {
   assert.match(patched.source, /credentials/)
   assert.match(patched.source, /signal/)
   assert.match(patched.source, /const senderRole = message\.From === 'Server' \? 'server' : \(message\.From == null \? 'unknown' : 'peer'\)/)
-  assert.match(patched.source, /'Incoming legacy frame classified; type=' \+ legacyType \+ ', sender=' \+ senderRole/)
   assert.match(patched.source, /const legacyTypeCode = Number\.isSafeInteger\(message\.Type\) \? String\(message\.Type\) : typeof message\.Type/)
   assert.match(patched.source, /const legacyTypeDetail = legacyType === 'unknown' \? ', code=' \+ legacyTypeCode : ''/)
   assert.match(patched.source, /'Incoming legacy frame classified; type=' \+ legacyType \+ legacyTypeDetail \+ ', sender=' \+ senderRole/)
