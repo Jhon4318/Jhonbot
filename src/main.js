@@ -632,8 +632,7 @@ async function connectBot (botId) {
         nethernet: {
           webrtcBackend: 'werift',
           signallingConnectTimeout: 30000,
-          inactivityTimeoutMs: 15000,
-          onDiagnostics: (message) => pushLog(`${bot.label}: [NetherNet diagnostic] ${message}`, 'info', bot.id)
+          inactivityTimeoutMs: 15000
         },
         // The outer watchdog is longer than the 30s response + 15s inactivity windows,
         // leaving room for timer scheduling without masking the more specific timeout.
