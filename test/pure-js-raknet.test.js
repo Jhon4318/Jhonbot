@@ -262,17 +262,17 @@ test('patches app and nested Mineflayer protocol copies without touching options
     fs.writeFileSync(path.join(nethernetRoot, 'src', 'client.js'), nethernetClientSource)
 
     const first = applyPatch(tempRoot)
-    assert.equal(first.length, 19)
+    assert.equal(first.length, 17)
     for (const target of [rootProtocol, nestedProtocol]) {
       const source = fs.readFileSync(path.join(target, 'src', 'createClient.js'), 'utf8')
       assert.ok(source.includes(MARKER))
       assert.ok(!source.includes(ORIGINAL))
       const clientSource = fs.readFileSync(path.join(target, 'src', 'client.js'), 'utf8')
       assert.match(clientSource, /authorization\.franchise\.minecraft-services\.net/)
-      assert.match(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_DIAGNOSTICS/)
-      assert.match(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TRANSPORT_CONNECTED/)
-      assert.match(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TIMEOUT_DIAGNOSTICS/)
-      assert.match(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_OPTIONS/)
+      assert.doesNotMatch(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_DIAGNOSTICS/)
+      assert.doesNotMatch(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TRANSPORT_CONNECTED/)
+      assert.doesNotMatch(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TIMEOUT_DIAGNOSTICS/)
+      assert.doesNotMatch(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_OPTIONS/)
       const worldAuthSource = fs.readFileSync(path.join(target, 'src', 'client', 'auth.js'), 'utf8')
       assert.match(worldAuthSource, /BEDROCK_BOT_CONSOLE_XBOX_CONNECTIONTYPE_ROUTING/)
       assert.match(worldAuthSource, /_signallingProtocol = protocol/)
@@ -291,8 +291,8 @@ test('patches app and nested Mineflayer protocol copies without touching options
     assert.match(identitySource, /BEDROCK_BOT_CONSOLE_SESSION_FINGERPRINT_SCOPE/)
     assert.match(identitySource, /normalizeFingerprintScope\(sdp\)/)
     const second = applyPatch(tempRoot)
-    assert.equal(second.length, 19)
-    assert.deepEqual(second.map(result => result.changed), Array(19).fill(false))
+    assert.equal(second.length, 17)
+    assert.deepEqual(second.map(result => result.changed), Array(17).fill(false))
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true })
   }
