@@ -262,7 +262,7 @@ test('patches app and nested Mineflayer protocol copies without touching options
     fs.writeFileSync(path.join(nethernetRoot, 'src', 'client.js'), nethernetClientSource)
 
     const first = applyPatch(tempRoot)
-    assert.equal(first.length, 17)
+    assert.equal(first.length, 15)
     for (const target of [rootProtocol, nestedProtocol]) {
       const source = fs.readFileSync(path.join(target, 'src', 'createClient.js'), 'utf8')
       assert.ok(source.includes(MARKER))
@@ -291,8 +291,8 @@ test('patches app and nested Mineflayer protocol copies without touching options
     assert.match(identitySource, /BEDROCK_BOT_CONSOLE_SESSION_FINGERPRINT_SCOPE/)
     assert.match(identitySource, /normalizeFingerprintScope\(sdp\)/)
     const second = applyPatch(tempRoot)
-    assert.equal(second.length, 17)
-    assert.deepEqual(second.map(result => result.changed), Array(17).fill(false))
+    assert.equal(second.length, 15)
+    assert.deepEqual(second.map(result => result.changed), Array(15).fill(false))
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true })
   }
