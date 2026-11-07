@@ -555,6 +555,7 @@ api.onAuthCode((info) => {
 async function initialise () {
   const initial = await api.getState()
   document.getElementById('versionText').textContent = initial.version
+  document.getElementById('appVersionText').textContent = initial.appVersion ? `v${initial.appVersion}` : '不明'
   state.servers = initial.servers || []
   for (const bot of initial.bots) state.bots.set(bot.id, bot)
   for (const entry of initial.logs) appendLog(entry)
