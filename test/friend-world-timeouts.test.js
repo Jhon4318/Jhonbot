@@ -9,6 +9,9 @@ const {
   CLIENT_SERVICES_SIGNAL_MARKER,
   CLIENT_SERVICES_SIGNAL_OPTIONS_ORIGINAL,
   CLIENT_SERVICES_SIGNAL_OPTIONS_MARKER,
+  CLIENT_WORLD_CONNECTION_SELECTION_ORIGINAL,
+  CLIENT_WORLD_CONNECTION_SELECTION_MARKER,
+  patchClientWorldConnectionProtocolSource,
   NETHERNET_SIGNAL_DIAGNOSTIC_OPTIONS_ORIGINAL,
   NETHERNET_SIGNAL_DIAGNOSTIC_METHOD_ORIGINAL,
   NETHERNET_SIGNAL_DIAGNOSTIC_OPEN_ORIGINAL,
@@ -238,6 +241,7 @@ test('adds privacy-safe Xbox signalling WebSocket diagnostics', () => {
   assert.match(patched.source, /TURN credentials received/)
   assert.match(patched.source, /Incoming legacy frame classified; type=/)
   assert.match(patched.source, /request-ping/)
+  assert.match(patched.source, /message\.Type === 3 \? 'accepted' : message\.Type === 4 \? 'ack'/)
   assert.match(patched.source, /credentials/)
   assert.match(patched.source, /signal/)
   assert.match(patched.source, /const senderRole = message\.From === 'Server' \? 'server' : \(message\.From == null \? 'unknown' : 'peer'\)/)
