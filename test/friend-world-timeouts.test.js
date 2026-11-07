@@ -35,6 +35,8 @@ const {
   NETHERNET_CLIENT_DIAGNOSTIC_CONNECTION_STATE_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_ICE_STATE_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_LOCAL_DESCRIPTION_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_CANDIDATE_HANDLER_ORIGINAL,
+  NETHERNET_CLIENT_DIAGNOSTIC_CANDIDATE_HANDLER_MARKER,
   NETHERNET_CLIENT_DIAGNOSTIC_CONNECT_REQUEST_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_SIGNAL_ERROR_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_HANDLE_SIGNAL_ORIGINAL,
@@ -130,6 +132,7 @@ test('adds safe WebRTC negotiation and ICE diagnostics to the pinned NetherNet c
     NETHERNET_CLIENT_DIAGNOSTIC_ICE_GATHERING_ORIGINAL,
     '  }',
     '  async createOffer (offer, rtcConnection, isCurrent, sdp) {',
+    NETHERNET_CLIENT_DIAGNOSTIC_CANDIDATE_HANDLER_ORIGINAL,
     '    try {',
     NETHERNET_CLIENT_DIAGNOSTIC_LOCAL_DESCRIPTION_ORIGINAL,
     '    } catch (error) {}',
@@ -155,6 +158,12 @@ test('adds safe WebRTC negotiation and ICE diagnostics to the pinned NetherNet c
   assert.match(patched.source, /Negotiation response timer started/)
   assert.match(patched.source, /Negotiation response timed out/)
   assert.match(patched.source, /Sending ConnectRequest/)
+  assert.match(patched.source, new RegExp(NETHERNET_CLIENT_DIAGNOSTIC_CANDIDATE_HANDLER_MARKER))
+  assert.match(patched.source, /Queued ICE candidate until ConnectRequest is sent/)
+  assert.match(patched.source, /Sending queued ICE candidates after ConnectRequest/)
+  const requestIndex = patched.source.indexOf('new SignalStructure(SignalType.ConnectRequest')
+  const candidateFlushIndex = patched.source.indexOf('for (const pendingSignal of pendingCandidateSignals.splice(0))')
+  assert.ok(requestIndex >= 0 && candidateFlushIndex > requestIndex, 'queued ICE candidates must be sent after ConnectRequest')
   assert.match(patched.source, /ConnectResponse received/)
   assert.match(patched.source, /WebRTC connection state:/)
   assert.match(patched.source, /ICE connection state:/)
