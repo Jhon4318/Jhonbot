@@ -90,6 +90,13 @@ test('forwards response and inactivity deadlines to NetherNet in both HTTP and s
   assert.doesNotThrow(() => new vm.Script(patched.source))
 })
 
+test('keeps verbose NetherNet diagnostics out of the normal bot log', () => {
+  const mainSource = fs.readFileSync(require.resolve('../src/main.js'), 'utf8')
+  assert.doesNotMatch(mainSource, /\[NetherNet diagnostic\]/)
+  assert.match(mainSource, /サーバーへのログインが完了しました。/)
+  assert.match(mainSource, /ワールドにスポーンしました。/)
+})
+
 test('keeps the longer timeouts scoped to friend-world mode', () => {
   const mainSource = fs.readFileSync(require.resolve('../src/main.js'), 'utf8')
   const friendStart = mainSource.indexOf("} else if (bot.targetType === 'friend-world') {")
@@ -98,7 +105,7 @@ test('keeps the longer timeouts scoped to friend-world mode', () => {
   const friendBlock = mainSource.slice(friendStart, friendEnd)
   assert.match(friendBlock, /signallingConnectTimeout: 30000/)
   assert.match(friendBlock, /inactivityTimeoutMs: 15000/)
-  assert.match(friendBlock, /onDiagnostics: \(message\) => pushLog/)
+  assert.doesNotMatch(friendBlock, /onDiagnostics/)
   assert.match(friendBlock, /connectTimeout: 60000/)
   assert.doesNotMatch(mainSource.slice(friendEnd), /inactivityTimeoutMs: 15000/)
 })
