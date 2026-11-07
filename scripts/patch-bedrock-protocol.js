@@ -525,7 +525,7 @@ function patchClientWorldConnectionProtocolSource (source) {
     '  options.nethernet.networkId = isJsonRpc ? targetNetworkIdText : BigInt(targetNetworkIdText)',
     '  options.nethernet.onDiagnostics?.("Selected Xbox world connection; ConnectionType=" + connectionType + ", protocol=" + protocol + ", targetIdKind=" + (isJsonRpc ? "pmsg" : "webrtc"))',
     '  await session.setActivity() // BEDROCK_BOT_CONSOLE_XBOX_CONNECTIONTYPE_ROUTING'
-  ].join('\\n')
+  ].join('\n')
   return applySingleReplace(
     source,
     CLIENT_WORLD_CONNECTION_SELECTION_ORIGINAL,
