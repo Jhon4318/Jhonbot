@@ -11,6 +11,13 @@ const renderer = fs.readFileSync(path.join(root, 'src/renderer.js'), 'utf8')
 const preload = fs.readFileSync(path.join(root, 'src/preload.js'), 'utf8')
 const html = fs.readFileSync(path.join(root, 'src/index.html'), 'utf8')
 
+test('shows the installed application version separately from the Minecraft version', () => {
+  assert.match(html, /version-chip app-version-chip">APP <span id="appVersionText">/)
+  assert.match(renderer, /getElementById\('appVersionText'\)\.textContent = initial\.appVersion \? `v\$\{initial\.appVersion\}` : '不明'/)
+  assert.match(main, /const APP_VERSION = PACKAGE\.version/)
+  assert.match(main, /appVersion: APP_VERSION/)
+})
+
 test('adding a Bot does not automatically authenticate or join a world', () => {
   assert.match(preload, /addBot:.*bot:add/)
   assert.match(main, /ipcMain\.handle\('bot:add',[^\n]*addBot\(/)
