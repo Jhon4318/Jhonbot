@@ -138,7 +138,7 @@ test('patches app and nested Mineflayer protocol copies without touching options
       'async function worldAuthenticate (session, options) {',
       CLIENT_WORLD_CONNECTION_SELECTION_ORIGINAL,
       '}'
-    ].join('\\n')
+    ].join('\n')
     fs.writeFileSync(path.join(root, 'src', 'client', 'auth.js'), worldAuthSource)
     const servicesSignallingSource = [
       'const debug = () => {}',
