@@ -115,10 +115,34 @@ test('patches app and nested Mineflayer protocol copies without touching options
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bedrock-bot-patch-test-'))
   const writeProtocol = (root) => {
     fs.mkdirSync(path.join(root, 'src', 'nethernet'), { recursive: true })
+    fs.mkdirSync(path.join(root, 'src', 'transforms'), { recursive: true })
     fs.mkdirSync(path.join(root, 'src', 'client'), { recursive: true })
     fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'bedrock-protocol', version: EXPECTED_VERSION }))
     fs.writeFileSync(path.join(root, 'index.js'), "module.exports = require('./src/createClient.js')")
     fs.writeFileSync(path.join(root, 'src', 'createClient.js'), `${ORIGINAL}\n`)
+    const framerSource = [
+      'function compress (buffer) {',
+      '  switch (this.compressor) {',
+      "    case 'deflate': return buffer",
+      "    case 'snappy': throw Error('Snappy compression not implemented')",
+      "    case 'none': return buffer",
+      '  }',
+      '}',
+      'class Framer {',
+      '  static decompress (algorithm, buffer) {',
+      '    switch (algorithm) {',
+      '      case 0:',
+      "      case 'deflate': return buffer",
+      '      case 1:',
+      "      case 'snappy':",
+      "        throw Error('Snappy compression not implemented')",
+      "      case 'none': return buffer",
+      '    }',
+      '  }',
+      '}'
+    ].join('\\n')
+    fs.writeFileSync(path.join(root, 'src', 'transforms', 'framer.js'), framerSource)
+
     const clientSource = [
       'function setup (sessionData) {',
       IDENTITY_ORIGINAL,
@@ -262,7 +286,7 @@ test('patches app and nested Mineflayer protocol copies without touching options
     fs.writeFileSync(path.join(nethernetRoot, 'src', 'client.js'), nethernetClientSource)
 
     const first = applyPatch(tempRoot)
-    assert.equal(first.length, 15)
+    assert.equal(first.length, 17)
     for (const target of [rootProtocol, nestedProtocol]) {
       const source = fs.readFileSync(path.join(target, 'src', 'createClient.js'), 'utf8')
       assert.ok(source.includes(MARKER))
@@ -291,8 +315,8 @@ test('patches app and nested Mineflayer protocol copies without touching options
     assert.match(identitySource, /BEDROCK_BOT_CONSOLE_SESSION_FINGERPRINT_SCOPE/)
     assert.match(identitySource, /normalizeFingerprintScope\(sdp\)/)
     const second = applyPatch(tempRoot)
-    assert.equal(second.length, 15)
-    assert.deepEqual(second.map(result => result.changed), Array(15).fill(false))
+    assert.equal(second.length, 17)
+    assert.deepEqual(second.map(result => result.changed), Array(17).fill(false))
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true })
   }
