@@ -140,7 +140,7 @@ test('patches app and nested Mineflayer protocol copies without touching options
       '    }',
       '  }',
       '}'
-    ].join('\\n')
+    ].join('\n')
     fs.writeFileSync(path.join(root, 'src', 'transforms', 'framer.js'), framerSource)
 
     const clientSource = [
