@@ -157,6 +157,47 @@
         </div>
       </section>
 
+      <section class="panel interaction-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>ワールドチャット・インベントリ</h2>
+            <p class="muted small">選択中のBotにチャットを送り、所持アイテムを確認して投げられます。</p>
+          </div>
+          <span class="step-chip">03 / INTERACTION</span>
+        </div>
+        <div class="interaction-grid">
+          <section class="chat-card">
+            <div class="subheading">ワールドチャット <span>Enterで送信 / Shift+Enterで改行</span></div>
+            <div id="chatMessages" class="chat-messages" aria-live="polite">
+              <div class="chat-empty">Botを選択してください。</div>
+            </div>
+            <form id="chatForm" class="chat-form">
+              <textarea id="chatInput" maxlength="256" rows="2" placeholder="ワールドに送信するメッセージ（/コマンドにも対応）" disabled></textarea>
+              <button id="sendChatButton" class="primary-button" type="submit" disabled>送信</button>
+            </form>
+            <p class="goto-note">先頭に / を付けると、サーバーが許可しているコマンドを送信できます。</p>
+          </section>
+          <section class="inventory-card">
+            <div class="subheading">インベントリ <button id="refreshInventoryButton" type="button" class="secondary-button" disabled>再取得</button></div>
+            <div id="inventoryStatus" class="inventory-status">Botを選択してください。</div>
+            <div id="inventoryList" class="inventory-list">
+              <div class="inventory-empty">表示できるインベントリはありません。</div>
+            </div>
+            <form id="dropItemForm" class="drop-item-form">
+              <label class="field">
+                <span>投げるアイテム</span>
+                <select id="inventorySelect" class="inventory-select" disabled><option value="">アイテムなし</option></select>
+              </label>
+              <label class="field">
+                <span>個数</span>
+                <input id="dropItemCount" type="number" min="1" step="1" value="1" disabled>
+              </label>
+              <button id="dropItemButton" class="primary-button" type="submit" disabled>アイテムを投げる</button>
+            </form>
+          </section>
+        </div>
+      </section>
+
       <section class="panel log-panel">
         <div class="panel-heading log-heading">
           <div>

@@ -20,6 +20,7 @@ const { validateControl, normalizeCoordinates } = require('./control-validation'
 const { safeErrorMessage, isAllowedAuthUrl } = require('./runtime-guards')
 const { assertCanAuthenticate, assertCanJoinWorld } = require('./account-state')
 const { createEncryptedAuthCacheFactory, hasEncryptedAuthCache } = require('./auth-cache')
+const { normalizeChatMessage, normalizeDropRequest, createInventorySnapshot } = require('./bot-actions')
 const { DEFAULT_PORT, normalizeServerProfile, normalizeTarget, migrateSettings, serverOriginKey, serverHttpSignallingOrigin } = require('./destinations')
 
 const MC_VERSION = '1.26.60'
@@ -221,7 +222,9 @@ function createBotRecord (saved) {
     levelChunkPackets: 0,
     subchunkPackets: 0,
     worldColumnsLoaded: 0,
-    lastServerTick: ''
+    lastServerTick: '',
+    chatHistory: [],
+    inventoryPublishTimer: null
   }
 }
 
@@ -724,6 +727,9 @@ async function connectBot (botId) {
   })
   agent._client.on('level_chunk', () => { if (bot.agent === agent) bot.levelChunkPackets++ })
   agent._client.on('subchunk', () => { if (bot.agent === agent) bot.subchunkPackets++ })
+  for (const packetName of ['inventory_content', 'inventory_slot', 'inventory_transaction', 'item_stack_response']) {
+    agent._client.on(packetName, () => queueBotInventoryPublish(bot, agent))
+  }
 
   try {
     agent.loadPlugin(pathfinder)
@@ -753,7 +759,14 @@ async function connectBot (botId) {
     if (bot.agent !== agent) return
     setBotStatus(bot, 'connected')
     preparePathfinder(bot)
+    publishBotInventory(bot)
     pushLog(`${bot.label}: ワールドにスポーンしました。`, 'success', bot.id)
+  })
+  agent.on('chat', (username, message) => {
+    if (bot.agent !== agent) return
+    const sender = String(username || '')
+    if (sender && sender === String(agent.username || bot.playerName || '')) return
+    recordBotChatMessage(bot, 'incoming', sender, message)
   })
   agent.on('kicked', (reason) => {
     bot.lastError = String(reason || 'サーバーから切断されました。')
@@ -771,6 +784,9 @@ async function connectBot (botId) {
     bot.movementRequestId++
     clearInterval(bot.movementTimer)
     bot.movementTimer = null
+    clearTimeout(bot.inventoryPublishTimer)
+    bot.inventoryPublishTimer = null
+    send('bot:inventory-updated', { botId: bot.id, items: [], updatedAt: new Date().toISOString() })
     bot.client = null
     bot.agent = null
     bot.connectionStarting = false
@@ -819,6 +835,72 @@ function getConnectedAgent (botId) {
   if (!bot) throw new Error('Botが見つかりません。')
   if (!bot.agent || bot.status !== 'connected') throw new Error('Botがワールドに参加していません。')
   return { bot, agent: bot.agent }
+}
+
+function recordBotChatMessage (bot, direction, username, message) {
+  const entry = {
+    id: randomUUID(),
+    botId: bot.id,
+    at: new Date().toISOString(),
+    direction,
+    username: String(username || ''),
+    message: String(message ?? '').slice(0, 1000)
+  }
+  bot.chatHistory ||= []
+  bot.chatHistory.push(entry)
+  if (bot.chatHistory.length > 150) bot.chatHistory.splice(0, bot.chatHistory.length - 150)
+  send('bot:chat-message', entry)
+  return entry
+}
+
+function sendBotChat (botId, rawMessage) {
+  const { bot, agent } = getConnectedAgent(botId)
+  const message = normalizeChatMessage(rawMessage)
+  if (typeof agent.chat !== 'function') throw new Error('このBotではチャット送信が利用できません。')
+  agent.chat(message)
+  recordBotChatMessage(bot, 'outgoing', bot.playerName || agent.username, message)
+  return true
+}
+
+function getBotChatHistory (botId) {
+  const bot = bots.get(botId)
+  if (!bot) throw new Error('Botが見つかりません。')
+  return [...(bot.chatHistory || [])]
+}
+
+function getBotInventory (botId) {
+  const { bot, agent } = getConnectedAgent(botId)
+  return {
+    botId: bot.id,
+    items: createInventorySnapshot(agent),
+    updatedAt: new Date().toISOString()
+  }
+}
+
+function publishBotInventory (bot) {
+  const items = bot.agent ? createInventorySnapshot(bot.agent) : []
+  const payload = { botId: bot.id, items, updatedAt: new Date().toISOString() }
+  send('bot:inventory-updated', payload)
+  return payload
+}
+
+function queueBotInventoryPublish (bot, agent) {
+  if (bot.inventoryPublishTimer) return
+  bot.inventoryPublishTimer = setTimeout(() => {
+    bot.inventoryPublishTimer = null
+    if (bot.agent !== agent) return
+    publishBotInventory(bot)
+  }, 80)
+}
+
+async function tossBotItem (botId, input) {
+  const { bot, agent } = getConnectedAgent(botId)
+  const request = normalizeDropRequest(input, agent.inventory)
+  if (typeof agent.tossStack !== 'function') throw new Error('Bedrock用のアイテム投棄APIが利用できません。')
+  await agent.tossStack(request.item, request.count)
+  if (bot.agent !== agent) throw new Error('投棄処理中にBotが切断されました。')
+  pushLog(`${bot.label}: ${request.item.displayName || request.item.name} x ${request.count} を投げました。`, 'success', bot.id)
+  return publishBotInventory(bot)
 }
 
 function stopBotMovement (botId, statusText = '停止中') {
@@ -1038,6 +1120,10 @@ ipcMain.handle('bot:remove', (_event, botId) => removeBot(botId))
 ipcMain.handle('bot:control', (_event, args) => setBotControl(args?.botId, args?.control, args?.active))
 ipcMain.handle('bot:goto', (_event, args) => gotoBot(args?.botId, args?.coordinates))
 ipcMain.handle('bot:stop', (_event, botId) => stopBotMovement(botId))
+ipcMain.handle('bot:send-chat', (_event, args) => sendBotChat(args?.botId, args?.message))
+ipcMain.handle('bot:get-chat-history', (_event, botId) => getBotChatHistory(botId))
+ipcMain.handle('bot:get-inventory', (_event, botId) => getBotInventory(botId))
+ipcMain.handle('bot:toss-item', (_event, args) => tossBotItem(args?.botId, args))
 ipcMain.handle('auth:open-url', async (_event, rawUrl) => {
   const url = isAllowedAuthUrl(rawUrl)
   if (!url) throw new Error('許可されていない認証URLです。')

@@ -20,8 +20,18 @@ const gotoForm = document.getElementById('gotoForm')
 const worldDialog = document.getElementById('worldDialog')
 const worldChoices = document.getElementById('worldChoices')
 const serverKeyDialog = document.getElementById('serverKeyDialog')
+const chatMessages = document.getElementById('chatMessages')
+const chatForm = document.getElementById('chatForm')
+const chatInput = document.getElementById('chatInput')
+const sendChatButton = document.getElementById('sendChatButton')
+const inventoryList = document.getElementById('inventoryList')
+const inventoryStatus = document.getElementById('inventoryStatus')
+const inventorySelect = document.getElementById('inventorySelect')
+const dropItemCount = document.getElementById('dropItemCount')
+const dropItemForm = document.getElementById('dropItemForm')
+const refreshInventoryButton = document.getElementById('refreshInventoryButton')
 
-const state = { bots: new Map(), servers: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), pendingWorldRequestId: '', pendingServerKeyRequestId: '' }
+const state = { bots: new Map(), servers: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map() }
 const statusLabels = {
   disconnected: '未参加',
   authenticating: '認証処理中',
@@ -172,6 +182,125 @@ function renderControlPanel () {
     button.disabled = !connected
   }
   for (const input of gotoForm.querySelectorAll('input, button')) input.disabled = !connected || !bot.pathfinderReady || !bot.worldSupport
+  chatInput.disabled = !connected
+  sendChatButton.disabled = !connected || !chatInput.value.trim()
+  refreshInventoryButton.disabled = !connected
+  inventorySelect.disabled = !connected || !(state.inventoryByBot.get(bot?.id) || []).length
+  dropItemCount.disabled = !connected || !(state.inventoryByBot.get(bot?.id) || []).length
+  document.getElementById('dropItemButton').disabled = !connected || !(state.inventoryByBot.get(bot?.id) || []).length
+}
+
+function chatSlotLabel (slot) {
+  return slot >= 36 ? `ホットバー ${slot - 35}` : `インベントリ ${slot - 8}`
+}
+
+function renderChatPanel () {
+  const bot = selectedBot()
+  chatMessages.replaceChildren()
+  const entries = bot ? (state.chatMessagesByBot.get(bot.id) || []) : []
+  if (!entries.length) {
+    chatMessages.append(createElement('div', 'chat-empty', bot ? 'チャット履歴はありません。' : 'Botを選択してください。'))
+  } else {
+    for (const entry of entries) {
+      const row = createElement('div', `chat-message ${entry.direction === 'outgoing' ? 'outgoing' : 'incoming'}`)
+      const meta = createElement('div', 'chat-message-meta')
+      const time = new Date(entry.at).toLocaleTimeString('ja-JP', { hour12: false })
+      meta.textContent = `${entry.direction === 'outgoing' ? '送信' : (entry.username || 'ワールド') } · ${time}`
+      row.append(meta, createElement('div', 'chat-message-text', entry.message))
+      chatMessages.append(row)
+    }
+  }
+  chatMessages.scrollTop = chatMessages.scrollHeight
+  const connected = bot?.status === 'connected'
+  chatInput.disabled = !connected
+  sendChatButton.disabled = !connected || !chatInput.value.trim()
+}
+
+function renderInventoryPanel () {
+  const bot = selectedBot()
+  const connected = bot?.status === 'connected'
+  const items = bot ? (state.inventoryByBot.get(bot.id) || []) : []
+  const updatedAt = bot ? state.inventoryUpdatedAtByBot.get(bot.id) : null
+  inventoryList.replaceChildren()
+  inventorySelect.replaceChildren()
+
+  if (!bot) {
+    inventoryStatus.textContent = 'Botを選択してください。'
+    inventoryList.append(createElement('div', 'inventory-empty', '表示できるインベントリはありません。'))
+    inventorySelect.append(new Option('アイテムなし', ''))
+  } else if (!connected) {
+    inventoryStatus.textContent = 'ワールド参加中のBotを選択すると取得できます。'
+    inventoryList.append(createElement('div', 'inventory-empty', 'Botがワールドに参加していません。'))
+    inventorySelect.append(new Option('アイテムなし', ''))
+  } else {
+    inventoryStatus.textContent = updatedAt
+      ? `最終取得：${new Date(updatedAt).toLocaleTimeString('ja-JP', { hour12: false })}`
+      : 'インベントリを取得しています…'
+    if (!items.length) inventoryList.append(createElement('div', 'inventory-empty', 'アイテムがないか、サーバーからの同期を待っています。'))
+    for (const item of items) {
+      const row = createElement('div', 'inventory-item-row')
+      row.append(
+        createElement('span', 'inventory-slot', chatSlotLabel(item.slot)),
+        createElement('span', 'inventory-item-name', item.displayName || item.name),
+        createElement('strong', 'inventory-item-count', `× ${item.count}`)
+      )
+      inventoryList.append(row)
+    }
+    if (items.length) {
+      for (const item of items) inventorySelect.append(new Option(`${chatSlotLabel(item.slot)} · ${item.displayName || item.name} × ${item.count}`, String(item.slot)))
+    } else {
+      inventorySelect.append(new Option('アイテムなし', ''))
+    }
+  }
+
+  const previousSlot = inventorySelect.value
+  const wantedSlot = items.some(item => String(item.slot) === previousSlot) ? previousSlot : (items[0] ? String(items[0].slot) : '')
+  inventorySelect.value = wantedSlot
+  const selectedItem = items.find(item => String(item.slot) === wantedSlot)
+  if (selectedItem) {
+    dropItemCount.max = String(selectedItem.count)
+    const currentCount = Number(dropItemCount.value)
+    if (!Number.isInteger(currentCount) || currentCount < 1 || currentCount > selectedItem.count) dropItemCount.value = '1'
+  } else {
+    dropItemCount.max = '1'
+    dropItemCount.value = '1'
+  }
+  inventorySelect.disabled = !connected || !items.length
+  dropItemCount.disabled = !connected || !items.length
+  document.getElementById('dropItemButton').disabled = !connected || !items.length
+  refreshInventoryButton.disabled = !connected
+}
+
+async function loadSelectedBotData () {
+  const bot = selectedBot()
+  renderChatPanel()
+  renderInventoryPanel()
+  if (!bot) return
+  const botId = bot.id
+  api.getChatHistory(botId).then(messages => {
+    if (state.selectedBotId !== botId) return
+    state.chatMessagesByBot.set(botId, Array.isArray(messages) ? messages : [])
+    renderChatPanel()
+  }).catch(error => {
+    if (state.selectedBotId === botId) showToast(error.message || 'チャット履歴を取得できませんでした。')
+  })
+  if (!bot || bot.status !== 'connected') {
+    state.inventoryByBot.set(botId, [])
+    state.inventoryUpdatedAtByBot.delete(botId)
+    renderInventoryPanel()
+    return
+  }
+  api.getInventory(botId).then(snapshot => {
+    if (state.selectedBotId !== botId) return
+    state.inventoryByBot.set(botId, snapshot.items || [])
+    state.inventoryUpdatedAtByBot.set(botId, snapshot.updatedAt || '')
+    renderInventoryPanel()
+  }).catch(error => {
+    if (state.selectedBotId !== botId) return
+    state.inventoryByBot.set(botId, [])
+    renderInventoryPanel()
+    showToast(error.message || 'インベントリを取得できませんでした。')
+  })
 }
 
 function renderServerProfiles () {
@@ -390,6 +519,7 @@ controlBotSelect.addEventListener('change', () => {
   releaseAllHeldInputs()
   state.selectedBotId = controlBotSelect.value
   renderControlPanel()
+  loadSelectedBotData()
 })
 
 for (const button of document.querySelectorAll('.move-key[data-control], .action-key[data-control]')) {
@@ -441,6 +571,80 @@ window.addEventListener('blur', releaseAllHeldInputs)
 
 // If a key was held while switching away from the app, release it when focus returns.
 document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAllHeldInputs() })
+
+chatInput.addEventListener('input', () => {
+  sendChatButton.disabled = !selectedBot() || selectedBot().status !== 'connected' || !chatInput.value.trim()
+})
+chatInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault()
+    chatForm.requestSubmit()
+  }
+})
+chatForm.addEventListener('submit', async (event) => {
+  event.preventDefault()
+  const bot = selectedBot()
+  const message = chatInput.value
+  if (!bot) return showToast('チャットを送信するBotを選択してください。')
+  if (!message.trim()) return
+  sendChatButton.disabled = true
+  try {
+    await api.sendChat({ botId: bot.id, message })
+    chatInput.value = ''
+    renderChatPanel()
+  } catch (error) {
+    showToast(error.message || 'チャットを送信できませんでした。')
+    renderChatPanel()
+  }
+})
+
+inventorySelect.addEventListener('change', () => {
+  const bot = selectedBot()
+  const items = bot ? (state.inventoryByBot.get(bot.id) || []) : []
+  const item = items.find(value => String(value.slot) === inventorySelect.value)
+  if (item) {
+    dropItemCount.max = String(item.count)
+    dropItemCount.value = String(Math.min(Math.max(1, Number(dropItemCount.value) || 1), item.count))
+  }
+})
+refreshInventoryButton.addEventListener('click', async () => {
+  const bot = selectedBot()
+  if (!bot) return
+  refreshInventoryButton.disabled = true
+  try {
+    const snapshot = await api.getInventory(bot.id)
+    state.inventoryByBot.set(bot.id, snapshot.items || [])
+    state.inventoryUpdatedAtByBot.set(bot.id, snapshot.updatedAt || '')
+    renderInventoryPanel()
+  } catch (error) {
+    showToast(error.message || 'インベントリを更新できませんでした。')
+  } finally {
+    refreshInventoryButton.disabled = false
+  }
+})
+dropItemForm.addEventListener('submit', async (event) => {
+  event.preventDefault()
+  const bot = selectedBot()
+  if (!bot) return showToast('操作するBotを選択してください。')
+  const slot = Number(inventorySelect.value)
+  const count = Number(dropItemCount.value)
+  const item = (state.inventoryByBot.get(bot.id) || []).find(value => value.slot === slot)
+  if (!item) return showToast('投げるアイテムを選択してください。')
+  if (!Number.isInteger(count) || count < 1 || count > item.count) return showToast('投げる個数を確認してください。')
+  const button = document.getElementById('dropItemButton')
+  button.disabled = true
+  try {
+    const snapshot = await api.tossItem({ botId: bot.id, slot, count })
+    state.inventoryByBot.set(bot.id, snapshot.items || [])
+    state.inventoryUpdatedAtByBot.set(bot.id, snapshot.updatedAt || '')
+    renderInventoryPanel()
+    showToast(`${item.displayName || item.name} を ${count} 個投げました。`)
+  } catch (error) {
+    showToast(error.message || 'アイテムを投げられませんでした。')
+  } finally {
+    renderInventoryPanel()
+  }
+})
 
 gotoForm.addEventListener('submit', async (event) => {
   event.preventDefault()
@@ -509,15 +713,33 @@ serverKeyDialog.addEventListener('cancel', (event) => {
 })
 
 api.onBotUpdated((bot) => {
+  const previous = state.bots.get(bot.id)
   state.bots.set(bot.id, bot)
   renderBots()
+  if (bot.id === state.selectedBotId && previous?.status !== bot.status) loadSelectedBotData()
 })
 api.onBotRemoved((botId) => {
   state.bots.delete(botId)
+  state.chatMessagesByBot.delete(botId)
+  state.inventoryByBot.delete(botId)
+  state.inventoryUpdatedAtByBot.delete(botId)
   if (state.selectedBotId === botId) state.selectedBotId = ''
   renderBots()
+  loadSelectedBotData()
 })
 api.onLog(appendLog)
+api.onChatMessage((entry) => {
+  const list = state.chatMessagesByBot.get(entry.botId) || []
+  list.push(entry)
+  if (list.length > 150) list.splice(0, list.length - 150)
+  state.chatMessagesByBot.set(entry.botId, list)
+  if (entry.botId === state.selectedBotId) renderChatPanel()
+})
+api.onInventoryUpdated((snapshot) => {
+  state.inventoryByBot.set(snapshot.botId, snapshot.items || [])
+  state.inventoryUpdatedAtByBot.set(snapshot.botId, snapshot.updatedAt || '')
+  if (snapshot.botId === state.selectedBotId) renderInventoryPanel()
+})
 api.onServersUpdated((servers) => {
   state.servers = Array.isArray(servers) ? servers : []
   renderServerProfiles()
@@ -562,6 +784,7 @@ async function initialise () {
   if (!initial.logs.length) logList.append(createElement('div', 'log-empty', 'ログはまだありません。Botを認証・参加させるとここに表示されます。'))
   renderServerProfiles()
   renderBots()
+  loadSelectedBotData()
 }
 
 initialise().catch(error => showToast(`初期化エラー: ${error.message}`))

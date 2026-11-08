@@ -26,6 +26,10 @@ contextBridge.exposeInMainWorld('botApp', {
   controlBot: (args) => ipcRenderer.invoke('bot:control', args),
   gotoBot: (args) => ipcRenderer.invoke('bot:goto', args),
   stopBot: (id) => ipcRenderer.invoke('bot:stop', id),
+  sendChat: (args) => ipcRenderer.invoke('bot:send-chat', args),
+  getChatHistory: (id) => ipcRenderer.invoke('bot:get-chat-history', id),
+  getInventory: (id) => ipcRenderer.invoke('bot:get-inventory', id),
+  tossItem: (args) => ipcRenderer.invoke('bot:toss-item', args),
   openAuthUrl: (url) => ipcRenderer.invoke('auth:open-url', url),
   onBotUpdated: (callback) => subscribe('bot:updated', callback),
   onBotRemoved: (callback) => subscribe('bot:removed', callback),
@@ -33,5 +37,7 @@ contextBridge.exposeInMainWorld('botApp', {
   onLog: (callback) => subscribe('app:log', callback),
   onAuthCode: (callback) => subscribe('auth:device-code', callback),
   onWorldSessions: (callback) => subscribe('world:sessions', callback),
-  onServerKeyApproval: (callback) => subscribe('security:server-key-approval', callback)
+  onServerKeyApproval: (callback) => subscribe('security:server-key-approval', callback),
+  onChatMessage: (callback) => subscribe('bot:chat-message', callback),
+  onInventoryUpdated: (callback) => subscribe('bot:inventory-updated', callback)
 })
