@@ -15,6 +15,21 @@ const { patchSdpIdentitySource } = require('./patch-nethernet-sdp')
 const EXPECTED_VERSION = '3.60.1'
 const EXPECTED_NETHERNET_VERSION = '1.1.2'
 
+const SNAPPY_COMPRESS_ORIGINAL = "case 'snappy': throw Error('Snappy compression not implemented')"
+const SNAPPY_COMPRESS_REPLACEMENT = "case 'snappy': return require('snappyjs').compress(buffer) // BEDROCK_BOT_CONSOLE_SNAPPY_COMPRESS"
+const SNAPPY_COMPRESS_MARKER = 'BEDROCK_BOT_CONSOLE_SNAPPY_COMPRESS'
+const SNAPPY_DECOMPRESS_ORIGINAL = [
+  '      case 1:',
+  "      case 'snappy':",
+  "        throw Error('Snappy compression not implemented')"
+].join('\n')
+const SNAPPY_DECOMPRESS_REPLACEMENT = [
+  '      case 1:',
+  "      case 'snappy':",
+  "        return require('snappyjs').uncompress(buffer) // BEDROCK_BOT_CONSOLE_SNAPPY_DECOMPRESS"
+].join('\n')
+const SNAPPY_DECOMPRESS_MARKER = 'BEDROCK_BOT_CONSOLE_SNAPPY_DECOMPRESS'
+
 const ORIGINAL = "const { RakClient } = initRaknet('raknet-native')"
 const REPLACEMENT = "const { RakClient } = initRaknet('jsp-raknet') // BEDROCK_BOT_CONSOLE_PURE_JS_RAKNET"
 const MARKER = 'BEDROCK_BOT_CONSOLE_PURE_JS_RAKNET'
@@ -459,6 +474,27 @@ function applySingleReplace (source, original, replacement, marker, label) {
 
 function patchCreateClientSource (source) {
   return applySingleReplace(source, ORIGINAL, REPLACEMENT, MARKER, 'bedrock-protocol/src/createClient.js')
+}
+
+function patchSnappyCompressionSource (source) {
+  const compressed = applySingleReplace(
+    source,
+    SNAPPY_COMPRESS_ORIGINAL,
+    SNAPPY_COMPRESS_REPLACEMENT,
+    SNAPPY_COMPRESS_MARKER,
+    'bedrock-protocol/src/transforms/framer.js Snappy compressor'
+  )
+  const decompressed = applySingleReplace(
+    compressed.source,
+    SNAPPY_DECOMPRESS_ORIGINAL,
+    SNAPPY_DECOMPRESS_REPLACEMENT,
+    SNAPPY_DECOMPRESS_MARKER,
+    'bedrock-protocol/src/transforms/framer.js Snappy decompressor'
+  )
+  return {
+    source: decompressed.source,
+    changed: compressed.changed || decompressed.changed
+  }
 }
 
 function patchIdentityDomainSource (source) {
@@ -1046,6 +1082,7 @@ function applyPatch (projectRoot = path.resolve(__dirname, '..')) {
       throw new Error(`Unverified bedrock-protocol version: ${copy.manifest.version} (expected ${EXPECTED_VERSION}); refusing to patch.`)
     }
     results.push(replaceFile(path.join(copy.root, 'src', 'createClient.js'), patchCreateClientSource))
+    results.push(replaceFile(path.join(copy.root, 'src', 'transforms', 'framer.js'), patchSnappyCompressionSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'client.js'), patchIdentityDomainSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'client', 'auth.js'), patchClientWorldConnectionProtocolSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'nethernet', 'signalling.js'), patchNethernetSignallingSource))
@@ -1099,6 +1136,13 @@ module.exports = {
   OFFER_DIAGNOSTIC_LOG_REPLACEMENT,
   OFFER_DIAGNOSTIC_HELPER_SOURCE,
   patchCreateClientSource,
+  SNAPPY_COMPRESS_ORIGINAL,
+  SNAPPY_COMPRESS_REPLACEMENT,
+  SNAPPY_COMPRESS_MARKER,
+  SNAPPY_DECOMPRESS_ORIGINAL,
+  SNAPPY_DECOMPRESS_REPLACEMENT,
+  SNAPPY_DECOMPRESS_MARKER,
+  patchSnappyCompressionSource,
   patchIdentityDomainSource,
   patchHttpErrorSource,
   CLIENT_SERVICES_SIGNAL_ORIGINAL,
