@@ -34,8 +34,7 @@ jobs:
         shell: bash
         run: |
           for attempt in 1 2 3; do
-            npm install --no-audit --no-fund && exit 0
-            status=$?
+            if npm install --no-audit --no-fund; then exit 0; else status=$?; fi
             if [ "$attempt" -eq 3 ]; then exit "$status"; fi
             echo "Dependency download failed (attempt $attempt/3); retrying..."
             sleep $((attempt * 15))
