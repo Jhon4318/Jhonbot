@@ -1,13 +1,13 @@
 {
   "name": "bedrock-bot-console",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
-  "description": "Minecraft Bedrock Edition 1.26.60 multi-bot desktop app with NetherNet HTTP SDP fingerprint normalization",
+  "description": "Minecraft Bedrock Edition 1.26.60 bot console with shared-account SubClient guests",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
     "dist:win": "electron-builder --win nsis --x64 --publish never",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/bot-actions.js && node --check src/renderer.js && node --check src/runtime-guards.js && node --check src/auth-cache.js && node --check src/account-state.js && node --check src/destinations.js && node --check scripts/patch-bedrock-protocol.js && node --check scripts/patch-nethernet-sdp.js && node --check scripts/validate-build-config.js && node scripts/validate-build-config.js && node --test",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/bot-actions.js && node --check src/subclients.js && node --check src/renderer.js && node --check src/runtime-guards.js && node --check src/auth-cache.js && node --check src/account-state.js && node --check src/destinations.js && node --check scripts/patch-bedrock-protocol.js && node --check scripts/patch-nethernet-sdp.js && node --check scripts/validate-build-config.js && node --check test/subclients.test.js && node scripts/validate-build-config.js && node --test",
     "postinstall": "node scripts/patch-bedrock-protocol.js",
     "prestart": "node scripts/patch-bedrock-protocol.js"
   },

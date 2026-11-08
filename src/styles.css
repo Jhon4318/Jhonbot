@@ -284,3 +284,6 @@ select { font: inherit; }
   .drop-item-form .primary-button { grid-column: 1 / -1; }
   .inventory-item-row { grid-template-columns: 90px minmax(0, 1fr) auto; }
 }
+
+.guest-add-button { border-color: #625a9d; color: #d5d0ff; }
+.guest-add-button:not(:disabled):hover { border-color: #a49bff; background: #2d2a4a; }

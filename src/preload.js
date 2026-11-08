@@ -11,6 +11,7 @@ function subscribe (channel, callback) {
 contextBridge.exposeInMainWorld('botApp', {
   getState: () => ipcRenderer.invoke('app:get-state'),
   addBot: (data) => ipcRenderer.invoke('bot:add', data),
+  addGuestBot: (data) => ipcRenderer.invoke('bot:add-guest', data),
   addServer: (data) => ipcRenderer.invoke('server:add', data),
   addHivePreset: () => ipcRenderer.invoke('server:add-hive-preset'),
   removeServer: (id) => ipcRenderer.invoke('server:remove', id),

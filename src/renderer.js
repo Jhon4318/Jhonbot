@@ -340,89 +340,135 @@ function renderBots () {
     const avatar = createElement('div', 'bot-avatar', bot.label.slice(0, 1).toUpperCase())
     const info = createElement('div')
     info.append(createElement('div', 'bot-name', bot.label))
-    const accountDescription = bot.playerName
-      ? `Xbox: ${bot.playerName}`
-      : (bot.accountStatus === 'authenticated' ? 'Microsoft / Xboxアカウント認証済み' : (bot.accountStatus === 'saved' ? '保存済み認証情報あり・再確認が必要' : 'Microsoft / Xboxアカウント未確認'))
+    const parentBot = bot.isGuest ? state.bots.get(bot.parentBotId) : null
+    const accountDescription = bot.isGuest
+      ? `親アカウント共有 · ${parentBot?.label || '親Bot'} / SubClient ${bot.subClientId}`
+      : (bot.playerName
+          ? `Xbox: ${bot.playerName}`
+          : (bot.accountStatus === 'authenticated' ? 'Microsoft / Xboxアカウント認証済み' : (bot.accountStatus === 'saved' ? '保存済み認証情報あり・再確認が必要' : 'Microsoft / Xboxアカウント未確認')))
     info.append(createElement('div', 'bot-player', accountDescription))
     main.append(avatar, info)
 
     const targetArea = createElement('div', 'bot-target-area')
-    const targetLabel = createElement('div', 'target-current', bot.targetLabel || '参加先未設定')
-    const targetSelect = createElement('select', 'bot-target-select')
-    targetSelect.append(new Option('参加先を選択…', ''))
-    targetSelect.append(new Option('フレンドのワールド（参加時に一覧表示）', 'friend-world'))
-    targetSelect.append(new Option('LANワールド（検索して選択）', 'lan-world'))
-    for (const server of state.servers) targetSelect.append(new Option(`サーバー：${server.label}`, `server:${server.id}`))
-    const currentTarget = bot.targetType === 'server' ? `server:${bot.targetId}` : (bot.targetType || '')
-    targetSelect.value = currentTarget
     const worldBusy = bot.status === 'connected' || ['connecting', 'joining'].includes(bot.status)
-    targetSelect.disabled = worldBusy
-    targetSelect.addEventListener('change', async () => {
-      let target
-      if (targetSelect.value.startsWith('server:')) target = { type: 'server', serverId: targetSelect.value.slice(7) }
-      else target = { type: targetSelect.value || 'none' }
-      try {
-        const updated = await api.setBotTarget({ botId: bot.id, target })
-        state.bots.set(bot.id, updated)
-        renderBots()
-      } catch (error) { showToast(error.message || '参加先を設定できませんでした。'); renderBots() }
-    })
-    targetArea.append(targetSelect, targetLabel)
-    if (bot.targetType === 'lan-world') {
-      const scan = createElement('button', 'small-button lan-search-button', 'LAN検索')
-      scan.type = 'button'
-      scan.disabled = worldBusy
-      scan.addEventListener('click', async () => {
-        scan.disabled = true
-        scan.textContent = '検索中…'
+    if (bot.isGuest) {
+      targetArea.append(createElement('div', 'target-current', bot.targetLabel || '親Botの参加先を共有'))
+    } else {
+      const targetLabel = createElement('div', 'target-current', bot.targetLabel || '参加先未設定')
+      const targetSelect = createElement('select', 'bot-target-select')
+      targetSelect.append(new Option('参加先を選択…', ''))
+      targetSelect.append(new Option('フレンドのワールド（参加時に一覧表示）', 'friend-world'))
+      targetSelect.append(new Option('LANワールド（検索して選択）', 'lan-world'))
+      for (const server of state.servers) targetSelect.append(new Option(`サーバー：${server.label}`, `server:${server.id}`))
+      const currentTarget = bot.targetType === 'server' ? `server:${bot.targetId}` : (bot.targetType || '')
+      targetSelect.value = currentTarget
+      targetSelect.disabled = worldBusy
+      targetSelect.addEventListener('change', async () => {
+        let target
+        if (targetSelect.value.startsWith('server:')) target = { type: 'server', serverId: targetSelect.value.slice(7) }
+        else target = { type: targetSelect.value || 'none' }
         try {
-          const result = await api.discoverLanWorld(bot.id)
-          const updated = await api.setBotTarget({ botId: bot.id, target: result })
+          const updated = await api.setBotTarget({ botId: bot.id, target })
           state.bots.set(bot.id, updated)
-          showToast(`LANワールド「${result.worldName}」を選択しました。`)
           renderBots()
-        } catch (error) {
-          showToast(error.message || 'LANワールドを検索できませんでした。')
-          scan.disabled = false
-          scan.textContent = '再検索'
-        }
+        } catch (error) { showToast(error.message || '参加先を設定できませんでした。'); renderBots() }
       })
-      targetArea.append(scan)
+      targetArea.append(targetSelect, targetLabel)
+      if (bot.targetType === 'lan-world') {
+        const scan = createElement('button', 'small-button lan-search-button', 'LAN検索')
+        scan.type = 'button'
+        scan.disabled = worldBusy
+        scan.addEventListener('click', async () => {
+          scan.disabled = true
+          scan.textContent = '検索中…'
+          try {
+            const result = await api.discoverLanWorld(bot.id)
+            const updated = await api.setBotTarget({ botId: bot.id, target: result })
+            state.bots.set(bot.id, updated)
+            showToast(`LANワールド「${result.worldName}」を選択しました。`)
+            renderBots()
+          } catch (error) {
+            showToast(error.message || 'LANワールドを検索できませんでした。')
+            scan.disabled = false
+            scan.textContent = '再検索'
+          }
+        })
+        targetArea.append(scan)
+      }
     }
 
     const statuses = createElement('div', 'bot-status-stack')
     statuses.append(
-      createElement('span', `status account-status ${bot.accountStatus || 'unverified'}`, accountStatusLabels[bot.accountStatus] || 'Xbox未確認'),
+      createElement('span', `status account-status ${bot.isGuest ? 'shared' : (bot.accountStatus || 'unverified')}`, bot.isGuest ? '親アカウント共有' : (accountStatusLabels[bot.accountStatus] || 'Xbox未確認')),
       createElement('span', `status ${bot.status}`, statusLabels[bot.status] || bot.status)
     )
 
     const actions = createElement('div', 'bot-actions')
-    const authBusy = bot.accountStatus === 'authenticating'
-    const authButton = createElement('button', 'small-button account-button', authBusy ? '認証中…' : (['authenticated', 'saved'].includes(bot.accountStatus) ? '認証を再確認' : 'アカウント認証'))
-    authButton.type = 'button'
-    authButton.disabled = authBusy || worldBusy
-    authButton.addEventListener('click', () => api.authenticateBot(bot.id).catch(error => showToast(error.message || 'アカウント認証に失敗しました。')))
-    actions.append(authButton)
-
-    if (worldBusy) {
-      const disconnect = createElement('button', 'small-button join-button', 'ワールド切断')
-      disconnect.type = 'button'
-      disconnect.addEventListener('click', () => api.disconnectBot(bot.id).catch(error => showToast(error.message)))
-      actions.append(disconnect)
+    if (bot.isGuest) {
+      if (worldBusy) {
+        const disconnect = createElement('button', 'small-button join-button', 'ゲスト切断')
+        disconnect.type = 'button'
+        disconnect.addEventListener('click', () => api.disconnectBot(bot.id).catch(error => showToast(error.message)))
+        actions.append(disconnect)
+      } else {
+        const waiting = createElement('button', 'small-button join-button', '親Bot接続待ち')
+        waiting.type = 'button'
+        waiting.disabled = true
+        waiting.title = '親Botがワールドに参加すると、このゲストBotも自動で参加します。'
+        actions.append(waiting)
+      }
     } else {
-      const join = createElement('button', 'small-button join-button', bot.status === 'error' ? '再参加' : 'ワールド参加')
-      const hasTarget = bot.targetType === 'server' || bot.targetType === 'friend-world' || (bot.targetType === 'lan-world' && !!bot.networkId)
-      join.type = 'button'
-      join.disabled = bot.accountStatus !== 'authenticated' || !hasTarget
-      join.title = !hasTarget ? '先に参加先を選択してください。' : (bot.accountStatus !== 'authenticated' ? '先にMicrosoft / Xbox認証を完了してください。' : '選択したサーバーまたはワールドに参加します。')
-      join.addEventListener('click', () => api.connectBot(bot.id).catch(error => showToast(error.message || 'ワールドに参加できませんでした。')))
-      actions.append(join)
+      const authBusy = bot.accountStatus === 'authenticating'
+      const authButton = createElement('button', 'small-button account-button', authBusy ? '認証中…' : (['authenticated', 'saved'].includes(bot.accountStatus) ? '認証を再確認' : 'アカウント認証'))
+      authButton.type = 'button'
+      authButton.disabled = authBusy || worldBusy
+      authButton.addEventListener('click', () => api.authenticateBot(bot.id).catch(error => showToast(error.message || 'アカウント認証に失敗しました。')))
+      actions.append(authButton)
+
+      if (worldBusy) {
+        const disconnect = createElement('button', 'small-button join-button', 'ワールド切断')
+        disconnect.type = 'button'
+        disconnect.addEventListener('click', () => api.disconnectBot(bot.id).catch(error => showToast(error.message)))
+        actions.append(disconnect)
+      } else {
+        const join = createElement('button', 'small-button join-button', bot.status === 'error' ? '再参加' : 'ワールド参加')
+        const hasTarget = bot.targetType === 'server' || bot.targetType === 'friend-world' || (bot.targetType === 'lan-world' && !!bot.networkId)
+        join.type = 'button'
+        join.disabled = bot.accountStatus !== 'authenticated' || !hasTarget
+        join.title = !hasTarget ? '先に参加先を選択してください。' : (bot.accountStatus !== 'authenticated' ? '先にMicrosoft / Xbox認証を完了してください。' : '選択したサーバーまたはワールドに参加します。')
+        join.addEventListener('click', () => api.connectBot(bot.id).catch(error => showToast(error.message || 'ワールドに参加できませんでした。')))
+        actions.append(join)
+      }
+
+      const guestCount = values.filter(item => item.parentBotId === bot.id).length
+      const addGuest = createElement('button', 'small-button guest-add-button', `＋ ゲスト追加 ${guestCount}/3`)
+      addGuest.type = 'button'
+      addGuest.disabled = guestCount >= 3
+      addGuest.title = worldBusy
+        ? 'このアカウントの接続にゲストBotを追加します。'
+        : 'ゲストBotを登録します。親Botがワールドに参加すると自動で接続します。'
+      addGuest.addEventListener('click', async () => {
+        const suggested = `${bot.label}-Guest${guestCount + 1}`.slice(0, 32)
+        const label = window.prompt('追加するゲストBotの表示名を入力してください。', suggested)
+        if (label == null) return
+        try {
+          await api.addGuestBot({ parentBotId: bot.id, label })
+          showToast('ゲストBotを追加しました。')
+        } catch (error) {
+          showToast(error.message || 'ゲストBotを追加できませんでした。')
+        }
+      })
+      actions.append(addGuest)
     }
+
     const remove = createElement('button', 'icon-button danger', '削除')
     remove.type = 'button'
-    remove.disabled = authBusy || worldBusy
+    remove.disabled = !bot.isGuest && (bot.accountStatus === 'authenticating' || worldBusy)
     remove.addEventListener('click', async () => {
-      if (!window.confirm(`${bot.label}を一覧から削除しますか？`)) return
+      const message = bot.isGuest
+        ? `${bot.label}を削除しますか？`
+        : `${bot.label}と、このアカウントに追加したゲストBotを削除しますか？`
+      if (!window.confirm(message)) return
       if (state.selectedBotId === bot.id) releaseAllHeldInputs()
       try { await api.removeBot(bot.id) } catch (error) { showToast(error.message) }
     })

@@ -119,7 +119,10 @@ function migrateSettings (parsed) {
       targetType: target.type,
       targetId: target.serverId,
       networkId: target.networkId,
-      worldName: target.worldName
+      worldName: target.worldName,
+      ...(typeof item.parentBotId === 'string' && item.parentBotId !== item.id && [1, 2, 3].includes(Number(item.subClientId))
+        ? { parentBotId: item.parentBotId, subClientId: Number(item.subClientId) }
+        : {})
     })
   }
 
@@ -127,7 +130,17 @@ function migrateSettings (parsed) {
     ? Object.fromEntries(Object.entries(parsed.trustedServerKeys).filter(([origin, fingerprint]) => /^https?:\/\//.test(origin) && /^sha256:[a-f0-9]{64}$/.test(String(fingerprint))))
     : {}
 
-  return { servers: normalizedServers, bots, trustedServerKeys }
+  const parentIds = new Set(bots.filter(bot => !bot.parentBotId).map(bot => bot.id))
+  const occupiedGuestSlots = new Set()
+  const validBots = bots.filter(bot => {
+    if (!bot.parentBotId) return true
+    const key = `${bot.parentBotId}:${bot.subClientId}`
+    if (!parentIds.has(bot.parentBotId) || bot.subClientId < 1 || bot.subClientId > 3 || occupiedGuestSlots.has(key)) return false
+    occupiedGuestSlots.add(key)
+    return true
+  })
+
+  return { servers: normalizedServers, bots: validBots, trustedServerKeys }
 }
 
 function serverHttpSignallingOrigin (profile) {

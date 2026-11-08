@@ -21,6 +21,7 @@ const { safeErrorMessage, isAllowedAuthUrl } = require('./runtime-guards')
 const { assertCanAuthenticate, assertCanJoinWorld } = require('./account-state')
 const { createEncryptedAuthCacheFactory, hasEncryptedAuthCache } = require('./auth-cache')
 const { normalizeChatMessage, normalizeDropRequest, createInventorySnapshot } = require('./bot-actions')
+const { installSubClientSupport, createGuestLoginTokens, MAX_SUB_CLIENTS } = require('./subclients')
 const { DEFAULT_PORT, normalizeServerProfile, normalizeTarget, migrateSettings, serverOriginKey, serverHttpSignallingOrigin } = require('./destinations')
 
 const MC_VERSION = '1.26.60'
@@ -147,10 +148,18 @@ function rounded (value) {
 
 function publicBot (bot) {
   const entity = bot.agent?.entity
+  const parent = bot.parentBotId ? bots.get(bot.parentBotId) : null
+  const guestCount = bot.parentBotId ? 0 : Array.from(bots.values()).filter(item => item.parentBotId === bot.id).length
   const pos = entity?.position
   return {
     id: bot.id,
     label: bot.label,
+    isGuest: !!bot.parentBotId,
+    parentBotId: bot.parentBotId || '',
+    parentBotLabel: parent?.label || '',
+    subClientId: bot.parentBotId ? Number(bot.subClientId) || 0 : 0,
+    guestCount,
+    guestLimit: MAX_SUB_CLIENTS,
     targetType: bot.targetType || 'none',
     targetId: bot.targetId || '',
     networkId: bot.networkId || '',
@@ -193,6 +202,8 @@ function cleanLabel (value) {
 function createBotRecord (saved) {
   return {
     ...saved,
+    parentBotId: saved.parentBotId || '',
+    subClientId: saved.parentBotId ? Number(saved.subClientId) || 0 : 0,
     targetType: saved.targetType || 'none',
     targetId: saved.targetId || '',
     networkId: saved.networkId || '',
@@ -205,7 +216,7 @@ function createBotRecord (saved) {
     connectionAbortController: null,
     authStarting: false,
     authflow: null,
-    accountStatus: 'unverified',
+    accountStatus: saved.parentBotId ? 'shared' : 'unverified',
     accountError: '',
     manualDisconnect: false,
     hadError: false,
@@ -229,6 +240,10 @@ function createBotRecord (saved) {
 }
 
 function describeBotTarget (bot) {
+  if (bot?.parentBotId) {
+    const parent = bots.get(bot.parentBotId)
+    return parent ? `親Bot「${parent.label}」の参加先を共有 (SubClient ${bot.subClientId})` : '親Botが見つかりません'
+  }
   if (!bot || bot.targetType === 'none') return '参加先未設定'
   if (bot.targetType === 'friend-world') return 'フレンドのワールド（参加時に選択）'
   if (bot.targetType === 'lan-world') return bot.networkId ? `${bot.worldName || 'LANワールド'}（LAN）` : 'LANワールド（未検索）'
@@ -252,10 +267,14 @@ async function loadSettings () {
 
   for (const saved of settings.bots) {
     const bot = createBotRecord(saved)
-    try {
-      if (await hasEncryptedAuthCache(app.getPath('userData'), bot.id)) bot.accountStatus = 'saved'
-    } catch (error) {
-      pushLog(`${bot.label}: 保存済み認証情報の確認に失敗しました: ${error.message}`, 'warning', bot.id)
+    if (!bot.parentBotId) {
+      try {
+        if (await hasEncryptedAuthCache(app.getPath('userData'), bot.id)) bot.accountStatus = 'saved'
+      } catch (error) {
+        pushLog(`${bot.label}: 保存済み認証情報の確認に失敗しました: ${error.message}`, 'warning', bot.id)
+      }
+    } else {
+      bot.accountStatus = 'shared'
     }
     bots.set(saved.id, bot)
   }
@@ -266,8 +285,8 @@ function saveSettings () {
   const snapshot = {
     servers: settings.servers.map(({ id, label, host, port, mode, signallingUrl }) => ({ id, label, host, port, mode, signallingUrl })),
     trustedServerKeys: { ...settings.trustedServerKeys },
-    bots: Array.from(bots.values()).map(({ id, label, targetType, targetId, networkId, worldName }) => ({
-      id, label, targetType, targetId, networkId, worldName
+    bots: Array.from(bots.values()).map(({ id, label, targetType, targetId, networkId, worldName, parentBotId, subClientId }) => ({
+      id, label, targetType, targetId, networkId, worldName, ...(parentBotId ? { parentBotId, subClientId } : {})
     }))
   }
   settingsSaveQueue = settingsSaveQueue.catch(() => {}).then(async () => {
@@ -451,12 +470,21 @@ function removeServerProfile (serverId) {
 function setBotTarget (botId, input) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
+  if (bot.parentBotId) throw new Error('ゲストBotの参加先は親Botと共有されます。')
   if (bot.client || bot.connectionStarting) throw new Error('接続中は参加先を変更できません。先に切断してください。')
   const target = normalizeTarget(input, settings.servers)
   bot.targetType = target.type
   bot.targetId = target.serverId
   bot.networkId = target.networkId
   bot.worldName = target.worldName
+  for (const guest of bots.values()) {
+    if (guest.parentBotId !== bot.id) continue
+    guest.targetType = bot.targetType
+    guest.targetId = bot.targetId
+    guest.networkId = bot.networkId
+    guest.worldName = bot.worldName
+    publishBot(guest)
+  }
   saveSettings().catch(error => pushLog(`参加先の保存に失敗しました: ${error.message}`, 'warning'))
   publishBot(bot)
   pushLog(`${bot.label}: 参加先を「${describeBotTarget(bot)}」に設定しました。`, 'info', bot.id)
@@ -466,6 +494,7 @@ function setBotTarget (botId, input) {
 async function discoverLanWorld (botId) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
+  if (bot.parentBotId) throw new Error('ゲストBotは親Botの参加先を共有します。')
   if (bot.client || bot.connectionStarting) throw new Error('接続中はLANワールドを検索できません。')
   pushLog(`${bot.label}: LAN上のNetherNetワールドを検索しています。`, 'info', bot.id)
   try {
@@ -561,6 +590,7 @@ async function resolveServerConnectionOptions (bot, profile, attemptId, signal) 
 
 async function authenticateBot (botId) {
   const bot = bots.get(botId)
+  if (bot?.parentBotId) throw new Error('ゲストBotは親アカウントの認証を共有するため、個別認証は不要です。')
   assertCanAuthenticate(bot)
   bot.authStarting = true
   publishAccountStatus(bot, 'authenticating')
@@ -602,6 +632,7 @@ async function authenticateBot (botId) {
 
 async function connectBot (botId) {
   const bot = bots.get(botId)
+  if (bot?.parentBotId) throw new Error('ゲストBotは個別接続できません。親Botをワールドに参加させてください。')
   assertCanJoinWorld(bot)
   const attemptId = ++bot.connectionAttempt
   const abortController = new AbortController()
@@ -698,6 +729,17 @@ async function connectBot (botId) {
 
   bot.agent = agent
   bot.client = agent._client
+  try { installSubClientSupport(bot.client) } catch (error) {
+    try { bot.client?.disconnect('SubClient initialization failed') } catch { try { bot.client?.close() } catch {} }
+    bot.agent = null
+    bot.client = null
+    bot.connectionStarting = false
+    bot.connectionAbortController = null
+    bot.hadError = true
+    bot.lastError = safeErrorMessage(error)
+    setBotStatus(bot, 'error', { lastError: bot.lastError })
+    throw error
+  }
   bot.connectionAbortController = abortController
   bot.connectionStarting = false
   if (!bot.client || typeof bot.client.on !== 'function') {
@@ -761,6 +803,10 @@ async function connectBot (botId) {
     preparePathfinder(bot)
     publishBotInventory(bot)
     pushLog(`${bot.label}: ワールドにスポーンしました。`, 'success', bot.id)
+    reconnectGuestBots(bot).catch(error => {
+      writeDiagnosticLog(`[guest-reconnect] parent=${bot.id} ${describeFailure(error)}`)
+      pushLog(`${bot.label}: ゲストBotの再参加処理に失敗しました: ${safeErrorMessage(error)}`, 'warning', bot.id)
+    })
   })
   agent.on('chat', (username, message) => {
     if (bot.agent !== agent) return
@@ -828,6 +874,224 @@ async function connectBot (botId) {
     pushLog(`${bot.label}: 未知のブロックID ${runtimeId} を受信しました。地形データに影響する可能性があります。`, 'warning', bot.id)
   })
   publishBot(bot)
+}
+
+
+async function addGuestBot (parentBotId, input) {
+  const parent = bots.get(parentBotId)
+  if (!parent) throw new Error('親Botが見つかりません。')
+  if (parent.parentBotId) throw new Error('ゲストBotに別のゲストBotを追加することはできません。')
+  const guests = Array.from(bots.values()).filter(item => item.parentBotId === parent.id)
+  if (guests.length >= MAX_SUB_CLIENTS) throw new Error('1アカウントに追加できるゲストBotは最大3体です。')
+  const usedSlots = new Set(guests.map(item => Number(item.subClientId)))
+  let subClientId = 1
+  while (usedSlots.has(subClientId) && subClientId <= MAX_SUB_CLIENTS) subClientId++
+  if (subClientId > MAX_SUB_CLIENTS) throw new Error('空いているSubClient枠がありません。')
+
+  const label = cleanLabel(input?.label)
+  if (!label) throw new Error('ゲストBot名は1〜32文字で入力してください。')
+  const guest = createBotRecord({
+    id: randomUUID(),
+    label,
+    targetType: parent.targetType,
+    targetId: parent.targetId,
+    networkId: parent.networkId,
+    worldName: parent.worldName,
+    parentBotId: parent.id,
+    subClientId
+  })
+  guest.accountStatus = 'shared'
+  bots.set(guest.id, guest)
+  await saveSettings()
+  pushLog(`${guest.label}: ${parent.label}のアカウントにゲストBotとして登録しました (SubClient ${subClientId}/3)。`, 'success', guest.id)
+  publishBot(guest)
+  publishBot(parent)
+
+  if (parent.status === 'connected' && parent.client && parent.agent) {
+    await joinGuestBot(parent, guest)
+  }
+  return publicBot(guest)
+}
+
+async function reconnectGuestBots (parent) {
+  if (!parent || parent.parentBotId || parent.status !== 'connected' || !parent.client) return
+  const guests = Array.from(bots.values())
+    .filter(item => item.parentBotId === parent.id && !item.agent)
+    .sort((a, b) => Number(a.subClientId) - Number(b.subClientId))
+  for (const guest of guests) {
+    try {
+      await joinGuestBot(parent, guest)
+    } catch (error) {
+      guest.hadError = true
+      guest.lastError = safeErrorMessage(error)
+      setBotStatus(guest, 'error', { lastError: guest.lastError })
+      pushLog(`${guest.label}: 親Botへのゲスト接続に失敗しました: ${describeFailure(error)}`, 'warning', guest.id)
+    }
+    await new Promise(resolve => setTimeout(resolve, 250))
+  }
+}
+
+async function joinGuestBot (parent, guest) {
+  if (!parent || parent.parentBotId || parent.status !== 'connected' || !parent.client || !parent.agent) {
+    throw new Error('先に親Botをワールドに参加させてください。')
+  }
+  if (guest.agent || guest.client) return publicBot(guest)
+  if (guest.parentBotId !== parent.id) throw new Error('親BotとゲストBotの組み合わせが正しくありません。')
+  const subClientId = Number(guest.subClientId)
+  const tokens = createGuestLoginTokens(parent.client)
+  const view = parent.client.createSubClient(subClientId, guest.label)
+  let agent
+  try {
+    agent = mineflayer.createBot({
+      edition: 'bedrock',
+      version: parent.client.options?.version || MC_VERSION,
+      username: guest.label,
+      client: view,
+      hideErrors: false,
+      logErrors: false,
+      respawn: true
+    })
+  } catch (error) {
+    view.close('Guest bot creation failed')
+    throw error
+  }
+
+  guest.agent = agent
+  guest.client = view
+  guest.connectionStarting = true
+  guest.manualDisconnect = false
+  guest.hadError = false
+  guest.lastError = ''
+  guest.playerName = guest.label
+  guest.pathfinderReady = false
+  guest.movementStatus = '停止中'
+  setBotStatus(guest, 'connecting')
+  pushLog(`${guest.label}: ${parent.label}の接続を共有してSubClient ${subClientId} に参加します。`, 'info', guest.id)
+
+  agent._client.on('start_game', (packet) => {
+    if (guest.agent !== agent) return
+    guest.startGameReceived = true
+    guest.movementAuthority = packet?.movement_authority == null ? '共有接続' : String(packet.movement_authority)
+    guest.lastServerTick = diagnosticValue(packet?.current_tick)
+    publishBot(guest)
+  })
+  agent._client.on('correct_player_move_prediction', (packet) => {
+    if (guest.agent !== agent) return
+    guest.correctionPackets++
+    if (packet?.tick != null) guest.lastServerTick = diagnosticValue(packet.tick)
+  })
+  agent._client.on('level_chunk', () => { if (guest.agent === agent) guest.levelChunkPackets++ })
+  agent._client.on('subchunk', () => { if (guest.agent === agent) guest.subchunkPackets++ })
+  for (const packetName of ['inventory_content', 'inventory_slot', 'inventory_transaction', 'item_stack_response']) {
+    agent._client.on(packetName, () => queueBotInventoryPublish(guest, agent))
+  }
+
+  try {
+    agent.loadPlugin(pathfinder)
+  } catch (error) {
+    view.close('Plugin initialization failed')
+    guest.agent = null
+    guest.client = null
+    guest.connectionStarting = false
+    throw error
+  }
+
+  agent.on('connect', () => { if (guest.agent === agent) setBotStatus(guest, 'connecting') })
+  agent.on('login', () => {
+    if (guest.agent !== agent) return
+    guest.playerName = agent.username || guest.label
+    setBotStatus(guest, 'joining')
+    pushLog(`${guest.label}: ゲストプレイヤーのログインが完了しました。`, 'success', guest.id)
+  })
+  agent.on('spawn', () => {
+    if (guest.agent !== agent) return
+    guest.connectionStarting = false
+    setBotStatus(guest, 'connected')
+    preparePathfinder(guest)
+    publishBotInventory(guest)
+    pushLog(`${guest.label}: ワールドにゲストBotとしてスポーンしました。`, 'success', guest.id)
+  })
+  agent.on('chat', (username, message) => {
+    if (guest.agent !== agent) return
+    const sender = String(username || '')
+    if (sender && sender === String(agent.username || guest.playerName || '')) return
+    recordBotChatMessage(guest, 'incoming', sender, message)
+  })
+  agent.on('kicked', (reason) => {
+    guest.hadError = true
+    guest.lastError = String(reason || 'サーバーから切断されました。')
+    pushLog(`${guest.label}: ゲスト接続が拒否されました: ${guest.lastError}`, 'warning', guest.id)
+  })
+  agent.on('error', (error) => {
+    if (guest.agent !== agent) return
+    guest.hadError = true
+    guest.lastError = error?.message || String(error)
+    setBotStatus(guest, 'error', { lastError: guest.lastError })
+    pushLog(`${guest.label}: ゲスト接続エラー: ${describeFailure(error)}`, 'error', guest.id)
+  })
+  agent.on('end', (reason) => {
+    if (guest.agent !== agent) return
+    guest.movementRequestId++
+    clearInterval(guest.movementTimer)
+    guest.movementTimer = null
+    clearTimeout(guest.inventoryPublishTimer)
+    guest.inventoryPublishTimer = null
+    guest.connectionStarting = false
+    send('bot:inventory-updated', { botId: guest.id, items: [], updatedAt: new Date().toISOString() })
+    guest.client = null
+    guest.agent = null
+    guest.pathfinderReady = false
+    const finalStatus = guest.hadError ? 'error' : 'disconnected'
+    setBotStatus(guest, finalStatus)
+    if (!guest.manualDisconnect) pushLog(`${guest.label}: ゲスト接続が終了しました。${reason ? ` (${String(reason)})` : ''}`, guest.hadError ? 'warning' : 'info', guest.id)
+  })
+  agent.on('move', () => {
+    const now = Date.now()
+    if (now - guest.lastUiPositionUpdate >= 500) {
+      guest.lastUiPositionUpdate = now
+      publishBot(guest)
+    }
+  })
+  agent.on('chunkColumnLoad', () => {
+    if (guest.agent !== agent) return
+    guest.worldColumnsLoaded++
+    publishBot(guest)
+  })
+  agent.on('health', publishBot.bind(null, guest))
+  agent.on('food', publishBot.bind(null, guest))
+  agent.on('goal_reached', () => {
+    if (guest.agent !== agent) return
+    guest.movementStatus = '目的地に到着しました'
+    publishBot(guest)
+    pushLog(`${guest.label}: 指定座標付近に到着しました。`, 'success', guest.id)
+  })
+  agent.on('path_update', (result) => {
+    if (guest.agent !== agent || !String(guest.movementStatus).startsWith('座標移動中')) return
+    if (result?.status === 'noPath' || result?.status === 'timeout') {
+      guest.movementStatus = '経路を見つけられませんでした'
+      publishBot(guest)
+      pushLog(`${guest.label}: 目的地までの経路を見つけられませんでした。`, 'warning', guest.id)
+    }
+  })
+  agent.on('blockUpdateError', (_pos, runtimeId) => {
+    pushLog(`${guest.label}: 未知のブロックID ${runtimeId} を受信しました。地形データに影響する可能性があります。`, 'warning', guest.id)
+  })
+
+  // createBot schedules plugin injection on the next event-loop turn. Send SubClientLogin
+  // after its per-session listeners have been registered.
+  setTimeout(() => {
+    if (guest.agent !== agent || view.closed) return
+    try {
+      view.login(tokens)
+    } catch (error) {
+      guest.hadError = true
+      guest.lastError = safeErrorMessage(error)
+      setBotStatus(guest, 'error', { lastError: guest.lastError })
+      view.close('SubClientLogin failed')
+    }
+  }, 0)
+  publishBot(guest)
+  return publicBot(guest)
 }
 
 function getConnectedAgent (botId) {
@@ -977,12 +1241,21 @@ async function removeBot (botId) {
   const bot = bots.get(botId)
   if (!bot) return
   if (bot.authStarting) throw new Error('アカウント認証中はBotを削除できません。')
-  if (bot.client || bot.connectionStarting) disconnectBot(botId)
-  bots.delete(botId)
-  await fs.rm(path.join(app.getPath('userData'), 'auth', botId), { recursive: true, force: true })
+  const removed = bot.parentBotId
+    ? [bot]
+    : [...Array.from(bots.values()).filter(item => item.parentBotId === bot.id), bot]
+  for (const item of removed) {
+    if (item.client || item.connectionStarting) {
+      try { disconnectBot(item.id) } catch (error) { writeDiagnosticLog(`[remove-bot] ${item.id}: ${error.message}`) }
+    }
+  }
+  for (const item of removed) {
+    bots.delete(item.id)
+    await fs.rm(path.join(app.getPath('userData'), 'auth', item.id), { recursive: true, force: true })
+    send('bot:removed', item.id)
+    pushLog(`${item.label}を一覧から削除しました。`, 'info', item.id)
+  }
   await saveSettings()
-  send('bot:removed', botId)
-  pushLog(`${bot.label}を一覧から削除しました。`, 'info', botId)
 }
 
 function cancelPendingBotOperations (bot, reason = '接続処理がキャンセルされました。') {
@@ -1071,6 +1344,7 @@ ipcMain.handle('app:get-state', () => ({
   logs: logBuffer
 }))
 ipcMain.handle('bot:add', (_event, input) => publicBot(bots.get(addBot(input).id)))
+ipcMain.handle('bot:add-guest', async (_event, args) => addGuestBot(args?.parentBotId, args))
 ipcMain.handle('server:add', (_event, input) => {
   const profile = addServerProfile(input)
   return { ...profile }

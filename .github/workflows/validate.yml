@@ -11,6 +11,7 @@ on:
       - "fix/xbox-connectiontype-routing-0.4.10"
       - "chore/quiet-friend-world-logs-0.4.11"
       - "feature/chat-inventory-drop-0.5.0"
+      - "feature/account-subclients-0.6.0"
   pull_request:
   workflow_dispatch:
 
@@ -35,7 +36,7 @@ jobs:
         run: npm run check
 
   windows-package:
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/feature/chat-inventory-drop-0.5.0'
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/feature/account-subclients-0.6.0'
     runs-on: windows-latest
     steps:
       - name: Check out repository
@@ -84,10 +85,10 @@ jobs:
       - name: Upload Windows installer and manual update package
         uses: actions/upload-artifact@v4
         with:
-          name: Bedrock-Bot-Console-0.5.0-Windows-x64
+          name: Bedrock-Bot-Console-0.6.0-Windows-x64
           path: |
             dist/Bedrock-Bot-Console-Setup.exe
-            dist/Bedrock-Bot-Console-Update-0.5.0.zip
+            dist/Bedrock-Bot-Console-Update-0.6.0.zip
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
