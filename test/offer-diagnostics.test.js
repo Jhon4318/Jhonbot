@@ -23,11 +23,12 @@ test('adds bounded pre-POST SDP diagnostics and remains idempotent', () => {
     'const client = { http: {} }',
     "const body = 'sdp'",
     OFFER_DIAGNOSTIC_FUNCTION_ORIGINAL,
+    '  const { url, serverKey, onServerKey } = client.http',
     OFFER_DIAGNOSTIC_FETCH_ORIGINAL,
-    "    method: 'POST',",
-    '    body',
+    "    method: 'POST', headers: { 'content-type': 'application/sdp' }, body, signal, redirect: 'error'",
     '  })',
-    '  return response',
+    '  const answer = await response.text()',
+    '  return answer',
     '}'
   ].join('\n')
   const first = patchHttpOfferDiagnosticsSource(fixture)
