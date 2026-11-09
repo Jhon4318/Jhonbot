@@ -274,7 +274,7 @@ const OFFER_HTTP_FETCH_BLOCK_ORIGINAL = [
   "  const response = await fetch(new URL(`/v1/join/${client.networkId}`, url), {",
   "    method: 'POST', headers: { 'content-type': 'application/sdp' }, body, signal, redirect: 'error'",
   '  })'
-].join('\\n')
+].join('\n')
 const OFFER_HTTP_FETCH_BLOCK_REPLACEMENT = [
   '  const requestTimeoutMs = Number.isFinite(client.responseTimeoutMs) && client.responseTimeoutMs > 0 ? client.responseTimeoutMs : 30000',
   '  const requestDeadline = AbortSignal.timeout(requestTimeoutMs)',
@@ -305,7 +305,7 @@ const OFFER_HTTP_FETCH_BLOCK_REPLACEMENT = [
   '    }))',
   '    throw error',
   '  } // BEDROCK_BOT_CONSOLE_HTTP_FETCH_TIMEOUT_DIAG'
-].join('\\n')
+].join('\n')
 
 const OFFER_HTTP_BODY_MARKER = 'BEDROCK_BOT_CONSOLE_HTTP_ANSWER_BODY_DIAG'
 const OFFER_HTTP_BODY_ORIGINAL = '  const answer = await response.text()'
@@ -332,7 +332,7 @@ const OFFER_HTTP_BODY_REPLACEMENT = [
   "    answerByteLength: Buffer.byteLength(answer, 'utf8'),",
   "    startsWithV0: answer.startsWith('v=')",
   '  })) // BEDROCK_BOT_CONSOLE_HTTP_ANSWER_BODY_DIAG'
-].join('\\n')
+].join('\n')
 
 // This summary intentionally omits candidate addresses/ports, ICE ufrag/password,
 // DTLS digests, identity JWTs, signatures, and the SDP itself.
