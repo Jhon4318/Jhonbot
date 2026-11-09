@@ -269,6 +269,71 @@ const OFFER_DIAGNOSTIC_LOG_MARKER = 'BEDROCK_BOT_CONSOLE_OFFER_DIAGNOSTIC_LOG'
 const OFFER_DIAGNOSTIC_FUNCTION_ORIGINAL = 'async function exchangeOffer (client, signal) {'
 const OFFER_DIAGNOSTIC_FETCH_ORIGINAL = '  const response = await fetch(new URL(`/v1/join/${client.networkId}`, url), {'
 
+const OFFER_HTTP_FETCH_BLOCK_MARKER = 'BEDROCK_BOT_CONSOLE_HTTP_FETCH_TIMEOUT_DIAG'
+const OFFER_HTTP_FETCH_BLOCK_ORIGINAL = [
+  "  const response = await fetch(new URL(`/v1/join/${client.networkId}`, url), {",
+  "    method: 'POST', headers: { 'content-type': 'application/sdp' }, body, signal, redirect: 'error'",
+  '  })'
+].join('\\n')
+const OFFER_HTTP_FETCH_BLOCK_REPLACEMENT = [
+  '  const requestTimeoutMs = Number.isFinite(client.responseTimeoutMs) && client.responseTimeoutMs > 0 ? client.responseTimeoutMs : 30000',
+  '  const requestDeadline = AbortSignal.timeout(requestTimeoutMs)',
+  '  const requestSignal = signal ? AbortSignal.any([signal, requestDeadline]) : requestDeadline',
+  '  const requestStartedAt = Date.now()',
+  '  let response',
+  '  try {',
+  "    response = await fetch(new URL(`/v1/join/${client.networkId}`, url), {",
+  "      method: 'POST', headers: { 'content-type': 'application/sdp' }, body, signal: requestSignal, redirect: 'error'",
+  '    })',
+  "    console.info('[bedrock-bot-console] NETHERNET_HTTP_DIAG ' + JSON.stringify({",
+  "      phase: 'http-post-response',",
+  '      status: response.status,',
+  '      ok: response.ok,',
+  '      elapsedMs: Date.now() - requestStartedAt,',
+  "      contentType: response.headers.get('content-type') || ''",
+  '    }))',
+  '  } catch (error) {',
+  "    const causeCode = typeof error?.cause?.code === 'string' && /^[A-Z0-9_]+$/.test(error.cause.code) ? error.cause.code : ''",
+  "    console.error('[bedrock-bot-console] NETHERNET_HTTP_DIAG ' + JSON.stringify({",
+  "      phase: 'http-post-error',",
+  '      elapsedMs: Date.now() - requestStartedAt,',
+  '      timeoutMs: requestTimeoutMs,',
+  '      callerAborted: Boolean(signal?.aborted),',
+  '      requestTimedOut: requestDeadline.aborted,',
+  "      errorName: error?.name || 'Error',",
+  '      causeCode',
+  '    }))',
+  '    throw error',
+  '  } // BEDROCK_BOT_CONSOLE_HTTP_FETCH_TIMEOUT_DIAG'
+].join('\\n')
+
+const OFFER_HTTP_BODY_MARKER = 'BEDROCK_BOT_CONSOLE_HTTP_ANSWER_BODY_DIAG'
+const OFFER_HTTP_BODY_ORIGINAL = '  const answer = await response.text()'
+const OFFER_HTTP_BODY_REPLACEMENT = [
+  '  let answer',
+  '  try {',
+  '    answer = await response.text()',
+  '  } catch (error) {',
+  "    const causeCode = typeof error?.cause?.code === 'string' && /^[A-Z0-9_]+$/.test(error.cause.code) ? error.cause.code : ''",
+  "    console.error('[bedrock-bot-console] NETHERNET_HTTP_DIAG ' + JSON.stringify({",
+  "      phase: 'http-answer-read-error',",
+  '      elapsedMs: Date.now() - requestStartedAt,',
+  '      timeoutMs: requestTimeoutMs,',
+  '      callerAborted: Boolean(signal?.aborted),',
+  '      requestTimedOut: requestDeadline.aborted,',
+  "      errorName: error?.name || 'Error',",
+  '      causeCode',
+  '    }))',
+  '    throw error',
+  '  }',
+  "  console.info('[bedrock-bot-console] NETHERNET_HTTP_DIAG ' + JSON.stringify({",
+  "    phase: 'http-answer-read',",
+  '    elapsedMs: Date.now() - requestStartedAt,',
+  "    answerByteLength: Buffer.byteLength(answer, 'utf8'),",
+  "    startsWithV0: answer.startsWith('v=')",
+  '  })) // BEDROCK_BOT_CONSOLE_HTTP_ANSWER_BODY_DIAG'
+].join('\\n')
+
 // This summary intentionally omits candidate addresses/ports, ICE ufrag/password,
 // DTLS digests, identity JWTs, signatures, and the SDP itself.
 const OFFER_DIAGNOSTIC_HELPER_SOURCE = String.raw`function summarizeOfferSdp (sdp) {
@@ -1012,7 +1077,21 @@ function patchHttpOfferDiagnosticsSource (source) {
     OFFER_DIAGNOSTIC_LOG_MARKER,
     'nethernet/src/signalling/http.js diagnostics log'
   )
-  return { source: log.source, changed: helper.changed || log.changed }
+  const fetch = applySingleReplace(
+    log.source,
+    OFFER_HTTP_FETCH_BLOCK_ORIGINAL,
+    OFFER_HTTP_FETCH_BLOCK_REPLACEMENT,
+    OFFER_HTTP_FETCH_BLOCK_MARKER,
+    'nethernet/src/signalling/http.js bounded HTTP POST'
+  )
+  const body = applySingleReplace(
+    fetch.source,
+    OFFER_HTTP_BODY_ORIGINAL,
+    OFFER_HTTP_BODY_REPLACEMENT,
+    OFFER_HTTP_BODY_MARKER,
+    'nethernet/src/signalling/http.js HTTP answer body diagnostics'
+  )
+  return { source: body.source, changed: helper.changed || log.changed || fetch.changed || body.changed }
 }
 
 function replaceFile (target, patcher) {
