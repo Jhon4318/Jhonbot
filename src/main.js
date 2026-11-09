@@ -521,7 +521,15 @@ async function discoverLanWorld (botId) {
 }
 
 function serverKeyOptions (bot, profile, mode, attemptId) {
-  const nethernet = { webrtcBackend: 'werift', signallingConnectTimeout: 30000 }
+  const nethernet = {
+    webrtcBackend: 'werift',
+    signallingConnectTimeout: 30000,
+    inactivityTimeoutMs: 15000,
+    onDiagnostics: (message) => {
+      if (bot.connectionAttempt !== attemptId) return
+      pushLog(`${bot.label}: [NetherNet] ${String(message)}`, 'info', bot.id)
+    }
+  }
   if (mode === 'http' || mode === 'auto') {
     const expectedOrigin = serverHttpSignallingOrigin(profile)
     const known = settings.trustedServerKeys[serverOriginKey(expectedOrigin)]
