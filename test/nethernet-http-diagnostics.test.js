@@ -13,7 +13,7 @@ const {
 
 const FIXTURE = [
   'async function exchangeOffer (client, signal) {',
-  "  const body = 'v=0\\r\\n'",
+  "  const body = 'v=0'",
   '  const { url, serverKey, onServerKey } = client.http',
   '  const response = await fetch(new URL(`/v1/join/${client.networkId}`, url), {',
   "    method: 'POST', headers: { 'content-type': 'application/sdp' }, body, signal, redirect: 'error'",
@@ -22,7 +22,7 @@ const FIXTURE = [
   '  const answer = await response.text()',
   '  return answer',
   '}'
-].join('\\n')
+].join('\n')
 
 test('bounds HTTP offer fetch and records response and body outcomes', () => {
   const patched = patchHttpOfferDiagnosticsSource(FIXTURE)
