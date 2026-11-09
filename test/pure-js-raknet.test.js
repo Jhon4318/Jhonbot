@@ -235,7 +235,7 @@ test('patches app and nested Mineflayer protocol copies without touching options
     fs.mkdirSync(path.join(nethernetRoot, 'src', 'signalling'), { recursive: true })
     fs.writeFileSync(path.join(nethernetRoot, 'package.json'), JSON.stringify({ name: 'nethernet', version: EXPECTED_NETHERNET_VERSION }))
     fs.writeFileSync(path.join(nethernetRoot, 'index.js'), 'module.exports = {}')
-    fs.writeFileSync(path.join(nethernetRoot, 'src', 'signalling', 'http.js'), `const body = 'sdp'\n${OFFER_DIAGNOSTIC_FUNCTION_ORIGINAL}\n${HTTP_ERROR_ORIGINAL}\n${OFFER_DIAGNOSTIC_FETCH_ORIGINAL}\n    method: 'POST',\n    body\n  })\n  return response\n}\nmodule.exports = { exchangeOffer }\n`)
+    fs.writeFileSync(path.join(nethernetRoot, 'src', 'signalling', 'http.js'), `${OFFER_DIAGNOSTIC_FUNCTION_ORIGINAL}\n  const body = 'sdp'\n  const { url, serverKey, onServerKey } = client.http\n${OFFER_DIAGNOSTIC_FETCH_ORIGINAL}\n    method: 'POST', headers: { 'content-type': 'application/sdp' }, body, signal, redirect: 'error'\n  })\n${HTTP_ERROR_ORIGINAL}\n  const answer = await response.text()\n  return answer\n}\nmodule.exports = { exchangeOffer }\n`)
     fs.writeFileSync(path.join(nethernetRoot, 'src', 'signalling', 'sdpIdentity.js'), `const crypto = require('crypto')\nfunction buildIdentityAttribute (sdp) { return 'identity:' + sdp }\n${ATTACH_IDENTITY_ORIGINAL}\nfunction verifyServerIdentity (claims) {\n${VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL}\n  return key\n}\nmodule.exports = { attachIdentity, verifyServerIdentity }\n`)
     const nethernetClientSource = [
       'class Client extends EventEmitter {',
