@@ -28,7 +28,7 @@ function createConnectionFixture () {
     NETHERNET_CONNECTION_RECEIVE_ORIGINAL,
     '  }',
     '}'
-  ].join('\\n')
+  ].join('\n')
 }
 
 test('adds safe data-channel diagnostics to the pinned NetherNet connection source', () => {
@@ -40,7 +40,7 @@ test('adds safe data-channel diagnostics to the pinned NetherNet connection sour
   assert.match(patched.source, /Unreliable data channel opened/)
   assert.match(patched.source, /Reliable data channel payload received/)
   assert.match(patched.source, /receivedMessageCount <= 8/)
-  assert.doesNotMatch(patched.source, /this\\.buf\\.toString|JSON\\.stringify\\(this\\.buf/)
+  assert.doesNotMatch(patched.source, /this\.buf\.toString|JSON\.stringify\(this\.buf/)
 })
 
 test('data-channel diagnostic patch is idempotent', () => {
