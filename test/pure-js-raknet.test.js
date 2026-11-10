@@ -13,6 +13,7 @@ const {
   REPLACEMENT,
   MARKER,
   IDENTITY_ORIGINAL,
+  NETWORK_SETTINGS_COMPRESSION_ORIGINAL,
   HTTP_ERROR_ORIGINAL,
   OFFER_DIAGNOSTIC_FUNCTION_ORIGINAL,
   OFFER_DIAGNOSTIC_FETCH_ORIGINAL,
@@ -151,6 +152,9 @@ test('patches app and nested Mineflayer protocol copies without touching options
     fs.writeFileSync(path.join(root, 'src', 'transforms', 'framer.js'), framerSource)
 
     const clientSource = [
+      'class ClientCompressionFixture {',
+      NETWORK_SETTINGS_COMPRESSION_ORIGINAL,
+      '}',
       'function setup (sessionData) {',
       IDENTITY_ORIGINAL,
       '  function connect (sessionData) {',
@@ -324,7 +328,7 @@ test('patches app and nested Mineflayer protocol copies without touching options
     fs.writeFileSync(path.join(nethernetRoot, 'src', 'connection.js'), nethernetConnectionSource)
 
     const first = applyPatch(tempRoot)
-    assert.equal(first.length, 20)
+    assert.equal(first.length, 22)
     const patchedNethernetClientSource = fs.readFileSync(path.join(nethernetRoot, 'src', 'client.js'), 'utf8')
     assert.match(patchedNethernetClientSource, /BEDROCK_BOT_CONSOLE_NETHERNET_CLIENT_SEND_RETURN/)
     assert.match(patchedNethernetClientSource, /return this\.connection\.send\(buffer\)/)
@@ -333,6 +337,7 @@ test('patches app and nested Mineflayer protocol copies without touching options
       assert.ok(source.includes(MARKER))
       assert.ok(!source.includes(ORIGINAL))
       const clientSource = fs.readFileSync(path.join(target, 'src', 'client.js'), 'utf8')
+      assert.match(clientSource, /BEDROCK_BOT_CONSOLE_NETWORK_SETTINGS_COMPRESSION_HEADER/)
       assert.match(clientSource, /authorization\.franchise\.minecraft-services\.net/)
       assert.doesNotMatch(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_DIAGNOSTICS/)
       assert.doesNotMatch(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TRANSPORT_CONNECTED/)
@@ -365,8 +370,8 @@ test('patches app and nested Mineflayer protocol copies without touching options
     assert.match(identitySource, /BEDROCK_BOT_CONSOLE_SESSION_FINGERPRINT_SCOPE/)
     assert.match(identitySource, /normalizeFingerprintScope\(sdp\)/)
     const second = applyPatch(tempRoot)
-    assert.equal(second.length, 20)
-    assert.deepEqual(second.map(result => result.changed), Array(20).fill(false))
+    assert.equal(second.length, 22)
+    assert.deepEqual(second.map(result => result.changed), Array(22).fill(false))
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true })
   }
