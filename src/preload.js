@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('botApp', {
   addServer: (data) => ipcRenderer.invoke('server:add', data),
   addHivePreset: () => ipcRenderer.invoke('server:add-hive-preset'),
   removeServer: (id) => ipcRenderer.invoke('server:remove', id),
+  resetServerKey: (id) => ipcRenderer.invoke('server:reset-key', id),
   setBotTarget: (args) => ipcRenderer.invoke('bot:set-target', args),
   discoverLanWorld: (id) => ipcRenderer.invoke('bot:discover-lan', id),
   selectWorldSession: (args) => ipcRenderer.invoke('world:select-session', args),
