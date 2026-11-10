@@ -22,6 +22,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Keep only the newest validation/package run for this branch active.
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
