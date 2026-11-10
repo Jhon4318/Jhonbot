@@ -821,7 +821,21 @@ async function connectBot (botId) {
     bedrockPacketCounts.set(name, seen)
     if (seen > 4) return
     const params = packet?.data?.params || packet?.params || {}
-    const detail = name === 'play_status' ? ` / status=${String(params.status ?? 'unknown')}` : ''
+    let detail = ''
+    if (name === 'play_status') {
+      detail = ' / status=' + String(params.status ?? 'unknown')
+    } else if (name === 'network_settings') {
+      const algorithmValue = params.compression_algorithm
+      const algorithmName = algorithmValue === 'snappy' || algorithmValue === 1 || algorithmValue === '1'
+        ? 'snappy'
+        : (algorithmValue === 'deflate' || algorithmValue === 0 || algorithmValue === '0'
+            ? 'deflate'
+            : (algorithmValue === 'none' || algorithmValue === 2 || algorithmValue === 65535 || algorithmValue === '65535'
+                ? 'none'
+                : 'unknown'))
+      const threshold = Number(params.compression_threshold)
+      detail = ' / compression=' + algorithmName + ', threshold=' + (Number.isFinite(threshold) ? String(threshold) : 'unknown')
+    }
     pushLog(`${bot.label}: [Bedrock] 受信パケット=${name}${detail}`, 'info', bot.id)
   })
   agent._client.on('loggingIn', () => {
