@@ -154,6 +154,16 @@ function serverOriginKey (origin) {
   try { return new URL(origin).origin.toLowerCase() } catch { throw new Error('サーバー鍵の接続元URLが不正です。') }
 }
 
+function resetTrustedServerKey (trustedServerKeys, origin) {
+  if (!trustedServerKeys || typeof trustedServerKeys !== 'object' || Array.isArray(trustedServerKeys)) {
+    throw new Error('保存済みサーバー鍵の設定が不正です。')
+  }
+  const key = serverOriginKey(origin)
+  if (!Object.prototype.hasOwnProperty.call(trustedServerKeys, key)) return false
+  delete trustedServerKeys[key]
+  return true
+}
+
 module.exports = {
   DEFAULT_PORT,
   MODES,
@@ -166,5 +176,6 @@ module.exports = {
   legacyServerId,
   normalizeSignallingUrl,
   serverHttpSignallingOrigin,
-  serverOriginKey
+  serverOriginKey,
+  resetTrustedServerKey
 }
