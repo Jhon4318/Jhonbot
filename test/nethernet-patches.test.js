@@ -117,7 +117,9 @@ test('forwards the list of trusted server keys through the Bedrock-NetherNet ada
   const fixture = [
     'class NetTransport {',
     '  constructor (options) {',
+    '    this.nethernet = {',
     NETHERNET_OPTIONS_ORIGINAL,
+    '    }',
     '  }',
     NETHERNET_SEND_RELIABLE_ORIGINAL,
     '}'
