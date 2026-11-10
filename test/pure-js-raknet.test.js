@@ -305,7 +305,7 @@ test('patches app and nested Mineflayer protocol copies without touching options
       NETHERNET_CONNECTION_RECEIVE_ORIGINAL,
       '  }',
       '}'
-    ].join('\\n')
+    ].join('\n')
     fs.writeFileSync(path.join(nethernetRoot, 'src', 'connection.js'), nethernetConnectionSource)
 
     const first = applyPatch(tempRoot)
