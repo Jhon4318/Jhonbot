@@ -80,7 +80,7 @@ const HTTP_SERVER_KEYS_TRUST_ORIGINAL = [
   "  let trusted = serverKey ? serverKey === verified.fingerprint : url.protocol === 'https:'",
   '  if (!trusted && !serverKey && onServerKey) trusted = await onServerKey(verified.fingerprint, url.origin) === true',
   "  if (!trusted) throw new Error(`Untrusted Nethernet server key ${verified.fingerprint}; configure serverKey after verifying it`)"
-].join('\\n')
+].join('\n')
 const HTTP_SERVER_KEYS_TRUST_MARKER = 'BEDROCK_BOT_CONSOLE_HTTP_SERVER_KEY_VARIANTS_TRUST'
 const HTTP_SERVER_KEYS_TRUST_REPLACEMENT = [
   '  const verified = verifyServerIdentity(answer)',
@@ -92,7 +92,7 @@ const HTTP_SERVER_KEYS_TRUST_REPLACEMENT = [
   '  // When a pinned key set exists, an unrecognized account/backend key must be explicitly approved.',
   '  if (!trusted && !serverKey && onServerKey) trusted = await onServerKey(verified.fingerprint, url.origin) === true',
   "  if (!trusted) throw new Error(`Untrusted Nethernet server key ${verified.fingerprint}; configure serverKey after verifying it`) // BEDROCK_BOT_CONSOLE_HTTP_SERVER_KEY_VARIANTS_TRUST"
-].join('\\n')
+].join('\n')
 
 const CLIENT_SERVICES_SIGNAL_ORIGINAL = [
   '        this.nethernet.signalling.connect()',
