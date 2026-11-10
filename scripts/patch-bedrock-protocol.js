@@ -241,7 +241,7 @@ const NETHERNET_CONNECTION_RELIABLE_CHANNELS_ORIGINAL = [
   '      this.reliable.onerror = () => {',
   "        this.notifyClosed('disconnected')",
   '      }'
-].join('\\n')
+].join('\n')
 const NETHERNET_CONNECTION_RELIABLE_CHANNELS_MARKER = 'BEDROCK_BOT_CONSOLE_RELIABLE_CHANNEL_DIAGNOSTICS'
 const NETHERNET_CONNECTION_UNRELIABLE_CHANNELS_ORIGINAL = [
   '      this.unreliable.onclose = () => {',
@@ -251,12 +251,12 @@ const NETHERNET_CONNECTION_UNRELIABLE_CHANNELS_ORIGINAL = [
   '      this.unreliable.onerror = () => {',
   "        this.notifyClosed('disconnected')",
   '      }'
-].join('\\n')
+].join('\n')
 const NETHERNET_CONNECTION_UNRELIABLE_CHANNELS_MARKER = 'BEDROCK_BOT_CONSOLE_UNRELIABLE_CHANNEL_DIAGNOSTICS'
 const NETHERNET_CONNECTION_RECEIVE_ORIGINAL = [
   "    this.nethernet.emit('encapsulated', this.buf, this.address)",
   '    this.buf = null'
-].join('\\n')
+].join('\n')
 const NETHERNET_CONNECTION_RECEIVE_MARKER = 'BEDROCK_BOT_CONSOLE_RELIABLE_PAYLOAD_DIAGNOSTICS'
 
 const VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL = "  const key = crypto.createPublicKey({ key: claims?.cpk, format: 'jwk' })"
@@ -1145,7 +1145,7 @@ function patchNethernetConnectionDiagnosticsSource (source) {
       "        this.nethernet?.reportDiagnostic?.('Reliable data channel error')",
       "        this.notifyClosed('disconnected')",
       '      } // BEDROCK_BOT_CONSOLE_RELIABLE_CHANNEL_DIAGNOSTICS'
-    ].join('\\n'),
+    ].join('\n'),
     NETHERNET_CONNECTION_RELIABLE_CHANNELS_MARKER,
     'nethernet/src/connection.js reliable data channel diagnostics'
   )
@@ -1169,7 +1169,7 @@ function patchNethernetConnectionDiagnosticsSource (source) {
       "        this.nethernet?.reportDiagnostic?.('Unreliable data channel error')",
       "        this.notifyClosed('disconnected')",
       '      } // BEDROCK_BOT_CONSOLE_UNRELIABLE_CHANNEL_DIAGNOSTICS'
-    ].join('\\n'),
+    ].join('\n'),
     NETHERNET_CONNECTION_UNRELIABLE_CHANNELS_MARKER,
     'nethernet/src/connection.js unreliable data channel diagnostics'
   )
@@ -1186,7 +1186,7 @@ function patchNethernetConnectionDiagnosticsSource (source) {
       '    }',
       "    this.nethernet.emit('encapsulated', this.buf, this.address)",
       '    this.buf = null // BEDROCK_BOT_CONSOLE_RELIABLE_PAYLOAD_DIAGNOSTICS'
-    ].join('\\n'),
+    ].join('\n'),
     NETHERNET_CONNECTION_RECEIVE_MARKER,
     'nethernet/src/connection.js inbound payload diagnostics'
   )
