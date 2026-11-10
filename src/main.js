@@ -576,9 +576,10 @@ function serverKeyOptions (bot, profile, mode, attemptId) {
   }
   if (mode === 'http' || mode === 'auto') {
     const expectedOrigin = serverHttpSignallingOrigin(profile)
-    const known = settings.trustedServerKeys[serverOriginKey(expectedOrigin)]
-    if (known) nethernet.serverKey = known
-    else nethernet.onServerKey = (fingerprint, origin) => requestServerKeyApproval(bot, fingerprint, origin, attemptId)
+    nethernet.serverKeys = getTrustedServerKeyFingerprints(settings.trustedServerKeys, expectedOrigin)
+    // Always allow an unrecognized key to request explicit user approval, even when
+    // this origin already has one or more account/backend-specific keys pinned.
+    nethernet.onServerKey = (fingerprint, origin) => requestServerKeyApproval(bot, fingerprint, origin, attemptId)
   }
   return nethernet
 }
