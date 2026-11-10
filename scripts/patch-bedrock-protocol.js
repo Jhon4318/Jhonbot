@@ -34,6 +34,15 @@ const ORIGINAL = "const { RakClient } = initRaknet('raknet-native')"
 const REPLACEMENT = "const { RakClient } = initRaknet('jsp-raknet') // BEDROCK_BOT_CONSOLE_PURE_JS_RAKNET"
 const MARKER = 'BEDROCK_BOT_CONSOLE_PURE_JS_RAKNET'
 
+const NETWORK_SETTINGS_COMPRESSION_ORIGINAL = [
+  '  updateCompressorSettings (packet) {',
+  "    this.compressionAlgorithm = packet.compression_algorithm || 'deflate'",
+  '    this.compressionThreshold = packet.compression_threshold',
+  '    this.compressionReady = true',
+  '  }'
+].join('\n')
+const NETWORK_SETTINGS_COMPRESSION_MARKER = 'BEDROCK_BOT_CONSOLE_NETWORK_SETTINGS_COMPRESSION_HEADER'
+
 const IDENTITY_ORIGINAL = `this.connection.nethernet.identity = {
           privateKey: this.ecdhKeyPair.privateKey,
           token: this.multiplayerToken
@@ -634,6 +643,42 @@ function patchSnappyCompressionSource (source) {
     source: decompressed.source,
     changed: compressed.changed || decompressed.changed
   }
+}
+
+function patchNetworkSettingsCompressionSource (source) {
+  return applySingleReplace(
+    source,
+    NETWORK_SETTINGS_COMPRESSION_ORIGINAL,
+    [
+      '  updateCompressorSettings (packet) {',
+      "    const algorithm = String(packet.compression_algorithm ?? 'deflate')",
+      '    switch (algorithm) {',
+      "      case 'deflate':",
+      "      case '0':",
+      "        this.compressionAlgorithm = 'deflate'",
+      '        this.compressionHeader = 0',
+      '        break',
+      "      case 'snappy':",
+      "      case '1':",
+      "        this.compressionAlgorithm = 'snappy'",
+      '        this.compressionHeader = 1',
+      '        break',
+      "      case 'none':",
+      "      case '2':",
+      "      case '65535':",
+      "        this.compressionAlgorithm = 'none'",
+      '        this.compressionHeader = 255',
+      '        break',
+      '      default:',
+      "        throw new Error('Unsupported Bedrock compression algorithm: ' + algorithm)",
+      '    }',
+      '    this.compressionThreshold = packet.compression_threshold',
+      '    this.compressionReady = true',
+      '  } // BEDROCK_BOT_CONSOLE_NETWORK_SETTINGS_COMPRESSION_HEADER'
+    ].join('\n'),
+    NETWORK_SETTINGS_COMPRESSION_MARKER,
+    'bedrock-protocol/src/client.js NetworkSettings compression framing'
+  )
 }
 
 function patchIdentityDomainSource (source) {
@@ -1407,6 +1452,7 @@ function applyPatch (projectRoot = path.resolve(__dirname, '..')) {
     results.push(replaceFile(path.join(copy.root, 'src', 'transforms', 'framer.js'), patchSnappyCompressionSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'connection.js'), patchBedrockConnectionOutboundDiagnosticsSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'client.js'), patchIdentityDomainSource))
+    results.push(replaceFile(path.join(copy.root, 'src', 'client.js'), patchNetworkSettingsCompressionSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'client', 'auth.js'), patchClientWorldConnectionProtocolSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'nethernet', 'signalling.js'), patchNethernetSignallingSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'nethernet', 'index.js'), patchNethernetTimeoutOptionsSource))
@@ -1449,6 +1495,9 @@ module.exports = {
   IDENTITY_ORIGINAL,
   IDENTITY_REPLACEMENT,
   IDENTITY_MARKER,
+  NETWORK_SETTINGS_COMPRESSION_ORIGINAL,
+  NETWORK_SETTINGS_COMPRESSION_MARKER,
+  patchNetworkSettingsCompressionSource,
   HTTP_ERROR_ORIGINAL,
   HTTP_ERROR_REPLACEMENT,
   HTTP_ERROR_MARKER,
