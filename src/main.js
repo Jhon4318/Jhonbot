@@ -22,7 +22,7 @@ const { assertCanAuthenticate, assertCanJoinWorld } = require('./account-state')
 const { createEncryptedAuthCacheFactory, hasEncryptedAuthCache } = require('./auth-cache')
 const { normalizeChatMessage, normalizeDropRequest, createInventorySnapshot } = require('./bot-actions')
 const { installSubClientSupport, createGuestLoginTokens, MAX_SUB_CLIENTS } = require('./subclients')
-const { DEFAULT_PORT, normalizeServerProfile, normalizeTarget, migrateSettings, serverOriginKey, serverHttpSignallingOrigin, resetTrustedServerKey } = require('./destinations')
+const { DEFAULT_PORT, normalizeServerProfile, normalizeTarget, migrateSettings, serverOriginKey, serverHttpSignallingOrigin, getTrustedServerKeyFingerprints, addTrustedServerKey, recordSuccessfulServerConnection, resetTrustedServerKey } = require('./destinations')
 
 const MC_VERSION = '1.26.60'
 const MAX_LOGS = 300
@@ -252,7 +252,9 @@ function describeBotTarget (bot) {
 }
 
 function publicServerProfiles () {
-  return settings.servers.map(({ id, label, host, port, mode, signallingUrl }) => ({ id, label, host, port, mode, signallingUrl }))
+  return settings.servers.map(({ id, label, host, port, mode, signallingUrl, lastSuccessfulMode, lastSuccessfulAt }) => ({
+    id, label, host, port, mode, signallingUrl, lastSuccessfulMode: lastSuccessfulMode || '', lastSuccessfulAt: lastSuccessfulAt || ''
+  }))
 }
 
 async function loadSettings () {
@@ -283,7 +285,9 @@ async function loadSettings () {
 
 function saveSettings () {
   const snapshot = {
-    servers: settings.servers.map(({ id, label, host, port, mode, signallingUrl }) => ({ id, label, host, port, mode, signallingUrl })),
+    servers: settings.servers.map(({ id, label, host, port, mode, signallingUrl, lastSuccessfulMode, lastSuccessfulAt }) => ({
+      id, label, host, port, mode, signallingUrl, lastSuccessfulMode: lastSuccessfulMode || '', lastSuccessfulAt: lastSuccessfulAt || ''
+    })),
     trustedServerKeys: { ...settings.trustedServerKeys },
     bots: Array.from(bots.values()).map(({ id, label, targetType, targetId, networkId, worldName, parentBotId, subClientId }) => ({
       id, label, targetType, targetId, networkId, worldName, ...(parentBotId ? { parentBotId, subClientId } : {})
@@ -391,9 +395,10 @@ function askForWorldSelection (bot, sessions, attemptId) {
 
 function requestServerKeyApproval (bot, fingerprint, origin, attemptId) {
   const key = serverOriginKey(origin)
-  const trusted = settings.trustedServerKeys[key]
-  if (trusted) return Promise.resolve(trusted === fingerprint)
+  const trustedFingerprints = getTrustedServerKeyFingerprints(settings.trustedServerKeys, origin)
+  if (trustedFingerprints.includes(fingerprint)) return Promise.resolve(true)
 
+  const previouslyTrusted = trustedFingerprints.length > 0
   const requestId = randomUUID()
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
@@ -406,6 +411,7 @@ function requestServerKeyApproval (bot, fingerprint, origin, attemptId) {
       key,
       fingerprint,
       origin,
+      previouslyTrusted,
       resolve: (approved) => { clearTimeout(timer); resolve(approved) }
     })
     send('security:server-key-approval', {
@@ -413,9 +419,12 @@ function requestServerKeyApproval (bot, fingerprint, origin, attemptId) {
       botId: bot.id,
       botLabel: bot.label,
       fingerprint,
-      origin
+      origin,
+      previouslyTrusted
     })
-    pushLog(`${bot.label}: ${origin} のNetherNetサーバー鍵を確認してください。`, 'warning', bot.id)
+    pushLog(previouslyTrusted
+      ? `${bot.label}: ${origin} から以前と異なるNetherNetサーバー鍵が提示されました。追加の信頼確認が必要です。`
+      : `${bot.label}: ${origin} のNetherNetサーバー鍵を確認してください。`, 'warning', bot.id)
   })
 }
 
@@ -424,9 +433,11 @@ async function resolveServerKeyApproval (requestId, approved) {
   if (!pending) throw new Error('サーバー鍵の確認要求が見つからないか、期限切れです。')
   pendingServerKeyApprovals.delete(String(requestId))
   if (approved === true) {
-    settings.trustedServerKeys[pending.key] = pending.fingerprint
+    addTrustedServerKey(settings.trustedServerKeys, pending.origin, pending.fingerprint)
     await saveSettings()
-    pushLog(`${pending.botId}: ${pending.origin} のサーバー鍵をこのPCに保存しました。`, 'success', pending.botId)
+    pushLog(pending.previouslyTrusted
+      ? `${pending.botId}: ${pending.origin} の追加サーバー鍵を既存の信頼情報を残して保存しました。`
+      : `${pending.botId}: ${pending.origin} のサーバー鍵をこのPCに保存しました。`, 'success', pending.botId)
     pending.resolve(true)
     return true
   }
