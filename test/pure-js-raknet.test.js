@@ -50,7 +50,9 @@ const {
   NETHERNET_CLIENT_DIAGNOSTIC_HANDLE_SIGNAL_ORIGINAL,
   NETHERNET_CONNECTION_RELIABLE_CHANNELS_ORIGINAL,
   NETHERNET_CONNECTION_UNRELIABLE_CHANNELS_ORIGINAL,
-  NETHERNET_CONNECTION_RECEIVE_ORIGINAL
+  NETHERNET_CONNECTION_RECEIVE_ORIGINAL,
+  BEDROCK_CONNECTION_WRITE_ORIGINAL,
+  BEDROCK_CONNECTION_SEND_MCPE_ORIGINAL
 } = require('../scripts/patch-bedrock-protocol')
 const { ATTACH_IDENTITY_ORIGINAL } = require('../scripts/patch-nethernet-sdp')
 
@@ -161,6 +163,13 @@ test('patches app and nested Mineflayer protocol copies without touching options
       '}'
     ].join('\n')
     fs.writeFileSync(path.join(root, 'src', 'client.js'), clientSource)
+    const bedrockConnectionSource = [
+      'class ConnectionFixture {',
+      BEDROCK_CONNECTION_WRITE_ORIGINAL,
+      BEDROCK_CONNECTION_SEND_MCPE_ORIGINAL,
+      '}'
+    ].join('\n')
+    fs.writeFileSync(path.join(root, 'src', 'connection.js'), bedrockConnectionSource)
     const worldAuthSource = [
       'async function worldAuthenticate (session, options) {',
       CLIENT_WORLD_CONNECTION_SELECTION_ORIGINAL,
@@ -309,7 +318,7 @@ test('patches app and nested Mineflayer protocol copies without touching options
     fs.writeFileSync(path.join(nethernetRoot, 'src', 'connection.js'), nethernetConnectionSource)
 
     const first = applyPatch(tempRoot)
-    assert.equal(first.length, 18)
+    assert.equal(first.length, 20)
     for (const target of [rootProtocol, nestedProtocol]) {
       const source = fs.readFileSync(path.join(target, 'src', 'createClient.js'), 'utf8')
       assert.ok(source.includes(MARKER))
@@ -320,6 +329,9 @@ test('patches app and nested Mineflayer protocol copies without touching options
       assert.doesNotMatch(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TRANSPORT_CONNECTED/)
       assert.doesNotMatch(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TIMEOUT_DIAGNOSTICS/)
       assert.doesNotMatch(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_OPTIONS/)
+      const bedrockConnectionSource = fs.readFileSync(path.join(target, 'src', 'connection.js'), 'utf8')
+      assert.match(bedrockConnectionSource, /BEDROCK_BOT_CONSOLE_BEDROCK_OUTBOUND_PACKET_DIAGNOSTICS/)
+      assert.match(bedrockConnectionSource, /BEDROCK_BOT_CONSOLE_NETHERNET_HANDSHAKE_SEND_RESULT/)
       const worldAuthSource = fs.readFileSync(path.join(target, 'src', 'client', 'auth.js'), 'utf8')
       assert.match(worldAuthSource, /BEDROCK_BOT_CONSOLE_XBOX_CONNECTIONTYPE_ROUTING/)
       assert.match(worldAuthSource, /_signallingProtocol = protocol/)
@@ -342,8 +354,8 @@ test('patches app and nested Mineflayer protocol copies without touching options
     assert.match(identitySource, /BEDROCK_BOT_CONSOLE_SESSION_FINGERPRINT_SCOPE/)
     assert.match(identitySource, /normalizeFingerprintScope\(sdp\)/)
     const second = applyPatch(tempRoot)
-    assert.equal(second.length, 18)
-    assert.deepEqual(second.map(result => result.changed), Array(18).fill(false))
+    assert.equal(second.length, 20)
+    assert.deepEqual(second.map(result => result.changed), Array(20).fill(false))
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true })
   }

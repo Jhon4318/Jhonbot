@@ -825,7 +825,7 @@ async function connectBot (botId) {
     pushLog(`${bot.label}: [Bedrock] 受信パケット=${name}${detail}`, 'info', bot.id)
   })
   agent._client.on('loggingIn', () => {
-    if (bot.agent === agent) pushLog(`${bot.label}: [Bedrock] Loginパケットを送信しました。`, 'info', bot.id)
+    if (bot.agent === agent) pushLog(`${bot.label}: [Bedrock] Loginパケットの送信処理を呼び出しました。`, 'info', bot.id)
   })
   agent._client.on('join', () => {
     if (bot.agent === agent) pushLog(`${bot.label}: [Bedrock] サーバーとの暗号化ハンドシェイクが完了しました。`, 'info', bot.id)

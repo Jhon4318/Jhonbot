@@ -259,6 +259,34 @@ const NETHERNET_CONNECTION_RECEIVE_ORIGINAL = [
 ].join('\n')
 const NETHERNET_CONNECTION_RECEIVE_MARKER = 'BEDROCK_BOT_CONSOLE_RELIABLE_PAYLOAD_DIAGNOSTICS'
 
+const BEDROCK_CONNECTION_WRITE_ORIGINAL = [
+  '  write (name, params) {',
+  '    this.outLog?.(name, params)',
+  '    this._processOutbound(name, params)',
+  '    const batch = new Framer(this)',
+  '    const packet = this.serializer.createPacketBuffer({ name, params })',
+  '    batch.addEncodedPacket(packet)',
+  '',
+  '    if (this.encryptionEnabled) {',
+  '      this.sendEncryptedBatch(batch)',
+  '    } else {',
+  '      this.sendDecryptedBatch(batch)',
+  '    }',
+  '  }'
+].join('\n')
+const BEDROCK_CONNECTION_WRITE_MARKER = 'BEDROCK_BOT_CONSOLE_BEDROCK_OUTBOUND_PACKET_DIAGNOSTICS'
+const BEDROCK_CONNECTION_SEND_MCPE_ORIGINAL = [
+  '  sendMCPE (buffer, immediate) {',
+  '    if (this.connection.connected === false || this.status === ClientStatus.Disconnected) return',
+  '    try {',
+  '      this.connection.sendReliable(buffer, immediate)',
+  '    } catch (e) {',
+  "      debug('while sending to', this.connection, e)",
+  '    }',
+  '  }'
+].join('\n')
+const BEDROCK_CONNECTION_SEND_MCPE_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_HANDSHAKE_SEND_RESULT'
+
 const VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL = "  const key = crypto.createPublicKey({ key: claims?.cpk, format: 'jwk' })"
 const VERIFY_SERVER_IDENTITY_PUBLIC_KEY_MARKER = 'BEDROCK_BOT_CONSOLE_CPK_PUBLIC_KEY_FORMAT'
 const VERIFY_SERVER_IDENTITY_PUBLIC_KEY_REPLACEMENT = [
@@ -1124,6 +1152,77 @@ function patchHttpOfferDiagnosticsSource (source) {
   return { source: body.source, changed: helper.changed || log.changed || fetch.changed || body.changed }
 }
 
+function patchBedrockConnectionOutboundDiagnosticsSource (source) {
+  let current = source
+  const write = applySingleReplace(
+    current,
+    BEDROCK_CONNECTION_WRITE_ORIGINAL,
+    [
+      '  write (name, params) {',
+      '    this.outLog?.(name, params)',
+      '    this._processOutbound(name, params)',
+      '    const batch = new Framer(this)',
+      '    const packet = this.serializer.createPacketBuffer({ name, params })',
+      '    batch.addEncodedPacket(packet)',
+      "    const traceHandshakePacket = this.options?.transport === 'nethernet' && (name === 'login' || name === 'client_to_server_handshake')",
+      '    const previousDiagnosticPacketName = this._diagnosticOutboundPacketName',
+      '    if (traceHandshakePacket) {',
+      '      this._diagnosticOutboundPacketName = name',
+      "      this.connection?.nethernet?.reportDiagnostic?.('Bedrock outbound handshake packet encoded: name=' + name + ', packetBytes=' + packet.length)",
+      '    }',
+      '    try {',
+      '      if (this.encryptionEnabled) {',
+      '        this.sendEncryptedBatch(batch)',
+      '      } else {',
+      '        this.sendDecryptedBatch(batch)',
+      '      }',
+      '    } finally {',
+      '      if (traceHandshakePacket) {',
+      '        if (previousDiagnosticPacketName == null) delete this._diagnosticOutboundPacketName',
+      '        else this._diagnosticOutboundPacketName = previousDiagnosticPacketName',
+      '      }',
+      '    }',
+      '  } // BEDROCK_BOT_CONSOLE_BEDROCK_OUTBOUND_PACKET_DIAGNOSTICS'
+    ].join('\n'),
+    BEDROCK_CONNECTION_WRITE_MARKER,
+    'bedrock-protocol/src/connection.js outbound packet diagnostics'
+  )
+  current = write.source
+  const send = applySingleReplace(
+    current,
+    BEDROCK_CONNECTION_SEND_MCPE_ORIGINAL,
+    [
+      '  sendMCPE (buffer, immediate) {',
+      "    const packetName = this._diagnosticOutboundPacketName",
+      "    const diagnosticNethernet = this.options?.transport === 'nethernet' && packetName ? this.connection?.nethernet : null",
+      "    const reliableState = diagnosticNethernet?.connection?.reliable?.readyState || 'unknown'",
+      '    if (this.connection.connected === false || this.status === ClientStatus.Disconnected) {',
+      '      if (diagnosticNethernet) {',
+      "        diagnosticNethernet.reportDiagnostic?.('Bedrock outbound handshake packet skipped: name=' + packetName + ', bytes=' + buffer.length + ', connected=' + String(this.connection.connected) + ', status=' + this.status + ', dataChannel=' + reliableState)",
+      '      }',
+      '      return',
+      '    }',
+      '    try {',
+      '      const acceptedBytes = this.connection.sendReliable(buffer, immediate)',
+      '      if (diagnosticNethernet) {',
+      "        const result = acceptedBytes === 0 ? 'queued_or_zero' : (typeof acceptedBytes === 'number' && Number.isFinite(acceptedBytes) ? 'accepted' : 'unknown')",
+      "        diagnosticNethernet.reportDiagnostic?.('Bedrock outbound handshake transport result: name=' + packetName + ', bytes=' + buffer.length + ', dataChannel=' + reliableState + ', result=' + result + ', acceptedBytes=' + String(acceptedBytes))",
+      '      }',
+      '      return acceptedBytes',
+      '    } catch (e) {',
+      '      if (diagnosticNethernet) {',
+      "        diagnosticNethernet.reportDiagnostic?.('Bedrock outbound handshake transport error: name=' + packetName + ', bytes=' + buffer.length + ', dataChannel=' + reliableState + ', errorName=' + String(e?.name || 'Error'))",
+      '      }',
+      "      debug('while sending to', this.connection, e)",
+      '    }',
+      '  } // BEDROCK_BOT_CONSOLE_NETHERNET_HANDSHAKE_SEND_RESULT'
+    ].join('\n'),
+    BEDROCK_CONNECTION_SEND_MCPE_MARKER,
+    'bedrock-protocol/src/connection.js reliable send result diagnostics'
+  )
+  return { source: send.source, changed: write.changed || send.changed }
+}
+
 function patchNethernetConnectionDiagnosticsSource (source) {
   let current = source
   let changed = false
@@ -1264,6 +1363,7 @@ function applyPatch (projectRoot = path.resolve(__dirname, '..')) {
     }
     results.push(replaceFile(path.join(copy.root, 'src', 'createClient.js'), patchCreateClientSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'transforms', 'framer.js'), patchSnappyCompressionSource))
+    results.push(replaceFile(path.join(copy.root, 'src', 'connection.js'), patchBedrockConnectionOutboundDiagnosticsSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'client.js'), patchIdentityDomainSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'client', 'auth.js'), patchClientWorldConnectionProtocolSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'nethernet', 'signalling.js'), patchNethernetSignallingSource))
@@ -1376,6 +1476,9 @@ module.exports = {
   NETHERNET_CONNECTION_RELIABLE_CHANNELS_ORIGINAL,
   NETHERNET_CONNECTION_UNRELIABLE_CHANNELS_ORIGINAL,
   NETHERNET_CONNECTION_RECEIVE_ORIGINAL,
+  BEDROCK_CONNECTION_WRITE_ORIGINAL,
+  BEDROCK_CONNECTION_SEND_MCPE_ORIGINAL,
+  patchBedrockConnectionOutboundDiagnosticsSource,
   patchNethernetConnectionDiagnosticsSource,
   patchServerIdentityPublicKeySource,
   patchHttpOfferDiagnosticsSource,
