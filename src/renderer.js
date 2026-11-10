@@ -316,12 +316,37 @@ function renderServerProfiles () {
       createElement('strong', 'server-profile-name', server.label),
       createElement('span', 'server-profile-address', `${server.host}:${server.port} · ${server.mode === 'http' ? 'NetherNet HTTP' : (server.mode === 'raknet' ? 'RakNet' : '自動判定')}`)
     )
+    const actions = createElement('div', 'server-profile-actions')
+    if (server.mode !== 'raknet') {
+      const resetKey = createElement('button', 'secondary-button reset-server-key-button', '鍵をリセット')
+      resetKey.type = 'button'
+      resetKey.title = 'このPCに保存したサーバー公開鍵の信頼情報を削除し、次回接続時に再確認します。'
+      resetKey.addEventListener('click', async () => {
+        const confirmed = window.confirm(
+          `「${server.label}」のサーバー鍵の信頼情報をリセットしますか？\n\n次回接続時に新しい公開鍵の確認画面が表示されます。Microsoft / Xboxのログイン情報は削除されません。`
+        )
+        if (!confirmed) return
+        resetKey.disabled = true
+        try {
+          const result = await api.resetServerKey(server.id)
+          showToast(result.reset
+            ? 'サーバー鍵をリセットしました。次回接続時に新しい鍵を確認してください。'
+            : 'この接続先には保存済みのサーバー鍵がありません。')
+        } catch (error) {
+          showToast(error.message || 'サーバー鍵をリセットできませんでした。')
+        } finally {
+          resetKey.disabled = false
+        }
+      })
+      actions.append(resetKey)
+    }
     const remove = createElement('button', 'icon-button danger', '削除')
     remove.type = 'button'
     remove.addEventListener('click', async () => {
       try { await api.removeServer(server.id) } catch (error) { showToast(error.message || '接続先を削除できませんでした。') }
     })
-    row.append(info, remove)
+    actions.append(remove)
+    row.append(info, actions)
     serverProfileList.append(row)
   }
 }
