@@ -18,6 +18,7 @@ on:
       - "fix/external-server-login-diagnostics-0.6.4"
       - "fix/external-server-send-diagnostics-0.6.5"
       - "fix/nethernet-compression-header-0.6.6"
+      - "fix/server-method-memory-and-key-variants-0.6.7"
   pull_request:
   workflow_dispatch:
 
@@ -49,7 +50,7 @@ jobs:
         run: npm run check
 
   windows-package:
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/fix/snappy-compression-0.6.1' || github.ref == 'refs/heads/fix/nethernet-http-diagnostics-0.6.2' || github.ref == 'refs/heads/fix/server-key-reset-0.6.3' || github.ref == 'refs/heads/fix/external-server-login-diagnostics-0.6.4' || github.ref == 'refs/heads/fix/external-server-send-diagnostics-0.6.5' || github.ref == 'refs/heads/fix/nethernet-compression-header-0.6.6'
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/fix/snappy-compression-0.6.1' || github.ref == 'refs/heads/fix/nethernet-http-diagnostics-0.6.2' || github.ref == 'refs/heads/fix/server-key-reset-0.6.3' || github.ref == 'refs/heads/fix/external-server-login-diagnostics-0.6.4' || github.ref == 'refs/heads/fix/external-server-send-diagnostics-0.6.5' || github.ref == 'refs/heads/fix/nethernet-compression-header-0.6.6' || github.ref == 'refs/heads/fix/server-method-memory-and-key-variants-0.6.7'
     runs-on: windows-latest
     steps:
       - name: Check out repository
@@ -107,10 +108,10 @@ jobs:
       - name: Upload Windows installer and manual update package
         uses: actions/upload-artifact@v4
         with:
-          name: Bedrock-Bot-Console-0.6.6-Windows-x64
+          name: Bedrock-Bot-Console-0.6.7-Windows-x64
           path: |
             dist/Bedrock-Bot-Console-Setup.exe
-            dist/Bedrock-Bot-Console-Update-0.6.6.zip
+            dist/Bedrock-Bot-Console-Update-0.6.7.zip
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
