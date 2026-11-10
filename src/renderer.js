@@ -312,9 +312,16 @@ function renderServerProfiles () {
   for (const server of state.servers) {
     const row = createElement('div', 'server-profile-row')
     const info = createElement('div', 'server-profile-info')
+    const configuredModeLabel = server.mode === 'http' ? 'NetherNet HTTP' : (server.mode === 'raknet' ? 'RakNet' : '自動判定')
+    const successfulModeLabels = { raknet: 'RakNet', 'nethernet-http': 'NetherNet HTTP', 'nethernet-lan': 'NetherNet LAN' }
+    const successfulModeLabel = successfulModeLabels[server.lastSuccessfulMode] || ''
+    const successfulAt = server.lastSuccessfulAt ? new Date(server.lastSuccessfulAt).toLocaleString() : ''
+    const historyLabel = successfulModeLabel
+      ? ` · 前回成功: ${successfulModeLabel}${successfulAt ? `（${successfulAt}）` : ''}`
+      : ''
     info.append(
       createElement('strong', 'server-profile-name', server.label),
-      createElement('span', 'server-profile-address', `${server.host}:${server.port} · ${server.mode === 'http' ? 'NetherNet HTTP' : (server.mode === 'raknet' ? 'RakNet' : '自動判定')}`)
+      createElement('span', 'server-profile-address', `${server.host}:${server.port} · ${configuredModeLabel}${historyLabel}`)
     )
     const actions = createElement('div', 'server-profile-actions')
     if (server.mode !== 'raknet') {
@@ -835,6 +842,10 @@ api.onServerKeyApproval((info) => {
   state.pendingServerKeyRequestId = info.requestId
   document.getElementById('serverKeyOrigin').textContent = info.origin
   document.getElementById('serverKeyFingerprint').textContent = info.fingerprint
+  document.getElementById('serverKeyDescription').textContent = info.previouslyTrusted
+    ? 'この接続元では以前に信頼した鍵とは異なる公開鍵が提示されました。サーバー側の構成変更やアカウントごとの接続先振り分けなどで起こる場合があります。接続先を確認し、心当たりがある場合のみ追加で信頼してください。承認しても、以前の鍵は削除されません。'
+    : 'この接続先が提示した公開鍵です。初めて接続するサーバーなので、信頼する場合のみ承認してください。承認すると、このPCに鍵の指紋を保存し、次回以降は同じ鍵であることを確認します。'
+  document.getElementById('approveServerKeyButton').textContent = info.previouslyTrusted ? 'この鍵を追加で信頼する' : 'この鍵を信頼する'
   if (!serverKeyDialog.open) serverKeyDialog.showModal()
 })
 api.onAuthCode((info) => {
