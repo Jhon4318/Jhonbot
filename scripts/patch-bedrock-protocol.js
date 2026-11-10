@@ -229,6 +229,36 @@ const NETHERNET_CLIENT_DIAGNOSTIC_CONNECT_REQUEST_MARKER = 'BEDROCK_BOT_CONSOLE_
 const NETHERNET_CLIENT_DIAGNOSTIC_SIGNAL_ERROR_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_SIGNAL_ERROR'
 const NETHERNET_CLIENT_DIAGNOSTIC_HANDLE_SIGNAL_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_DIAGNOSTIC_HANDLE_SIGNAL'
 
+const NETHERNET_CONNECTION_RELIABLE_CHANNELS_ORIGINAL = [
+  '      this.reliable.onopen = () => {',
+  '        this.flushQueue()',
+  '      }',
+  '',
+  '      this.reliable.onclose = () => {',
+  "        this.notifyClosed('disconnected')",
+  '      }',
+  '',
+  '      this.reliable.onerror = () => {',
+  "        this.notifyClosed('disconnected')",
+  '      }'
+].join('\\n')
+const NETHERNET_CONNECTION_RELIABLE_CHANNELS_MARKER = 'BEDROCK_BOT_CONSOLE_RELIABLE_CHANNEL_DIAGNOSTICS'
+const NETHERNET_CONNECTION_UNRELIABLE_CHANNELS_ORIGINAL = [
+  '      this.unreliable.onclose = () => {',
+  "        this.notifyClosed('disconnected')",
+  '      }',
+  '',
+  '      this.unreliable.onerror = () => {',
+  "        this.notifyClosed('disconnected')",
+  '      }'
+].join('\\n')
+const NETHERNET_CONNECTION_UNRELIABLE_CHANNELS_MARKER = 'BEDROCK_BOT_CONSOLE_UNRELIABLE_CHANNEL_DIAGNOSTICS'
+const NETHERNET_CONNECTION_RECEIVE_ORIGINAL = [
+  "    this.nethernet.emit('encapsulated', this.buf, this.address)",
+  '    this.buf = null'
+].join('\\n')
+const NETHERNET_CONNECTION_RECEIVE_MARKER = 'BEDROCK_BOT_CONSOLE_RELIABLE_PAYLOAD_DIAGNOSTICS'
+
 const VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL = "  const key = crypto.createPublicKey({ key: claims?.cpk, format: 'jwk' })"
 const VERIFY_SERVER_IDENTITY_PUBLIC_KEY_MARKER = 'BEDROCK_BOT_CONSOLE_CPK_PUBLIC_KEY_FORMAT'
 const VERIFY_SERVER_IDENTITY_PUBLIC_KEY_REPLACEMENT = [
@@ -1094,6 +1124,78 @@ function patchHttpOfferDiagnosticsSource (source) {
   return { source: body.source, changed: helper.changed || log.changed || fetch.changed || body.changed }
 }
 
+function patchNethernetConnectionDiagnosticsSource (source) {
+  let current = source
+  let changed = false
+  const reliable = applySingleReplace(
+    current,
+    NETHERNET_CONNECTION_RELIABLE_CHANNELS_ORIGINAL,
+    [
+      '      this.reliable.onopen = () => {',
+      "        this.nethernet?.reportDiagnostic?.('Reliable data channel opened; queuedMessages=' + this.sendQueue.length)",
+      '        this.flushQueue()',
+      '      }',
+      '',
+      '      this.reliable.onclose = () => {',
+      "        this.nethernet?.reportDiagnostic?.('Reliable data channel closed')",
+      "        this.notifyClosed('disconnected')",
+      '      }',
+      '',
+      '      this.reliable.onerror = () => {',
+      "        this.nethernet?.reportDiagnostic?.('Reliable data channel error')",
+      "        this.notifyClosed('disconnected')",
+      '      } // BEDROCK_BOT_CONSOLE_RELIABLE_CHANNEL_DIAGNOSTICS'
+    ].join('\\n'),
+    NETHERNET_CONNECTION_RELIABLE_CHANNELS_MARKER,
+    'nethernet/src/connection.js reliable data channel diagnostics'
+  )
+  current = reliable.source
+  changed = changed || reliable.changed
+
+  const unreliable = applySingleReplace(
+    current,
+    NETHERNET_CONNECTION_UNRELIABLE_CHANNELS_ORIGINAL,
+    [
+      '      this.unreliable.onopen = () => {',
+      "        this.nethernet?.reportDiagnostic?.('Unreliable data channel opened')",
+      '      }',
+      '',
+      '      this.unreliable.onclose = () => {',
+      "        this.nethernet?.reportDiagnostic?.('Unreliable data channel closed')",
+      "        this.notifyClosed('disconnected')",
+      '      }',
+      '',
+      '      this.unreliable.onerror = () => {',
+      "        this.nethernet?.reportDiagnostic?.('Unreliable data channel error')",
+      "        this.notifyClosed('disconnected')",
+      '      } // BEDROCK_BOT_CONSOLE_UNRELIABLE_CHANNEL_DIAGNOSTICS'
+    ].join('\\n'),
+    NETHERNET_CONNECTION_UNRELIABLE_CHANNELS_MARKER,
+    'nethernet/src/connection.js unreliable data channel diagnostics'
+  )
+  current = unreliable.source
+  changed = changed || unreliable.changed
+
+  const receive = applySingleReplace(
+    current,
+    NETHERNET_CONNECTION_RECEIVE_ORIGINAL,
+    [
+      '    this.receivedMessageCount = (this.receivedMessageCount || 0) + 1',
+      '    if (this.receivedMessageCount <= 8) {',
+      "      this.nethernet?.reportDiagnostic?.('Reliable data channel payload received; count=' + this.receivedMessageCount + ', bytes=' + this.buf.length)",
+      '    }',
+      "    this.nethernet.emit('encapsulated', this.buf, this.address)",
+      '    this.buf = null // BEDROCK_BOT_CONSOLE_RELIABLE_PAYLOAD_DIAGNOSTICS'
+    ].join('\\n'),
+    NETHERNET_CONNECTION_RECEIVE_MARKER,
+    'nethernet/src/connection.js inbound payload diagnostics'
+  )
+  current = receive.source
+  changed = changed || receive.changed
+
+  return { source: current, changed }
+}
+
 function replaceFile (target, patcher) {
   if (!fs.existsSync(target)) throw new Error(`Patch target not found: ${target}`)
   const original = fs.readFileSync(target, 'utf8')
@@ -1179,6 +1281,7 @@ function applyPatch (projectRoot = path.resolve(__dirname, '..')) {
     results.push(replaceFile(path.join(copy.root, 'src', 'signalling', 'sdpIdentity.js'), patchSdpIdentitySource))
     results.push(replaceFile(path.join(copy.root, 'src', 'signalling', 'sdpIdentity.js'), patchServerIdentityPublicKeySource))
     results.push(replaceFile(path.join(copy.root, 'src', 'client.js'), patchNethernetClientDiagnosticsSource))
+    results.push(replaceFile(path.join(copy.root, 'src', 'connection.js'), patchNethernetConnectionDiagnosticsSource))
   }
   return results
 }
@@ -1270,6 +1373,10 @@ module.exports = {
   NETHERNET_CLIENT_DIAGNOSTIC_SIGNAL_ERROR_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_HANDLE_SIGNAL_ORIGINAL,
   patchNethernetClientDiagnosticsSource,
+  NETHERNET_CONNECTION_RELIABLE_CHANNELS_ORIGINAL,
+  NETHERNET_CONNECTION_UNRELIABLE_CHANNELS_ORIGINAL,
+  NETHERNET_CONNECTION_RECEIVE_ORIGINAL,
+  patchNethernetConnectionDiagnosticsSource,
   patchServerIdentityPublicKeySource,
   patchHttpOfferDiagnosticsSource,
   applyPatch
