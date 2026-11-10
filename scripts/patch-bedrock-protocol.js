@@ -72,6 +72,28 @@ const HTTP_ERROR_REPLACEMENT = [
 ].join('\n')
 const HTTP_ERROR_MARKER = 'BEDROCK_BOT_CONSOLE_HTTP_ERROR_BODY'
 
+const HTTP_SERVER_KEYS_DESTRUCTURE_ORIGINAL = '  const { url, serverKey, onServerKey } = client.http'
+const HTTP_SERVER_KEYS_DESTRUCTURE_REPLACEMENT = '  const { url, serverKey, serverKeys, onServerKey } = client.http // BEDROCK_BOT_CONSOLE_HTTP_SERVER_KEY_VARIANTS_DESTRUCTURE'
+const HTTP_SERVER_KEYS_DESTRUCTURE_MARKER = 'BEDROCK_BOT_CONSOLE_HTTP_SERVER_KEY_VARIANTS_DESTRUCTURE'
+const HTTP_SERVER_KEYS_TRUST_ORIGINAL = [
+  '  const verified = verifyServerIdentity(answer)',
+  "  let trusted = serverKey ? serverKey === verified.fingerprint : url.protocol === 'https:'",
+  '  if (!trusted && !serverKey && onServerKey) trusted = await onServerKey(verified.fingerprint, url.origin) === true',
+  "  if (!trusted) throw new Error(`Untrusted Nethernet server key ${verified.fingerprint}; configure serverKey after verifying it`)"
+].join('\\n')
+const HTTP_SERVER_KEYS_TRUST_MARKER = 'BEDROCK_BOT_CONSOLE_HTTP_SERVER_KEY_VARIANTS_TRUST'
+const HTTP_SERVER_KEYS_TRUST_REPLACEMENT = [
+  '  const verified = verifyServerIdentity(answer)',
+  '  const knownServerKeys = Array.isArray(serverKeys) ? serverKeys : []',
+  '  const hasPinnedServerKeys = Boolean(serverKey) || knownServerKeys.length > 0',
+  '  let trusted = serverKey',
+  '    ? serverKey === verified.fingerprint',
+  "    : (hasPinnedServerKeys ? knownServerKeys.includes(verified.fingerprint) : url.protocol === 'https:')",
+  '  // When a pinned key set exists, an unrecognized account/backend key must be explicitly approved.',
+  '  if (!trusted && !serverKey && onServerKey) trusted = await onServerKey(verified.fingerprint, url.origin) === true',
+  "  if (!trusted) throw new Error(`Untrusted Nethernet server key ${verified.fingerprint}; configure serverKey after verifying it`) // BEDROCK_BOT_CONSOLE_HTTP_SERVER_KEY_VARIANTS_TRUST"
+].join('\\n')
+
 const CLIENT_SERVICES_SIGNAL_ORIGINAL = [
   '        this.nethernet.signalling.connect()',
   '          .then(() => { if (!this._closed) this._connect(sessionData) })',
@@ -166,7 +188,7 @@ const CLIENT_TIMEOUT_MARKER = 'BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TIMEOUT_DIAGNOST
 const NETHERNET_OPTIONS_ORIGINAL = [
   '        webrtcBackend: options.webrtcBackend,',
   "        ...(options.signalling === 'http' && {",
-  '          http: { url: signallingUrl({ ...options, nethernet: options }), serverKey: options.serverKey, onServerKey: options.onServerKey },',
+  '          http: { url: signallingUrl({ ...options, nethernet: options }), serverKey: options.serverKey, serverKeys: options.serverKeys, onServerKey: options.onServerKey },',
   '          responseTimeoutMs: options.signallingConnectTimeout',
   '        })'
 ].join('\n')
@@ -817,7 +839,7 @@ function patchNethernetTimeoutOptionsSource (source) {
       '        responseTimeoutMs: options.signallingConnectTimeout,',
       '        inactivityTimeoutMs: options.inactivityTimeoutMs,',
       "        ...(options.signalling === 'http' && {",
-      '          http: { url: signallingUrl({ ...options, nethernet: options }), serverKey: options.serverKey, onServerKey: options.onServerKey }',
+      '          http: { url: signallingUrl({ ...options, nethernet: options }), serverKey: options.serverKey, serverKeys: options.serverKeys, onServerKey: options.onServerKey }',
       '        }) // BEDROCK_BOT_CONSOLE_NETHERNET_TIMEOUT_OPTIONS'
     ].join('\n'),
     NETHERNET_OPTIONS_MARKER,
@@ -1207,6 +1229,24 @@ function patchNethernetClientDiagnosticsSource (source) {
   return { source: current, changed }
 }
 
+function patchHttpServerKeyVariantsSource (source) {
+  const destructure = applySingleReplace(
+    source,
+    HTTP_SERVER_KEYS_DESTRUCTURE_ORIGINAL,
+    HTTP_SERVER_KEYS_DESTRUCTURE_REPLACEMENT,
+    HTTP_SERVER_KEYS_DESTRUCTURE_MARKER,
+    'nethernet/src/signalling/http.js server key variants destructuring'
+  )
+  const trust = applySingleReplace(
+    destructure.source,
+    HTTP_SERVER_KEYS_TRUST_ORIGINAL,
+    HTTP_SERVER_KEYS_TRUST_REPLACEMENT,
+    HTTP_SERVER_KEYS_TRUST_MARKER,
+    'nethernet/src/signalling/http.js server key variants verification'
+  )
+  return { source: trust.source, changed: destructure.changed || trust.changed }
+}
+
 function patchHttpOfferDiagnosticsSource (source) {
   const helper = applySingleReplace(
     source,
@@ -1466,6 +1506,7 @@ function applyPatch (projectRoot = path.resolve(__dirname, '..')) {
     }
     results.push(replaceFile(path.join(copy.root, 'src', 'signalling', 'http.js'), patchHttpErrorSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'signalling', 'http.js'), patchHttpOfferDiagnosticsSource))
+    results.push(replaceFile(path.join(copy.root, 'src', 'signalling', 'http.js'), patchHttpServerKeyVariantsSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'signalling', 'sdpIdentity.js'), patchSdpIdentitySource))
     results.push(replaceFile(path.join(copy.root, 'src', 'signalling', 'sdpIdentity.js'), patchServerIdentityPublicKeySource))
     results.push(replaceFile(path.join(copy.root, 'src', 'client.js'), patchNethernetClientDiagnosticsSource))
@@ -1501,6 +1542,12 @@ module.exports = {
   HTTP_ERROR_ORIGINAL,
   HTTP_ERROR_REPLACEMENT,
   HTTP_ERROR_MARKER,
+  HTTP_SERVER_KEYS_DESTRUCTURE_ORIGINAL,
+  HTTP_SERVER_KEYS_DESTRUCTURE_MARKER,
+  HTTP_SERVER_KEYS_TRUST_ORIGINAL,
+  HTTP_SERVER_KEYS_TRUST_MARKER,
+  HTTP_SERVER_KEYS_TRUST_REPLACEMENT,
+  patchHttpServerKeyVariantsSource,
   OFFER_DIAGNOSTIC_HELPER_MARKER,
   OFFER_DIAGNOSTIC_LOG_MARKER,
   OFFER_DIAGNOSTIC_FUNCTION_ORIGINAL,
