@@ -15,6 +15,8 @@ const {
   IDENTITY_ORIGINAL,
   NETWORK_SETTINGS_COMPRESSION_ORIGINAL,
   HTTP_ERROR_ORIGINAL,
+  HTTP_SERVER_KEYS_DESTRUCTURE_ORIGINAL,
+  HTTP_SERVER_KEYS_TRUST_ORIGINAL,
   OFFER_DIAGNOSTIC_FUNCTION_ORIGINAL,
   OFFER_DIAGNOSTIC_FETCH_ORIGINAL,
   patchCreateClientSource,
@@ -256,7 +258,7 @@ test('patches app and nested Mineflayer protocol copies without touching options
     fs.mkdirSync(path.join(nethernetRoot, 'src', 'signalling'), { recursive: true })
     fs.writeFileSync(path.join(nethernetRoot, 'package.json'), JSON.stringify({ name: 'nethernet', version: EXPECTED_NETHERNET_VERSION }))
     fs.writeFileSync(path.join(nethernetRoot, 'index.js'), 'module.exports = {}')
-    fs.writeFileSync(path.join(nethernetRoot, 'src', 'signalling', 'http.js'), `${OFFER_DIAGNOSTIC_FUNCTION_ORIGINAL}\n  const body = 'sdp'\n  const { url, serverKey, onServerKey } = client.http\n${OFFER_DIAGNOSTIC_FETCH_ORIGINAL}\n    method: 'POST', headers: { 'content-type': 'application/sdp' }, body, signal, redirect: 'error'\n  })\n${HTTP_ERROR_ORIGINAL}\n  const answer = await response.text()\n  return answer\n}\nmodule.exports = { exchangeOffer }\n`)
+    fs.writeFileSync(path.join(nethernetRoot, 'src', 'signalling', 'http.js'), `${OFFER_DIAGNOSTIC_FUNCTION_ORIGINAL}\n  const body = 'sdp'\n${HTTP_SERVER_KEYS_DESTRUCTURE_ORIGINAL}\n${OFFER_DIAGNOSTIC_FETCH_ORIGINAL}\n    method: 'POST', headers: { 'content-type': 'application/sdp' }, body, signal, redirect: 'error'\n  })\n${HTTP_ERROR_ORIGINAL}\n  const answer = await response.text()\n${HTTP_SERVER_KEYS_TRUST_ORIGINAL}\n  return verified.sdp\n}\nmodule.exports = { exchangeOffer }\n`)
     fs.writeFileSync(path.join(nethernetRoot, 'src', 'signalling', 'sdpIdentity.js'), `const crypto = require('crypto')\nfunction buildIdentityAttribute (sdp) { return 'identity:' + sdp }\n${ATTACH_IDENTITY_ORIGINAL}\nfunction verifyServerIdentity (claims) {\n${VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL}\n  return key\n}\nmodule.exports = { attachIdentity, verifyServerIdentity }\n`)
     const nethernetClientSource = [
       'class Client extends EventEmitter {',
@@ -328,7 +330,7 @@ test('patches app and nested Mineflayer protocol copies without touching options
     fs.writeFileSync(path.join(nethernetRoot, 'src', 'connection.js'), nethernetConnectionSource)
 
     const first = applyPatch(tempRoot)
-    assert.equal(first.length, 22)
+    assert.equal(first.length, 23)
     const patchedNethernetClientSource = fs.readFileSync(path.join(nethernetRoot, 'src', 'client.js'), 'utf8')
     assert.match(patchedNethernetClientSource, /BEDROCK_BOT_CONSOLE_NETHERNET_CLIENT_SEND_RETURN/)
     assert.match(patchedNethernetClientSource, /return this\.connection\.send\(buffer\)/)
