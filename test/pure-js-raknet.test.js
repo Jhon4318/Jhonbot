@@ -51,6 +51,7 @@ const {
   NETHERNET_CONNECTION_RELIABLE_CHANNELS_ORIGINAL,
   NETHERNET_CONNECTION_UNRELIABLE_CHANNELS_ORIGINAL,
   NETHERNET_CONNECTION_RECEIVE_ORIGINAL,
+  NETHERNET_SEND_RELIABLE_ORIGINAL,
   BEDROCK_CONNECTION_WRITE_ORIGINAL,
   BEDROCK_CONNECTION_SEND_MCPE_ORIGINAL
 } = require('../scripts/patch-bedrock-protocol')
@@ -224,6 +225,9 @@ test('patches app and nested Mineflayer protocol copies without touching options
     const nethernetSource = [
       "const { Client } = require('nethernet')",
       "const { signallingUrl } = require('./http')",
+      'class NethernetAdapterFixture {',
+      NETHERNET_SEND_RELIABLE_ORIGINAL,
+      '}',
       'function create (options) {',
       '  return new Client(0n, options.host, {',
       NETHERNET_OPTIONS_ORIGINAL,
@@ -344,6 +348,8 @@ test('patches app and nested Mineflayer protocol copies without touching options
       const nethernetOptionsSource = fs.readFileSync(path.join(target, 'src', 'nethernet', 'index.js'), 'utf8')
       assert.match(nethernetOptionsSource, /BEDROCK_BOT_CONSOLE_NETHERNET_TIMEOUT_OPTIONS/)
       assert.match(nethernetOptionsSource, /inactivityTimeoutMs: options.inactivityTimeoutMs/)
+      assert.match(nethernetOptionsSource, /BEDROCK_BOT_CONSOLE_NETHERNET_SEND_RELIABLE_RETURN/)
+      assert.match(nethernetOptionsSource, /return this\.nethernet\.send\(data\)/)
       assert.equal(fs.readFileSync(path.join(target, 'src', 'options.js'), 'utf8'), 'const mcData = require(\'minecraft-data\')\n')
     }
     const connectionSource = fs.readFileSync(path.join(nethernetRoot, 'src', 'connection.js'), 'utf8')

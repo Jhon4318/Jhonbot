@@ -162,6 +162,12 @@ const NETHERNET_OPTIONS_ORIGINAL = [
   '        })'
 ].join('\n')
 const NETHERNET_OPTIONS_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_TIMEOUT_OPTIONS'
+const NETHERNET_SEND_RELIABLE_ORIGINAL = [
+  '  sendReliable (data) {',
+  '    this.nethernet.send(data)',
+  '  }'
+].join('\n')
+const NETHERNET_SEND_RELIABLE_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_SEND_RELIABLE_RETURN'
 
 const NETHERNET_CLIENT_DIAGNOSTIC_OPTION_ORIGINAL = '    this.webrtc = getWebRTC(options.webrtcBackend)'
 const NETHERNET_CLIENT_DIAGNOSTIC_METHOD_ORIGINAL = '  reportError (error) {'
@@ -747,7 +753,7 @@ function patchClientConnectionDiagnosticsSource (source) {
 }
 
 function patchNethernetTimeoutOptionsSource (source) {
-  return applySingleReplace(
+  const options = applySingleReplace(
     source,
     NETHERNET_OPTIONS_ORIGINAL,
     [
@@ -762,6 +768,18 @@ function patchNethernetTimeoutOptionsSource (source) {
     NETHERNET_OPTIONS_MARKER,
     'bedrock-protocol/src/nethernet/index.js timeout option forwarding'
   )
+  const sendReliable = applySingleReplace(
+    options.source,
+    NETHERNET_SEND_RELIABLE_ORIGINAL,
+    [
+      '  sendReliable (data) {',
+      '    return this.nethernet.send(data) // BEDROCK_BOT_CONSOLE_NETHERNET_SEND_RELIABLE_RETURN',
+      '  }'
+    ].join('\n'),
+    NETHERNET_SEND_RELIABLE_MARKER,
+    'bedrock-protocol/src/nethernet/index.js reliable send result forwarding'
+  )
+  return { source: sendReliable.source, changed: options.changed || sendReliable.changed }
 }
 
 
@@ -1450,6 +1468,8 @@ module.exports = {
   CLIENT_TIMEOUT_MARKER,
   NETHERNET_OPTIONS_ORIGINAL,
   NETHERNET_OPTIONS_MARKER,
+  NETHERNET_SEND_RELIABLE_ORIGINAL,
+  NETHERNET_SEND_RELIABLE_MARKER,
   patchClientConnectionDiagnosticsSource,
   patchClientSignallingOptionsSource,
   CLIENT_WORLD_CONNECTION_SELECTION_ORIGINAL,
