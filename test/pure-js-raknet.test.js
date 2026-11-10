@@ -302,9 +302,6 @@ test('patches app and nested Mineflayer protocol copies without touching options
       '}'
     ].join('\n')
     fs.writeFileSync(path.join(nethernetRoot, 'src', 'client.js'), nethernetClientSource)
-    const patchedNethernetClientSource = fs.readFileSync(path.join(nethernetRoot, 'src', 'client.js'), 'utf8')
-    assert.match(patchedNethernetClientSource, /BEDROCK_BOT_CONSOLE_NETHERNET_CLIENT_SEND_RETURN/)
-    assert.match(patchedNethernetClientSource, /return this\.connection\.send\(buffer\)/)
     const nethernetConnectionSource = [
       'class Connection {',
       '  setChannels (reliable, unreliable) {',
@@ -328,6 +325,9 @@ test('patches app and nested Mineflayer protocol copies without touching options
 
     const first = applyPatch(tempRoot)
     assert.equal(first.length, 20)
+    const patchedNethernetClientSource = fs.readFileSync(path.join(nethernetRoot, 'src', 'client.js'), 'utf8')
+    assert.match(patchedNethernetClientSource, /BEDROCK_BOT_CONSOLE_NETHERNET_CLIENT_SEND_RETURN/)
+    assert.match(patchedNethernetClientSource, /return this\.connection\.send\(buffer\)/)
     for (const target of [rootProtocol, nestedProtocol]) {
       const source = fs.readFileSync(path.join(target, 'src', 'createClient.js'), 'utf8')
       assert.ok(source.includes(MARKER))

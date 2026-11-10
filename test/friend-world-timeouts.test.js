@@ -28,7 +28,9 @@ const {
   CLIENT_TIMEOUT_MARKER,
   NETHERNET_OPTIONS_ORIGINAL,
   NETHERNET_OPTIONS_MARKER,
+  NETHERNET_SEND_RELIABLE_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_OPTION_ORIGINAL,
+  NETHERNET_CLIENT_SEND_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_METHOD_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_TIMEOUT_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_ANSWER_ORIGINAL,
@@ -72,6 +74,9 @@ test('adds safe stage diagnostics to Xbox services NetherNet connection flow', (
 
 test('forwards response and inactivity deadlines to NetherNet in both HTTP and services modes', () => {
   const fixture = [
+    'class NethernetAdapterFixture {',
+    NETHERNET_SEND_RELIABLE_ORIGINAL,
+    '}',
     'function create (options) {',
     '  return new Client(0n, options.host, {',
     NETHERNET_OPTIONS_ORIGINAL,
@@ -119,6 +124,7 @@ test('adds safe WebRTC negotiation and ICE diagnostics to the pinned NetherNet c
     '  }',
     NETHERNET_CLIENT_DIAGNOSTIC_METHOD_ORIGINAL,
     '  }',
+    NETHERNET_CLIENT_SEND_ORIGINAL,
     '  armNegotiationTimeout (code, timeoutMs) {',
     NETHERNET_CLIENT_DIAGNOSTIC_TIMEOUT_ORIGINAL,
     '  }',
