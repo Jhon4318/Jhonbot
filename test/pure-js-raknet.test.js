@@ -47,7 +47,10 @@ const {
   NETHERNET_CLIENT_DIAGNOSTIC_CANDIDATE_HANDLER_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_CONNECT_REQUEST_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_SIGNAL_ERROR_ORIGINAL,
-  NETHERNET_CLIENT_DIAGNOSTIC_HANDLE_SIGNAL_ORIGINAL
+  NETHERNET_CLIENT_DIAGNOSTIC_HANDLE_SIGNAL_ORIGINAL,
+  NETHERNET_CONNECTION_RELIABLE_CHANNELS_ORIGINAL,
+  NETHERNET_CONNECTION_UNRELIABLE_CHANNELS_ORIGINAL,
+  NETHERNET_CONNECTION_RECEIVE_ORIGINAL
 } = require('../scripts/patch-bedrock-protocol')
 const { ATTACH_IDENTITY_ORIGINAL } = require('../scripts/patch-nethernet-sdp')
 
@@ -284,9 +287,29 @@ test('patches app and nested Mineflayer protocol copies without touching options
       '}'
     ].join('\n')
     fs.writeFileSync(path.join(nethernetRoot, 'src', 'client.js'), nethernetClientSource)
+    const nethernetConnectionSource = [
+      'class Connection {',
+      '  setChannels (reliable, unreliable) {',
+      '    if (reliable) {',
+      NETHERNET_CONNECTION_RELIABLE_CHANNELS_ORIGINAL,
+      '    }',
+      '    if (unreliable) {',
+      NETHERNET_CONNECTION_UNRELIABLE_CHANNELS_ORIGINAL,
+      '    }',
+      '  }',
+      '  handleMessage () {',
+      '    if (this.promisedSegments > 0) {',
+      '      return',
+      '    }',
+      '',
+      NETHERNET_CONNECTION_RECEIVE_ORIGINAL,
+      '  }',
+      '}'
+    ].join('\\n')
+    fs.writeFileSync(path.join(nethernetRoot, 'src', 'connection.js'), nethernetConnectionSource)
 
     const first = applyPatch(tempRoot)
-    assert.equal(first.length, 17)
+    assert.equal(first.length, 18)
     for (const target of [rootProtocol, nestedProtocol]) {
       const source = fs.readFileSync(path.join(target, 'src', 'createClient.js'), 'utf8')
       assert.ok(source.includes(MARKER))
@@ -311,12 +334,16 @@ test('patches app and nested Mineflayer protocol copies without touching options
       assert.match(nethernetOptionsSource, /inactivityTimeoutMs: options.inactivityTimeoutMs/)
       assert.equal(fs.readFileSync(path.join(target, 'src', 'options.js'), 'utf8'), 'const mcData = require(\'minecraft-data\')\n')
     }
+    const connectionSource = fs.readFileSync(path.join(nethernetRoot, 'src', 'connection.js'), 'utf8')
+    assert.match(connectionSource, /BEDROCK_BOT_CONSOLE_RELIABLE_CHANNEL_DIAGNOSTICS/)
+    assert.match(connectionSource, /BEDROCK_BOT_CONSOLE_UNRELIABLE_CHANNEL_DIAGNOSTICS/)
+    assert.match(connectionSource, /BEDROCK_BOT_CONSOLE_RELIABLE_PAYLOAD_DIAGNOSTICS/)
     const identitySource = fs.readFileSync(path.join(nethernetRoot, 'src', 'signalling', 'sdpIdentity.js'), 'utf8')
     assert.match(identitySource, /BEDROCK_BOT_CONSOLE_SESSION_FINGERPRINT_SCOPE/)
     assert.match(identitySource, /normalizeFingerprintScope\(sdp\)/)
     const second = applyPatch(tempRoot)
-    assert.equal(second.length, 17)
-    assert.deepEqual(second.map(result => result.changed), Array(17).fill(false))
+    assert.equal(second.length, 18)
+    assert.deepEqual(second.map(result => result.changed), Array(18).fill(false))
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true })
   }
