@@ -175,7 +175,6 @@ const NETHERNET_CLIENT_SEND_ORIGINAL = [
   '    if (!this.connection) {',
   "      throw new Error('Connection is not open')",
   '    }',
-  '',
   '    this.connection.send(buffer)',
   '  }'
 ].join('\n')
