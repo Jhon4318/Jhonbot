@@ -22,7 +22,7 @@ const { assertCanAuthenticate, assertCanJoinWorld } = require('./account-state')
 const { createEncryptedAuthCacheFactory, hasEncryptedAuthCache } = require('./auth-cache')
 const { normalizeChatMessage, normalizeDropRequest, createInventorySnapshot } = require('./bot-actions')
 const { installSubClientSupport, createGuestLoginTokens, MAX_SUB_CLIENTS } = require('./subclients')
-const { DEFAULT_PORT, normalizeServerProfile, normalizeTarget, migrateSettings, serverOriginKey, serverHttpSignallingOrigin } = require('./destinations')
+const { DEFAULT_PORT, normalizeServerProfile, normalizeTarget, migrateSettings, serverOriginKey, serverHttpSignallingOrigin, resetTrustedServerKey } = require('./destinations')
 
 const MC_VERSION = '1.26.60'
 const MAX_LOGS = 300
@@ -465,6 +465,39 @@ function removeServerProfile (serverId) {
   saveSettings().catch(error => pushLog(`サーバー設定の保存に失敗しました: ${error.message}`, 'warning'))
   send('servers:updated', publicServerProfiles())
   pushLog(`接続先「${profile.label}」を削除しました。`, 'info')
+}
+
+async function resetServerKey (serverId) {
+  const profile = settings.servers.find(item => item.id === String(serverId || ''))
+  if (!profile) throw new Error('接続先が見つかりません。')
+  if (profile.mode === 'raknet') throw new Error('RakNet接続先にはNetherNetサーバー鍵がありません。')
+
+  const activeBot = Array.from(bots.values()).find(bot =>
+    bot.targetType === 'server' &&
+    bot.targetId === profile.id &&
+    (bot.connectionStarting || bot.client || ['connecting', 'joining', 'connected'].includes(bot.status))
+  )
+  if (activeBot) {
+    throw new Error(`Bot「${activeBot.label}」がこの接続先を使用中です。先にBotを切断してください。`)
+  }
+
+  const origin = serverHttpSignallingOrigin(profile)
+  const key = serverOriginKey(origin)
+  const previous = settings.trustedServerKeys[key]
+  if (!resetTrustedServerKey(settings.trustedServerKeys, origin)) {
+    pushLog(`接続先「${profile.label}」にはリセット対象の保存済み鍵がありません。`, 'info')
+    return { reset: false, origin }
+  }
+
+  try {
+    await saveSettings()
+  } catch (error) {
+    settings.trustedServerKeys[key] = previous
+    throw error
+  }
+
+  pushLog(`接続先「${profile.label}」のサーバー鍵の信頼情報をリセットしました。次回接続時に新しい鍵を確認します。`, 'success')
+  return { reset: true, origin }
 }
 
 function setBotTarget (botId, input) {
@@ -1359,6 +1392,7 @@ ipcMain.handle('server:add', (_event, input) => {
 })
 ipcMain.handle('server:add-hive-preset', () => ({ ...addHiveAsiaPreset() }))
 ipcMain.handle('server:remove', (_event, serverId) => removeServerProfile(serverId))
+ipcMain.handle('server:reset-key', (_event, serverId) => resetServerKey(serverId))
 ipcMain.handle('bot:set-target', (_event, args) => setBotTarget(args?.botId, args?.target))
 ipcMain.handle('bot:discover-lan', (_event, botId) => discoverLanWorld(botId))
 ipcMain.handle('world:select-session', (_event, args) => {
