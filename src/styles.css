@@ -205,6 +205,8 @@ select { font: inherit; }
 .server-profile-list { display: flex; flex-direction: column; gap: 7px; margin-top: 15px; }
 .server-profile-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid #303b50; background: rgba(16,22,33,.65); border-radius: 9px; padding: 9px 11px; }
 .server-profile-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.server-profile-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 7px; }
+.reset-server-key-button { white-space: nowrap; }
 .server-profile-name { color: #e3eafa; font-size: 11px; }
 .server-profile-address { color: #8795ac; font: 10px Consolas, monospace; overflow-wrap: anywhere; }
 .server-empty { color: #78869d; padding: 10px 2px; font-size: 10px; line-height: 1.7; }
