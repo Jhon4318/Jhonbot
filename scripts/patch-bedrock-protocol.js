@@ -188,7 +188,7 @@ const CLIENT_TIMEOUT_MARKER = 'BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TIMEOUT_DIAGNOST
 const NETHERNET_OPTIONS_ORIGINAL = [
   '        webrtcBackend: options.webrtcBackend,',
   "        ...(options.signalling === 'http' && {",
-  '          http: { url: signallingUrl({ ...options, nethernet: options }), serverKey: options.serverKey, serverKeys: options.serverKeys, onServerKey: options.onServerKey },',
+  '          http: { url: signallingUrl({ ...options, nethernet: options }), serverKey: options.serverKey, onServerKey: options.onServerKey },',
   '          responseTimeoutMs: options.signallingConnectTimeout',
   '        })'
 ].join('\n')
