@@ -1,6 +1,6 @@
 {
   "name": "bedrock-bot-console",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "private": true,
   "description": "Minecraft Bedrock Edition 1.26.60 bot console with shared-account SubClient guests and Snappy compression support",
   "main": "src/main.js",
