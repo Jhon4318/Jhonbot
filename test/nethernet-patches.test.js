@@ -133,7 +133,7 @@ test('forwards the list of trusted server keys through the Bedrock-NetherNet ada
 
 test('allows multiple explicitly trusted NetherNet server keys and prompts for unknown keys', () => {
   const fixture = [
-    'async function exchangeOffer (client, url, answer) {',
+    'async function exchangeOffer (client, answer) {',
     HTTP_SERVER_KEYS_DESTRUCTURE_ORIGINAL,
     HTTP_SERVER_KEYS_TRUST_ORIGINAL,
     '  return verified.sdp',
