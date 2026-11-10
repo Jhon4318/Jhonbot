@@ -121,10 +121,10 @@ test('forwards the list of trusted server keys through the Bedrock-NetherNet ada
     '  }',
     NETHERNET_SEND_RELIABLE_ORIGINAL,
     '}'
-  ].join('\\n')
+  ].join('\n')
   const patched = patchNethernetTimeoutOptionsSource(fixture)
   assert.equal(patched.changed, true)
-  assert.match(patched.source, /serverKeys: options\\.serverKeys/)
+  assert.ok(patched.source.includes('serverKeys: options.serverKeys'))
   assert.match(patched.source, new RegExp(NETHERNET_OPTIONS_MARKER))
   assert.equal(patchNethernetTimeoutOptionsSource(patched.source).changed, false)
 })
@@ -136,13 +136,13 @@ test('allows multiple explicitly trusted NetherNet server keys and prompts for u
     HTTP_SERVER_KEYS_TRUST_ORIGINAL,
     '  return verified.sdp',
     '}'
-  ].join('\\n')
+  ].join('\n')
   const patched = patchHttpServerKeyVariantsSource(fixture)
   assert.equal(patched.changed, true)
   assert.match(patched.source, new RegExp(HTTP_SERVER_KEYS_DESTRUCTURE_MARKER))
-  assert.match(patched.source, /Array\\.isArray\\(serverKeys\\)/)
-  assert.match(patched.source, /knownServerKeys\\.includes\\(verified\\.fingerprint\\)/)
-  assert.match(patched.source, /onServerKey\\(verified\\.fingerprint, url\\.origin\\)/)
+  assert.ok(patched.source.includes('Array.isArray(serverKeys)'))
+  assert.ok(patched.source.includes('knownServerKeys.includes(verified.fingerprint)'))
+  assert.ok(patched.source.includes('onServerKey(verified.fingerprint, url.origin)'))
   assert.match(patched.source, new RegExp(HTTP_SERVER_KEYS_TRUST_MARKER))
   assert.equal(patchHttpServerKeyVariantsSource(patched.source).changed, false)
 })
