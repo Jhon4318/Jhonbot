@@ -156,7 +156,7 @@ test('accepts a pinned account/backend key and explicitly asks before adding ano
     '  return verified.sdp',
     '}',
     'module.exports = exchangeOffer'
-  ].join('\\n')
+  ].join('\n')
   const patched = patchHttpServerKeyVariantsSource(fixture)
   const module = { exports: {} }
   vm.runInNewContext(patched.source, { module })
