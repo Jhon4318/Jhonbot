@@ -150,7 +150,7 @@ test('allows multiple explicitly trusted NetherNet server keys and prompts for u
 
 test('accepts a pinned account/backend key and explicitly asks before adding another', async () => {
   const fixture = [
-    'async function exchangeOffer (client, url, answer, verifyServerIdentity) {',
+    'async function exchangeOffer (client, answer, verifyServerIdentity) {',
     HTTP_SERVER_KEYS_DESTRUCTURE_ORIGINAL,
     HTTP_SERVER_KEYS_TRUST_ORIGINAL,
     '  return verified.sdp',
@@ -177,12 +177,12 @@ test('accepts a pinned account/backend key and explicitly asks before adding ano
   }
   const verify = (fingerprint) => () => ({ fingerprint, sdp: 'v=0' })
   baseClient.http.url = new URL('https://pool.example')
-  assert.equal(await exchangeOffer(baseClient, null, null, verify(firstKey)), 'v=0')
+  assert.equal(await exchangeOffer(baseClient, null, verify(firstKey)), 'v=0')
   assert.equal(approvalCalls, 0)
-  assert.equal(await exchangeOffer(baseClient, null, null, verify(secondKey)), 'v=0')
+  assert.equal(await exchangeOffer(baseClient, null, verify(secondKey)), 'v=0')
   assert.equal(approvalCalls, 1)
 
   baseClient.http.onServerKey = async () => false
-  await assert.rejects(exchangeOffer(baseClient, null, null, verify(`sha256:${'c'.repeat(64)}`)), /Untrusted Nethernet server key/)
+  await assert.rejects(exchangeOffer(baseClient, null, verify(`sha256:${'c'.repeat(64)}`)), /Untrusted Nethernet server key/)
   assert.equal(approvalCalls, 1)
 })
