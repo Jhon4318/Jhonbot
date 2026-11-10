@@ -38,6 +38,7 @@ const {
   CLIENT_TIMEOUT_ORIGINAL,
   NETHERNET_OPTIONS_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_OPTION_ORIGINAL,
+  NETHERNET_CLIENT_SEND_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_METHOD_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_TIMEOUT_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_ANSWER_ORIGINAL,
@@ -260,6 +261,7 @@ test('patches app and nested Mineflayer protocol copies without touching options
       '  }',
       NETHERNET_CLIENT_DIAGNOSTIC_METHOD_ORIGINAL,
       '  }',
+      NETHERNET_CLIENT_SEND_ORIGINAL,
       '  armNegotiationTimeout (code, timeoutMs) {',
       NETHERNET_CLIENT_DIAGNOSTIC_TIMEOUT_ORIGINAL,
       '  }',
@@ -300,6 +302,9 @@ test('patches app and nested Mineflayer protocol copies without touching options
       '}'
     ].join('\n')
     fs.writeFileSync(path.join(nethernetRoot, 'src', 'client.js'), nethernetClientSource)
+    const patchedNethernetClientSource = fs.readFileSync(path.join(nethernetRoot, 'src', 'client.js'), 'utf8')
+    assert.match(patchedNethernetClientSource, /BEDROCK_BOT_CONSOLE_NETHERNET_CLIENT_SEND_RETURN/)
+    assert.match(patchedNethernetClientSource, /return this\.connection\.send\(buffer\)/)
     const nethernetConnectionSource = [
       'class Connection {',
       '  setChannels (reliable, unreliable) {',

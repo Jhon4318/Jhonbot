@@ -170,6 +170,16 @@ const NETHERNET_SEND_RELIABLE_ORIGINAL = [
 const NETHERNET_SEND_RELIABLE_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_SEND_RELIABLE_RETURN'
 
 const NETHERNET_CLIENT_DIAGNOSTIC_OPTION_ORIGINAL = '    this.webrtc = getWebRTC(options.webrtcBackend)'
+const NETHERNET_CLIENT_SEND_ORIGINAL = [
+  '  send (buffer) {',
+  '    if (!this.connection) {',
+  "      throw new Error('Connection is not open')",
+  '    }',
+  '',
+  '    this.connection.send(buffer)',
+  '  }'
+].join('\n')
+const NETHERNET_CLIENT_SEND_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_CLIENT_SEND_RETURN'
 const NETHERNET_CLIENT_DIAGNOSTIC_METHOD_ORIGINAL = '  reportError (error) {'
 const NETHERNET_CLIENT_DIAGNOSTIC_TIMEOUT_ORIGINAL = [
   '    this._negotiationTimeout = setTimeout(() => {',
@@ -967,6 +977,20 @@ function patchNethernetClientDiagnosticsSource (source) {
     'nethernet/src/client.js diagnostics callback method'
   )
   apply(
+    NETHERNET_CLIENT_SEND_ORIGINAL,
+    [
+      '  send (buffer) {',
+      '    if (!this.connection) {',
+      "      throw new Error('Connection is not open')",
+      '    }',
+      '',
+      '    return this.connection.send(buffer) // BEDROCK_BOT_CONSOLE_NETHERNET_CLIENT_SEND_RETURN',
+      '  }'
+    ].join('\n'),
+    NETHERNET_CLIENT_SEND_MARKER,
+    'nethernet/src/client.js reliable send result forwarding'
+  )
+  apply(
     NETHERNET_CLIENT_DIAGNOSTIC_TIMEOUT_ORIGINAL,
     [
       "    this.reportDiagnostic('Negotiation response timer started: timeout=' + timeoutMs + 'ms, errorCode=' + code)",
@@ -1481,6 +1505,8 @@ module.exports = {
   VERIFY_SERVER_IDENTITY_PUBLIC_KEY_MARKER,
   VERIFY_SERVER_IDENTITY_PUBLIC_KEY_REPLACEMENT,
   NETHERNET_CLIENT_DIAGNOSTIC_OPTION_ORIGINAL,
+  NETHERNET_CLIENT_SEND_ORIGINAL,
+  NETHERNET_CLIENT_SEND_MARKER,
   NETHERNET_CLIENT_DIAGNOSTIC_METHOD_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_TIMEOUT_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_ANSWER_ORIGINAL,
