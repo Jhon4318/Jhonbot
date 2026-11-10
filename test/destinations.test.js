@@ -8,7 +8,8 @@ const {
   migrateSettings,
   legacyServerId,
   serverHttpSignallingOrigin,
-  serverOriginKey
+  serverOriginKey,
+  resetTrustedServerKey
 } = require('../src/destinations')
 
 test('validates and normalizes server profiles', () => {
@@ -82,4 +83,17 @@ test('persists only valid trusted HTTP server key fingerprints', () => {
   })
   assert.equal(Object.keys(migrated.trustedServerKeys).length, 1)
   assert.equal(serverOriginKey('http://server.example:19132/path'), 'http://server.example:19132')
+})
+
+
+test('resets only the trusted key for the selected signalling origin', () => {
+  const trustedServerKeys = {
+    'https://one.example': `sha256:${'a'.repeat(64)}`,
+    'http://two.example:19132': `sha256:${'b'.repeat(64)}`
+  }
+
+  assert.equal(resetTrustedServerKey(trustedServerKeys, 'https://one.example/path'), true)
+  assert.equal(Object.hasOwn(trustedServerKeys, 'https://one.example'), false)
+  assert.equal(trustedServerKeys['http://two.example:19132'], `sha256:${'b'.repeat(64)}`)
+  assert.equal(resetTrustedServerKey(trustedServerKeys, 'https://one.example'), false)
 })
