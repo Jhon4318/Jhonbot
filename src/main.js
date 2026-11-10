@@ -586,21 +586,27 @@ function serverKeyOptions (bot, profile, mode, attemptId) {
 async function resolveServerConnectionOptions (bot, profile, attemptId, signal) {
   if (profile.mode === 'http') {
     return {
-      host: profile.host,
-      port: profile.port,
-      transport: 'nethernet',
-      skipPing: true,
-      connectTimeout: 30000,
-      nethernet: { ...serverKeyOptions(bot, profile, 'http', attemptId), signalling: 'http', ...(profile.signallingUrl ? { url: profile.signallingUrl } : {}) }
+      method: 'nethernet-http',
+      options: {
+        host: profile.host,
+        port: profile.port,
+        transport: 'nethernet',
+        skipPing: true,
+        connectTimeout: 30000,
+        nethernet: { ...serverKeyOptions(bot, profile, 'http', attemptId), signalling: 'http', ...(profile.signallingUrl ? { url: profile.signallingUrl } : {}) }
+      }
     }
   }
   if (profile.mode === 'raknet') {
     return {
-      host: profile.host,
-      port: profile.port,
-      transport: 'raknet',
-      skipPing: true,
-      connectTimeout: 15000
+      method: 'raknet',
+      options: {
+        host: profile.host,
+        port: profile.port,
+        transport: 'raknet',
+        skipPing: true,
+        connectTimeout: 15000
+      }
     }
   }
 
@@ -613,32 +619,40 @@ async function resolveServerConnectionOptions (bot, profile, attemptId, signal) 
   })
   if (advertisement.transport === 'raknet') {
     pushLog(`${bot.label}: RakNetサーバーとして検出しました。`, 'success', bot.id)
-    return { host: profile.host, port: profile.port, transport: 'raknet', skipPing: true, connectTimeout: 15000 }
+    return {
+      method: 'raknet',
+      options: { host: profile.host, port: profile.port, transport: 'raknet', skipPing: true, connectTimeout: 15000 }
+    }
   }
   if (advertisement.transport === 'nethernet' && advertisement.signalling === 'http') {
     pushLog(`${bot.label}: NetherNet HTTPサーバーとして検出しました。`, 'success', bot.id)
     return {
-      host: profile.host,
-      port: profile.port,
-      transport: 'nethernet',
-      skipPing: true,
-      connectTimeout: 30000,
-      nethernet: { ...serverKeyOptions(bot, profile, 'http', attemptId), signalling: 'http', ...(profile.signallingUrl ? { url: profile.signallingUrl } : {}) }
+      method: 'nethernet-http',
+      options: {
+        host: profile.host,
+        port: profile.port,
+        transport: 'nethernet',
+        skipPing: true,
+        connectTimeout: 30000,
+        nethernet: { ...serverKeyOptions(bot, profile, 'http', attemptId), signalling: 'http', ...(profile.signallingUrl ? { url: profile.signallingUrl } : {}) }
+      }
     }
   }
   if (advertisement.transport === 'nethernet' && advertisement.networkId != null) {
     pushLog(`${bot.label}: NetherNet LAN広告を検出しました。`, 'success', bot.id)
     return {
-      host: profile.host,
-      port: profile.port,
-      transport: 'nethernet',
-      skipPing: true,
-      nethernet: { signalling: 'lan', networkId: advertisement.networkId, webrtcBackend: 'werift' }
+      method: 'nethernet-lan',
+      options: {
+        host: profile.host,
+        port: profile.port,
+        transport: 'nethernet',
+        skipPing: true,
+        nethernet: { signalling: 'lan', networkId: advertisement.networkId, webrtcBackend: 'werift' }
+      }
     }
   }
   throw new Error('接続方式を判定できませんでした。サーバーの接続方式を手動で選択してください。')
 }
-
 
 async function authenticateBot (botId) {
   const bot = bots.get(botId)
@@ -706,12 +720,17 @@ async function connectBot (botId) {
   bot.lastServerTick = ''
 
   let connectionOptions
+  let connectionMethod = ''
+  let serverProfileId = ''
   try {
     if (bot.targetType === 'server') {
       const profile = settings.servers.find(item => item.id === bot.targetId)
       if (!profile) throw new Error('選択したサーバー設定が見つかりません。参加先を選び直してください。')
-      connectionOptions = await resolveServerConnectionOptions(bot, profile, attemptId, abortController.signal)
-      pushLog(`${bot.label}: ${profile.label}（${profile.host}:${profile.port}）への接続を開始します。方式=${profile.mode}`, 'info', bot.id)
+      const resolved = await resolveServerConnectionOptions(bot, profile, attemptId, abortController.signal)
+      connectionOptions = resolved.options
+      connectionMethod = resolved.method
+      serverProfileId = profile.id
+      pushLog(`${bot.label}: ${profile.label}（${profile.host}:${profile.port}）への接続を開始します。方式=${profile.mode} / 検出=${connectionMethod}`, 'info', bot.id)
     } else if (bot.targetType === 'friend-world') {
       connectionOptions = {
         world: { pickSession: (sessions) => askForWorldSelection(bot, sessions, attemptId) },
@@ -903,6 +922,18 @@ async function connectBot (botId) {
   })
   agent.on('spawn', () => {
     if (bot.agent !== agent) return
+    if (bot.targetType === 'server' && serverProfileId && connectionMethod) {
+      const profile = settings.servers.find(item => item.id === serverProfileId)
+      if (profile && recordSuccessfulServerConnection(profile, connectionMethod)) {
+        const methodLabel = ({ raknet: 'RakNet', 'nethernet-http': 'NetherNet HTTP', 'nethernet-lan': 'NetherNet LAN' })[connectionMethod] || connectionMethod
+        saveSettings().then(() => {
+          send('servers:updated', publicServerProfiles())
+          pushLog(`${bot.label}: 接続成功した方式「${methodLabel}」を接続先設定に保存しました。`, 'success', bot.id)
+        }).catch(error => {
+          pushLog(`${bot.label}: 成功した接続方式の保存に失敗しました: ${error.message}`, 'warning', bot.id)
+        })
+      }
+    }
     setBotStatus(bot, 'connected')
     preparePathfinder(bot)
     publishBotInventory(bot)
