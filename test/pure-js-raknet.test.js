@@ -372,8 +372,8 @@ test('patches app and nested Mineflayer protocol copies without touching options
     assert.match(identitySource, /BEDROCK_BOT_CONSOLE_SESSION_FINGERPRINT_SCOPE/)
     assert.match(identitySource, /normalizeFingerprintScope\(sdp\)/)
     const second = applyPatch(tempRoot)
-    assert.equal(second.length, 22)
-    assert.deepEqual(second.map(result => result.changed), Array(22).fill(false))
+    assert.equal(second.length, 23)
+    assert.deepEqual(second.map(result => result.changed), Array(23).fill(false))
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true })
   }
