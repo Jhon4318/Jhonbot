@@ -11,8 +11,17 @@ const {
   IDENTITY_MARKER,
   HTTP_ERROR_ORIGINAL,
   HTTP_ERROR_MARKER,
+  HTTP_SERVER_KEYS_DESTRUCTURE_ORIGINAL,
+  HTTP_SERVER_KEYS_DESTRUCTURE_MARKER,
+  HTTP_SERVER_KEYS_TRUST_ORIGINAL,
+  HTTP_SERVER_KEYS_TRUST_MARKER,
+  NETHERNET_OPTIONS_ORIGINAL,
+  NETHERNET_OPTIONS_MARKER,
+  NETHERNET_SEND_RELIABLE_ORIGINAL,
   patchIdentityDomainSource,
   patchHttpErrorSource,
+  patchHttpServerKeyVariantsSource,
+  patchNethernetTimeoutOptionsSource,
   VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL,
   VERIFY_SERVER_IDENTITY_PUBLIC_KEY_MARKER,
   patchServerIdentityPublicKeySource
@@ -101,4 +110,39 @@ test('patches NetherNet server identity verification to import DER SPKI and JWK 
   assert.equal(pemKey.asymmetricKeyType, 'ec')
   assert.throws(() => module.exports({ cpk: 'not-a-public-key' }), /Invalid Nethernet server identity public key encoding/)
   assert.throws(() => module.exports({ cpk: null }), /Unsupported Nethernet server identity public key format/)
+})
+
+
+test('forwards the list of trusted server keys through the Bedrock-NetherNet adapter', () => {
+  const fixture = [
+    'class NetTransport {',
+    '  constructor (options) {',
+    NETHERNET_OPTIONS_ORIGINAL,
+    '  }',
+    NETHERNET_SEND_RELIABLE_ORIGINAL,
+    '}'
+  ].join('\\n')
+  const patched = patchNethernetTimeoutOptionsSource(fixture)
+  assert.equal(patched.changed, true)
+  assert.match(patched.source, /serverKeys: options\\.serverKeys/)
+  assert.match(patched.source, new RegExp(NETHERNET_OPTIONS_MARKER))
+  assert.equal(patchNethernetTimeoutOptionsSource(patched.source).changed, false)
+})
+
+test('allows multiple explicitly trusted NetherNet server keys and prompts for unknown keys', () => {
+  const fixture = [
+    'async function exchangeOffer (client, url, answer) {',
+    HTTP_SERVER_KEYS_DESTRUCTURE_ORIGINAL,
+    HTTP_SERVER_KEYS_TRUST_ORIGINAL,
+    '  return verified.sdp',
+    '}'
+  ].join('\\n')
+  const patched = patchHttpServerKeyVariantsSource(fixture)
+  assert.equal(patched.changed, true)
+  assert.match(patched.source, new RegExp(HTTP_SERVER_KEYS_DESTRUCTURE_MARKER))
+  assert.match(patched.source, /Array\\.isArray\\(serverKeys\\)/)
+  assert.match(patched.source, /knownServerKeys\\.includes\\(verified\\.fingerprint\\)/)
+  assert.match(patched.source, /onServerKey\\(verified\\.fingerprint, url\\.origin\\)/)
+  assert.match(patched.source, new RegExp(HTTP_SERVER_KEYS_TRUST_MARKER))
+  assert.equal(patchHttpServerKeyVariantsSource(patched.source).changed, false)
 })
