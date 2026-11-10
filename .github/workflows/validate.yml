@@ -14,6 +14,7 @@ on:
       - "feature/account-subclients-0.6.0"
       - "fix/snappy-compression-0.6.1"
       - "fix/nethernet-http-diagnostics-0.6.2"
+      - "fix/server-key-reset-0.6.3"
   pull_request:
   workflow_dispatch:
 
@@ -45,7 +46,7 @@ jobs:
         run: npm run check
 
   windows-package:
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/fix/snappy-compression-0.6.1' || github.ref == 'refs/heads/fix/nethernet-http-diagnostics-0.6.2'
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/fix/snappy-compression-0.6.1' || github.ref == 'refs/heads/fix/nethernet-http-diagnostics-0.6.2' || github.ref == 'refs/heads/fix/server-key-reset-0.6.3'
     runs-on: windows-latest
     steps:
       - name: Check out repository
@@ -103,10 +104,10 @@ jobs:
       - name: Upload Windows installer and manual update package
         uses: actions/upload-artifact@v4
         with:
-          name: Bedrock-Bot-Console-0.6.2-Windows-x64
+          name: Bedrock-Bot-Console-0.6.3-Windows-x64
           path: |
             dist/Bedrock-Bot-Console-Setup.exe
-            dist/Bedrock-Bot-Console-Update-0.6.2.zip
+            dist/Bedrock-Bot-Console-Update-0.6.3.zip
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
