@@ -4,6 +4,8 @@ const { randomUUID } = require('node:crypto')
 
 const DEFAULT_PORT = 19132
 const MODES = new Set(['auto', 'http', 'raknet'])
+const SERVER_CONNECTION_METHODS = new Set(['raknet', 'nethernet-http', 'nethernet-lan'])
+const SERVER_KEY_FINGERPRINT_RE = /^sha256:[a-f0-9]{64}$/
 const TARGET_TYPES = new Set(['none', 'server', 'friend-world', 'lan-world'])
 
 function cleanText (value, max = 64) {
@@ -47,7 +49,11 @@ function normalizeServerProfile (input) {
   if (!host) throw new Error('ホスト名またはIPアドレスを正しく入力してください。')
   if (!port) throw new Error('ポート番号は1〜65535で入力してください。')
   const signallingUrl = normalizeSignallingUrl(input?.signallingUrl, host, mode)
-  return { id: randomUUID(), label, host, port, mode, signallingUrl }
+  const lastSuccessfulMode = SERVER_CONNECTION_METHODS.has(input?.lastSuccessfulMode) ? input.lastSuccessfulMode : ''
+  const lastSuccessfulAt = typeof input?.lastSuccessfulAt === 'string' && Number.isFinite(Date.parse(input.lastSuccessfulAt))
+    ? new Date(input.lastSuccessfulAt).toISOString()
+    : ''
+  return { id: randomUUID(), label, host, port, mode, signallingUrl, lastSuccessfulMode, lastSuccessfulAt }
 }
 
 function normalizeTarget (input, serverProfiles = []) {
@@ -126,9 +132,16 @@ function migrateSettings (parsed) {
     })
   }
 
-  const trustedServerKeys = parsed?.trustedServerKeys && typeof parsed.trustedServerKeys === 'object' && !Array.isArray(parsed.trustedServerKeys)
-    ? Object.fromEntries(Object.entries(parsed.trustedServerKeys).filter(([origin, fingerprint]) => /^https?:\/\//.test(origin) && /^sha256:[a-f0-9]{64}$/.test(String(fingerprint))))
-    : {}
+  const trustedServerKeys = {}
+  if (parsed?.trustedServerKeys && typeof parsed.trustedServerKeys === 'object' && !Array.isArray(parsed.trustedServerKeys)) {
+    for (const [origin, value] of Object.entries(parsed.trustedServerKeys)) {
+      let key
+      try { key = serverOriginKey(origin) } catch { continue }
+      const fingerprints = normalizeTrustedServerKeyFingerprints(value)
+      if (!/^https?:\/\//.test(key) || !fingerprints.length) continue
+      trustedServerKeys[key] = fingerprints.length === 1 ? fingerprints[0] : fingerprints
+    }
+  }
 
   const parentIds = new Set(bots.filter(bot => !bot.parentBotId).map(bot => bot.id))
   const occupiedGuestSlots = new Set()
@@ -154,6 +167,40 @@ function serverOriginKey (origin) {
   try { return new URL(origin).origin.toLowerCase() } catch { throw new Error('サーバー鍵の接続元URLが不正です。') }
 }
 
+function normalizeTrustedServerKeyFingerprints (value) {
+  const values = Array.isArray(value) ? value : [value]
+  return [...new Set(values.filter(item => typeof item === 'string' && SERVER_KEY_FINGERPRINT_RE.test(item)))]
+}
+
+function getTrustedServerKeyFingerprints (trustedServerKeys, origin) {
+  if (!trustedServerKeys || typeof trustedServerKeys !== 'object' || Array.isArray(trustedServerKeys)) return []
+  return normalizeTrustedServerKeyFingerprints(trustedServerKeys[serverOriginKey(origin)])
+}
+
+function addTrustedServerKey (trustedServerKeys, origin, fingerprint) {
+  if (!trustedServerKeys || typeof trustedServerKeys !== 'object' || Array.isArray(trustedServerKeys)) {
+    throw new Error('保存済みサーバー鍵の設定が不正です。')
+  }
+  if (typeof fingerprint !== 'string' || !SERVER_KEY_FINGERPRINT_RE.test(fingerprint)) {
+    throw new Error('サーバー公開鍵の指紋形式が正しくありません。')
+  }
+  const key = serverOriginKey(origin)
+  const fingerprints = normalizeTrustedServerKeyFingerprints(trustedServerKeys[key])
+  if (fingerprints.includes(fingerprint)) return false
+  fingerprints.push(fingerprint)
+  trustedServerKeys[key] = fingerprints.length === 1 ? fingerprints[0] : fingerprints
+  return true
+}
+
+function recordSuccessfulServerConnection (profile, method, connectedAt = new Date().toISOString()) {
+  if (!profile || typeof profile !== 'object' || !SERVER_CONNECTION_METHODS.has(method)) return false
+  const timestamp = Date.parse(connectedAt)
+  if (!Number.isFinite(timestamp)) return false
+  profile.lastSuccessfulMode = method
+  profile.lastSuccessfulAt = new Date(timestamp).toISOString()
+  return true
+}
+
 function resetTrustedServerKey (trustedServerKeys, origin) {
   if (!trustedServerKeys || typeof trustedServerKeys !== 'object' || Array.isArray(trustedServerKeys)) {
     throw new Error('保存済みサーバー鍵の設定が不正です。')
@@ -177,5 +224,9 @@ module.exports = {
   normalizeSignallingUrl,
   serverHttpSignallingOrigin,
   serverOriginKey,
+  normalizeTrustedServerKeyFingerprints,
+  getTrustedServerKeyFingerprints,
+  addTrustedServerKey,
+  recordSuccessfulServerConnection,
   resetTrustedServerKey
 }
