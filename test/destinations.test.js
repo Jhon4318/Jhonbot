@@ -9,6 +9,9 @@ const {
   legacyServerId,
   serverHttpSignallingOrigin,
   serverOriginKey,
+  getTrustedServerKeyFingerprints,
+  addTrustedServerKey,
+  recordSuccessfulServerConnection,
   resetTrustedServerKey
 } = require('../src/destinations')
 
@@ -96,4 +99,41 @@ test('resets only the trusted key for the selected signalling origin', () => {
   assert.equal(Object.hasOwn(trustedServerKeys, 'https://one.example'), false)
   assert.equal(trustedServerKeys['http://two.example:19132'], `sha256:${'b'.repeat(64)}`)
   assert.equal(resetTrustedServerKey(trustedServerKeys, 'https://one.example'), false)
+})
+
+
+test('migrates and preserves multiple trusted public keys for one signalling origin', () => {
+  const first = `sha256:${'a'.repeat(64)}`
+  const second = `sha256:${'b'.repeat(64)}`
+  const migrated = migrateSettings({
+    bots: [],
+    trustedServerKeys: {
+      'https://pool.example/path': [first, second, first, 'invalid'],
+      'https://legacy.example': first,
+      'file:///evil': second
+    }
+  })
+  assert.deepEqual(migrated.trustedServerKeys['https://pool.example'], [first, second])
+  assert.equal(migrated.trustedServerKeys['https://legacy.example'], first)
+  assert.equal(getTrustedServerKeyFingerprints(migrated.trustedServerKeys, 'https://pool.example/another-path').length, 2)
+  assert.equal(Object.hasOwn(migrated.trustedServerKeys, 'file:///evil'), false)
+})
+
+test('adds a new approved key without replacing previously trusted keys', () => {
+  const trusted = { 'https://pool.example': `sha256:${'a'.repeat(64)}` }
+  const second = `sha256:${'b'.repeat(64)}`
+  assert.equal(addTrustedServerKey(trusted, 'https://pool.example/path', second), true)
+  assert.deepEqual(trusted['https://pool.example'], [`sha256:${'a'.repeat(64)}`, second])
+  assert.deepEqual(getTrustedServerKeyFingerprints(trusted, 'https://pool.example'), [`sha256:${'a'.repeat(64)}`, second])
+  assert.equal(addTrustedServerKey(trusted, 'https://pool.example', second), false)
+  assert.throws(() => addTrustedServerKey(trusted, 'https://pool.example', 'not-a-fingerprint'), /指紋形式/)
+})
+
+test('records only supported server connection methods after a successful spawn', () => {
+  const profile = { id: 'server-1', label: 'Server', host: 'server.example', port: 19132, mode: 'auto' }
+  assert.equal(recordSuccessfulServerConnection(profile, 'nethernet-http', '2026-11-11T00:00:00.000Z'), true)
+  assert.equal(profile.lastSuccessfulMode, 'nethernet-http')
+  assert.equal(profile.lastSuccessfulAt, '2026-11-11T00:00:00.000Z')
+  assert.equal(recordSuccessfulServerConnection(profile, 'unsupported', '2026-11-11T00:00:00.000Z'), false)
+  assert.equal(recordSuccessfulServerConnection(profile, 'raknet', 'invalid-date'), false)
 })
