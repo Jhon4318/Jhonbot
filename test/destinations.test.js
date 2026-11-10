@@ -137,3 +137,22 @@ test('records only supported server connection methods after a successful spawn'
   assert.equal(recordSuccessfulServerConnection(profile, 'unsupported', '2026-11-11T00:00:00.000Z'), false)
   assert.equal(recordSuccessfulServerConnection(profile, 'raknet', 'invalid-date'), false)
 })
+
+
+test('persists a previously successful connection method when settings are reloaded', () => {
+  const migrated = migrateSettings({
+    servers: [{
+      id: 'remembered-server',
+      label: 'Remembered',
+      host: 'server.example',
+      port: 19132,
+      mode: 'auto',
+      lastSuccessfulMode: 'nethernet-http',
+      lastSuccessfulAt: '2026-11-11T00:00:00.000Z'
+    }],
+    bots: []
+  })
+  assert.equal(migrated.servers[0].id, 'remembered-server')
+  assert.equal(migrated.servers[0].lastSuccessfulMode, 'nethernet-http')
+  assert.equal(migrated.servers[0].lastSuccessfulAt, '2026-11-11T00:00:00.000Z')
+})
