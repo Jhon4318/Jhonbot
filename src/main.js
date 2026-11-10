@@ -793,6 +793,44 @@ async function connectBot (botId) {
     throw new Error(bot.lastError)
   }
 
+  // Trace only protocol lifecycle packet names and the public status enum; never log packet payloads or tokens.
+  const bedrockLifecyclePackets = new Set([
+    'network_settings',
+    'server_to_client_handshake',
+    'play_status',
+    'resource_packs_info',
+    'resource_pack_stack',
+    'start_game',
+    'disconnect'
+  ])
+  const bedrockPacketCounts = new Map()
+  const bedrockStatusNames = ['Disconnected', 'Connecting', 'Authenticating', 'Initializing', 'Initialized']
+  let lastBedrockStatus = null
+
+  agent._client.on('status', (status) => {
+    if (bot.agent !== agent || status === lastBedrockStatus) return
+    lastBedrockStatus = status
+    const label = bedrockStatusNames[Number(status)] || 'Unknown'
+    pushLog(`${bot.label}: [Bedrock] 通信状態=${label} (${String(status)})`, 'info', bot.id)
+  })
+  agent._client.on('packet', (packet) => {
+    if (bot.agent !== agent) return
+    const name = String(packet?.data?.name || packet?.name || '')
+    if (!bedrockLifecyclePackets.has(name)) return
+    const seen = (bedrockPacketCounts.get(name) || 0) + 1
+    bedrockPacketCounts.set(name, seen)
+    if (seen > 4) return
+    const params = packet?.data?.params || packet?.params || {}
+    const detail = name === 'play_status' ? ` / status=${String(params.status ?? 'unknown')}` : ''
+    pushLog(`${bot.label}: [Bedrock] 受信パケット=${name}${detail}`, 'info', bot.id)
+  })
+  agent._client.on('loggingIn', () => {
+    if (bot.agent === agent) pushLog(`${bot.label}: [Bedrock] Loginパケットを送信しました。`, 'info', bot.id)
+  })
+  agent._client.on('join', () => {
+    if (bot.agent === agent) pushLog(`${bot.label}: [Bedrock] サーバーとの暗号化ハンドシェイクが完了しました。`, 'info', bot.id)
+  })
+
   agent._client.on('start_game', (packet) => {
     if (bot.agent !== agent) return
     bot.startGameReceived = true
