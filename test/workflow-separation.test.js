@@ -74,7 +74,7 @@ test('supports saved server profiles, friend worlds, and LAN worlds per Bot', ()
 
 test('HTTP server identity is verified and first-use keys require explicit approval', () => {
   assert.match(main, /nethernet\.onServerKey = \(fingerprint, origin\) => requestServerKeyApproval\(bot, fingerprint, origin, attemptId\)/)
-  assert.match(main, /settings\.trustedServerKeys\[pending\.key\] = pending\.fingerprint/)
+  assert.match(main, /addTrustedServerKey\(settings\.trustedServerKeys, pending\.origin, pending\.fingerprint\)/)
   assert.match(preload, /resolveServerKey:.*security:resolve-server-key/)
   assert.match(html, /この鍵を信頼する/)
 })
