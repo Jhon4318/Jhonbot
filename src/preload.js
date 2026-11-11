@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('botApp', {
   discoverLanWorld: (id) => ipcRenderer.invoke('bot:discover-lan', id),
   discoverLanWorlds: (id) => ipcRenderer.invoke('bot:discover-lans', id),
   getRealms: (id) => ipcRenderer.invoke('bot:get-realms', id),
+  getRealmFromInvite: (args) => ipcRenderer.invoke('bot:get-realm-invite', args),
   updateModules: (args) => ipcRenderer.invoke('bot:update-modules', args),
   useItem: (args) => ipcRenderer.invoke('bot:use-item', args),
   startItemUse: (args) => ipcRenderer.invoke('bot:start-item-use', args),
