@@ -47,7 +47,7 @@ function patchContainerDepositSource (source) {
   if (!next.includes(destinationOriginal)) throw new Error('Container destination action changed; refusing to patch an unknown version.')
   next = next.replace(destinationOriginal, destinationReplacement)
   const returnOriginal = '    await wait(150)\n    return response'
-  const returnReplacement = '    await wait(150)\n    return Object.assign({}, response, { movedCount }) // ' + MARKER
+  const returnReplacement = '    await wait(150)\n    return Object.assign({}, response, { movedCount: moveCount }) // ' + MARKER
   if (!next.includes(returnOriginal)) throw new Error('Container deposit response block changed; refusing to patch an unknown version.')
   next = next.replace(returnOriginal, returnReplacement)
   return { source: next, changed: true }
