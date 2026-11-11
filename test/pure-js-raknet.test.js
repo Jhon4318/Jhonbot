@@ -111,8 +111,8 @@ test('does not patch bedrock-protocol options.js', () => {
 })
 
 test('patch runs after install and before app start', () => {
-  assert.equal(packageJson.scripts.postinstall, 'node scripts/patch-bedrock-protocol.js')
-  assert.equal(packageJson.scripts.prestart, 'node scripts/patch-bedrock-protocol.js')
+  assert.equal(packageJson.scripts.postinstall, 'node scripts/patch-bedrock-protocol.js && node scripts/patch-mineflayer-bedrock-containers.js')
+  assert.equal(packageJson.scripts.prestart, 'node scripts/patch-bedrock-protocol.js && node scripts/patch-mineflayer-bedrock-containers.js')
 })
 
 test('pins the expected protocol patch target', () => {
