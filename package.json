@@ -19,7 +19,8 @@
     "mineflayer": "https://github.com/Pix3lPirat3/mineflayer/archive/b24015aeeec68a5c94f54444f104f0e563595a30.tar.gz",
     "mineflayer-pathfinder": "2.4.5",
     "prismarine-auth": "3.1.1",
-    "snappyjs": "0.7.0"
+    "snappyjs": "0.7.0",
+    "vec3": "^0.1.7"
   },
   "overrides": {
     "@shinyoshiaki/binary-data": "npm:@seydx/binary-data@0.6.2",
