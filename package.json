@@ -7,9 +7,9 @@
   "scripts": {
     "start": "electron .",
     "dist:win": "electron-builder --win nsis --x64 --publish never",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/bot-actions.js && node --check src/modules.js && node --check src/realms.js && node --check src/lan-discovery.js && node --check src/subclients.js && node --check test/snappy-compression.test.js && node --check test/bedrock-compression-header.test.js && node --check src/renderer.js && node --check src/runtime-guards.js && node --check src/auth-cache.js && node --check src/account-state.js && node --check src/destinations.js && node --check scripts/patch-bedrock-protocol.js && node --check scripts/patch-nethernet-sdp.js && node --check scripts/validate-build-config.js && node --check test/subclients.test.js && node --check test/destinations.test.js && node --check test/modules.test.js && node --check test/realms.test.js && node --check test/lan-discovery.test.js && node scripts/validate-build-config.js && node --test",
-    "postinstall": "node scripts/patch-bedrock-protocol.js",
-    "prestart": "node scripts/patch-bedrock-protocol.js"
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/bot-actions.js && node --check src/modules.js && node --check src/realms.js && node --check src/lan-discovery.js && node --check src/subclients.js && node --check test/snappy-compression.test.js && node --check test/bedrock-compression-header.test.js && node --check src/renderer.js && node --check src/runtime-guards.js && node --check src/auth-cache.js && node --check src/account-state.js && node --check src/destinations.js && node --check scripts/patch-bedrock-protocol.js && node --check scripts/patch-nethernet-sdp.js && node --check scripts/validate-build-config.js && node --check test/subclients.test.js && node --check test/destinations.test.js && node --check test/modules.test.js && node --check test/realms.test.js && node --check test/lan-discovery.test.js && node scripts/validate-build-config.js && node --test && node --check scripts/patch-mineflayer-bedrock-containers.js",
+    "postinstall": "node scripts/patch-bedrock-protocol.js && node scripts/patch-mineflayer-bedrock-containers.js",
+    "prestart": "node scripts/patch-bedrock-protocol.js && node scripts/patch-mineflayer-bedrock-containers.js"
   },
   "engines": {
     "node": ">=24"
