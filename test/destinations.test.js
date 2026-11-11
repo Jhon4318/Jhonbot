@@ -156,3 +156,36 @@ test('persists a previously successful connection method when settings are reloa
   assert.equal(migrated.servers[0].lastSuccessfulMode, 'nethernet-http')
   assert.equal(migrated.servers[0].lastSuccessfulAt, '2026-11-11T00:00:00.000Z')
 })
+
+
+test('normalizes and validates Realms destinations', () => {
+  assert.deepEqual(normalizeTarget({ type: 'realm', realmId: '123456789', worldName: 'Friends Realm' }), {
+    type: 'realm',
+    serverId: '123456789',
+    networkId: '',
+    worldName: 'Friends Realm'
+  })
+  assert.throws(() => normalizeTarget({ type: 'realm', realmId: 'not-a-realm-id' }), /Realms ID/)
+})
+
+test('migrates saved Realm destinations and per-Bot modules', () => {
+  const migrated = migrateSettings({
+    bots: [{
+      id: 'realm-bot',
+      label: 'Realm Bot',
+      targetType: 'realm',
+      targetId: '123456789',
+      worldName: 'Saved Realm',
+      modules: {
+        itemUse: { assigned: true, useMode: 'consume', intervalMs: 2000 },
+        containerSupply: { assigned: true, x: 1, y: 64, z: 2, itemName: 'minecraft:stone', targetCount: 128 }
+      }
+    }]
+  })
+  assert.equal(migrated.bots[0].targetType, 'realm')
+  assert.equal(migrated.bots[0].targetId, '123456789')
+  assert.equal(migrated.bots[0].worldName, 'Saved Realm')
+  assert.equal(migrated.bots[0].modules.itemUse.assigned, true)
+  assert.equal(migrated.bots[0].modules.itemUse.useMode, 'consume')
+  assert.equal(migrated.bots[0].modules.containerSupply.targetCount, 128)
+})
