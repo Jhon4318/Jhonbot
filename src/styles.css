@@ -289,3 +289,27 @@ select { font: inherit; }
 
 .guest-add-button { border-color: #625a9d; color: #d5d0ff; }
 .guest-add-button:not(:disabled):hover { border-color: #a49bff; background: #2d2a4a; }
+
+
+/* 0.7.0 per-Bot module panel */
+.module-panel { overflow: hidden; }
+.module-selected { margin: 14px 0 12px; padding: 10px 12px; border: 1px solid #303b50; border-radius: 8px; background: #111722; color: #c8d4e8; font: 11px Consolas, "Yu Gothic UI", monospace; }
+.module-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.module-card { min-width: 0; padding: 14px; border: 1px solid #303b50; border-radius: 10px; background: rgba(16,22,33,.65); display: flex; flex-direction: column; gap: 10px; }
+.module-card:last-child { grid-column: 1 / -1; }
+.module-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.module-card-heading h3 { margin: 0; color: #e4ebf9; font-size: 12px; }
+.module-assignment { display: inline-flex; align-items: center; gap: 6px; color: #aebbd1; font-size: 10px; white-space: nowrap; }
+.module-assignment input { accent-color: #9188ff; }
+.module-card .muted { margin: 0; line-height: 1.65; }
+.module-inline-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.module-coordinate-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.module-card .field { min-width: 0; }
+.module-card .field input, .module-card .field select { width: 100%; min-width: 0; height: 36px; border: 1px solid #354057; border-radius: 7px; background: #111722; color: var(--text); padding: 0 8px; font-size: 10px; }
+.module-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.module-actions button { min-height: 34px; }
+.module-status { min-height: 28px; padding: 7px 9px; border-radius: 7px; background: #141c2a; color: #b9c4d8; font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.module-footnote { margin: 12px 0 0; color: #8190a8; font-size: 9px; line-height: 1.7; }
+.module-card input:disabled, .module-card select:disabled { opacity: .45; }
+@media (max-width: 900px) { .module-grid { grid-template-columns: 1fr; } .module-card:last-child { grid-column: auto; } }
+@media (max-width: 600px) { .module-inline-fields { grid-template-columns: 1fr 1fr; } .module-coordinate-fields { grid-template-columns: 1fr; } .module-card { padding: 12px; } }
