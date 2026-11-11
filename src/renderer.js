@@ -252,7 +252,7 @@ function renderBotModulesPanel (refreshConfig = false) {
     supplyZ.value = modules.containerSupply?.z ?? ''
     supplyTargetCount.value = String(modules.containerSupply?.targetCount || 64)
     supplyInterval.value = String(modules.containerSupply?.intervalMs || 5000)
-    connectionManagerAssigned.checked = modules.connectionManager?.assigned === true
+    connectionManagerAssigned.checked = !bot?.parentBotId && modules.connectionManager?.assigned === true
     reconnectMaxRetries.value = String(modules.connectionManager?.maxRetries ?? 5)
     reconnectInitialDelay.value = String(modules.connectionManager?.initialDelayMs || 5000)
     reconnectMaxDelay.value = String(modules.connectionManager?.maxDelayMs || 60000)
@@ -278,7 +278,7 @@ function renderBotModulesPanel (refreshConfig = false) {
   document.getElementById('supplyStartButton').disabled = !connected || !assignedSupply
   document.getElementById('supplyStopButton').disabled = !bot || status.containerSupplyRunning !== true
   connectionManagerAssigned.disabled = noBot || !!bot?.parentBotId
-  for (const input of [reconnectMaxRetries, reconnectInitialDelay, reconnectMaxDelay]) input.disabled = noBot || !connectionManagerAssigned.checked
+  for (const input of [reconnectMaxRetries, reconnectInitialDelay, reconnectMaxDelay]) input.disabled = noBot || !!bot?.parentBotId || !connectionManagerAssigned.checked
   document.getElementById('moduleSaveButton').disabled = noBot
 }
 
