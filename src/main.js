@@ -24,7 +24,7 @@ const { createEncryptedAuthCacheFactory, hasEncryptedAuthCache } = require('./au
 const { normalizeChatMessage, normalizeDropRequest, createInventorySnapshot } = require('./bot-actions')
 const { installSubClientSupport, createGuestLoginTokens, MAX_SUB_CLIENTS } = require('./subclients')
 const { normalizeBotModules, moduleConfigComplete, isModuleAssigned, reconnectDelay, isTransientDisconnect } = require('./modules')
-const { listRealms } = require('./realms')
+const { listRealms, getRealmFromInvite } = require('./realms')
 const { discoverLanWorlds } = require('./lan-discovery')
 const { DEFAULT_PORT, normalizeServerProfile, normalizeTarget, migrateSettings, serverOriginKey, serverHttpSignallingOrigin, getTrustedServerKeyFingerprints, addTrustedServerKey, recordSuccessfulServerConnection, resetTrustedServerKey } = require('./destinations')
 
@@ -604,6 +604,22 @@ async function getBotRealms (botId) {
     return realms
   } catch (error) {
     pushLog(`${bot.label}: Realms一覧の取得に失敗しました: ${describeFailure(error)}`, 'warning', bot.id)
+    throw error
+  }
+}
+
+async function getBotRealmFromInvite (botId, inviteCode) {
+  const bot = bots.get(botId)
+  if (!bot) throw new Error('Botが見つかりません。')
+  if (bot.parentBotId) throw new Error('ゲストBotではなく親Botのアカウントで招待コードを登録してください。')
+  if (!bot.authflow || bot.accountStatus !== 'authenticated') throw new Error('先にこのBotのMicrosoft / Xboxアカウントを認証してください。')
+  pushLog(`${bot.label}: Realms招待コードを確認しています。`, 'info', bot.id)
+  try {
+    const realm = await getRealmFromInvite(bot.authflow, inviteCode, MC_VERSION)
+    pushLog(`${bot.label}: Realm「${realm.name}」の招待を受け入れました。`, 'success', bot.id)
+    return realm
+  } catch (error) {
+    pushLog(`${bot.label}: Realms招待コードの確認に失敗しました: ${describeFailure(error)}`, 'warning', bot.id)
     throw error
   }
 }
@@ -1880,6 +1896,7 @@ ipcMain.handle('bot:set-target', (_event, args) => setBotTarget(args?.botId, arg
 ipcMain.handle('bot:discover-lan', (_event, botId) => discoverLanWorld(botId))
 ipcMain.handle('bot:discover-lans', (_event, botId) => discoverLanWorldsForBot(botId))
 ipcMain.handle('bot:get-realms', (_event, botId) => getBotRealms(botId))
+ipcMain.handle('bot:get-realm-invite', (_event, args) => getBotRealmFromInvite(args?.botId, args?.inviteCode))
 ipcMain.handle('bot:update-modules', (_event, args) => updateBotModules(args?.botId, args?.modules))
 ipcMain.handle('bot:use-item', (_event, args) => useBotItemOnce(args?.botId, args?.slot))
 ipcMain.handle('bot:start-item-use', (_event, args) => startBotItemUse(args?.botId, args?.slot))
