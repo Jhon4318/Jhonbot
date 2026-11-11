@@ -578,7 +578,7 @@ function renderBots () {
           try {
             const realms = await api.getRealms(bot.id)
             if (!realms.length) throw new Error('このアカウントで参加可能なRealmsが見つかりません。')
-            worldDialogTitle.textContent = bot.label + '：参加するRealmを選択'
+            document.getElementById('worldDialogTitle').textContent = bot.label + '：参加するRealmを選択'
             document.getElementById('worldDialogDescription').textContent = '認証済みアカウントで参加可能なRealmsです。期限切れのRealmは接続できません。'
             worldChoices.replaceChildren()
             for (const realm of realms) {
@@ -729,6 +729,7 @@ form.addEventListener('submit', async (event) => {
     state.bots.set(bot.id, bot)
     if (!state.selectedBotId) state.selectedBotId = bot.id
     renderBots()
+    renderBotModulesPanel(true)
     document.getElementById('botLabel').value = ''
     showToast('Botを追加しました。次にアカウント認証を行い、参加先を選択してください。')
   } catch (error) {
@@ -1059,6 +1060,7 @@ api.onBotRemoved((botId) => {
   state.inventoryUpdatedAtByBot.delete(botId)
   if (state.selectedBotId === botId) state.selectedBotId = ''
   renderBots()
+  renderBotModulesPanel(true)
   loadSelectedBotData()
 })
 api.onLog(appendLog)
