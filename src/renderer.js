@@ -263,7 +263,7 @@ function renderBotModulesPanel (refreshConfig = false) {
   const status = bot?.moduleStatus || {}
   document.getElementById('itemUseStatus').textContent = status.itemUse || '未実行'
   document.getElementById('containerSupplyStatus').textContent = status.containerSupply || '未実行'
-  document.getElementById('connectionManagerStatus').textContent = (status.connectionManager || '未割り当て') + (status.reconnectAttempts ? ' · 再試行 ' + status.reconnectAttempts + '回' : '')
+  document.getElementById('connectionManagerStatus').textContent = (bot?.parentBotId ? '親Botの接続管理に連動' : (status.connectionManager || '未割り当て')) + (status.reconnectAttempts ? ' · 再試行 ' + status.reconnectAttempts + '回' : '')
   const noBot = !bot
   itemUseAssigned.disabled = noBot
   itemUseMode.disabled = noBot || !assignedUse
@@ -277,7 +277,7 @@ function renderBotModulesPanel (refreshConfig = false) {
   document.getElementById('supplySaveButton').disabled = noBot
   document.getElementById('supplyStartButton').disabled = !connected || !assignedSupply
   document.getElementById('supplyStopButton').disabled = !bot || status.containerSupplyRunning !== true
-  connectionManagerAssigned.disabled = noBot
+  connectionManagerAssigned.disabled = noBot || !!bot?.parentBotId
   for (const input of [reconnectMaxRetries, reconnectInitialDelay, reconnectMaxDelay]) input.disabled = noBot || !connectionManagerAssigned.checked
   document.getElementById('moduleSaveButton').disabled = noBot
 }
