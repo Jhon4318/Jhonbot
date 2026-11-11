@@ -313,3 +313,5 @@ select { font: inherit; }
 .module-card input:disabled, .module-card select:disabled { opacity: .45; }
 @media (max-width: 900px) { .module-grid { grid-template-columns: 1fr; } .module-card:last-child { grid-column: auto; } }
 @media (max-width: 600px) { .module-inline-fields { grid-template-columns: 1fr 1fr; } .module-coordinate-fields { grid-template-columns: 1fr; } .module-card { padding: 12px; } }
+
+.realm-invite-input { width: 100%; min-width: 180px; max-width: 320px; min-height: 34px; padding: 0 9px; border: 1px solid #354057; border-radius: 7px; background: #111722; color: var(--text); font-size: 10px; }
