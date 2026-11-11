@@ -67,7 +67,7 @@ function normalizeTarget (input, serverProfiles = []) {
   if (type === 'friend-world') return { type, serverId: '', networkId: '', worldName: '' }
   if (type === 'realm') {
     const realmId = String(input?.realmId ?? input?.serverId ?? '').trim()
-    if (realmId && !/^\\d{1,20}$/.test(realmId)) throw new Error('Realms IDが不正です。')
+    if (realmId && !/^\d{1,20}$/.test(realmId)) throw new Error('Realms IDが不正です。')
     return { type, serverId: realmId, networkId: '', worldName: cleanText(input?.worldName, 100) || '' }
   }
   const networkId = String(input?.networkId ?? '').trim()
@@ -103,7 +103,7 @@ function migrateSettings (parsed) {
       target = { type: 'server', serverId: item.targetId, networkId: '', worldName: '' }
     } else if (item.targetType === 'friend-world') {
       target = { type: 'friend-world', serverId: '', networkId: '', worldName: '' }
-    } else if (item.targetType === 'realm' && (!item.targetId || /^\\d{1,20}$/.test(String(item.targetId)))) {
+    } else if (item.targetType === 'realm' && (!item.targetId || /^\d{1,20}$/.test(String(item.targetId)))) {
       target = { type: 'realm', serverId: String(item.targetId || ''), networkId: '', worldName: cleanText(item.worldName, 100) || '' }
     } else if (item.targetType === 'lan-world' && /^\d{1,20}$/.test(String(item.networkId || ''))) {
       target = { type: 'lan-world', serverId: '', networkId: String(item.networkId), worldName: cleanText(item.worldName, 100) || 'LANワールド' }
