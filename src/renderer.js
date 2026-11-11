@@ -237,9 +237,9 @@ function renderBotModulesPanel (refreshConfig = false) {
     if (!uniqueItems.has(item.name)) uniqueItems.set(item.name, item.displayName || item.name)
   }
   if (desiredSupplyName && !uniqueItems.has(desiredSupplyName)) uniqueItems.set(desiredSupplyName, desiredSupplyName)
-  supplyItemName.replaceChildren()
-  supplyItemName.append(new Option(uniqueItems.size ? '補充するアイテムを選択…' : 'アイテムなし', ''))
-  for (const [name, label] of uniqueItems) supplyItemName.append(new Option(label, name))
+  const supplyItemOptions = document.getElementById('supplyItemOptions')
+  supplyItemOptions.replaceChildren()
+  for (const [name, label] of uniqueItems) supplyItemOptions.append(new Option(label, name))
   supplyItemName.value = desiredSupplyName
 
   if (refreshConfig) {
