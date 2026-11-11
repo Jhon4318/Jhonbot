@@ -569,6 +569,36 @@ function renderBots () {
         targetArea.append(scan)
       }
       if (bot.targetType === 'realm') {
+        const inviteInput = document.createElement('input')
+        inviteInput.type = 'text'
+        inviteInput.className = 'realm-invite-input'
+        inviteInput.placeholder = 'Realms招待コード / realms.ggリンク'
+        inviteInput.maxLength = 256
+        inviteInput.disabled = worldBusy || !!bot.isGuest
+        const inviteButton = createElement('button', 'small-button lan-search-button', '招待コードから追加')
+        inviteButton.type = 'button'
+        inviteButton.disabled = worldBusy || !!bot.isGuest
+        inviteButton.addEventListener('click', async () => {
+          const inviteCode = inviteInput.value.trim()
+          if (!inviteCode) return showToast('Realmsの招待コードまたはリンクを入力してください。')
+          inviteButton.disabled = true
+          inviteButton.textContent = '招待を確認中…'
+          try {
+            const realm = await api.getRealmFromInvite({ botId: bot.id, inviteCode })
+            if (realm.expired) throw new Error('このRealmは期限切れです。')
+            const updated = await api.setBotTarget({ botId: bot.id, target: { type: 'realm', realmId: realm.id, worldName: realm.name } })
+            state.bots.set(bot.id, updated)
+            inviteInput.value = ''
+            showToast('招待を受け入れ、Realm「' + realm.name + '」を参加先に設定しました。')
+            renderBots()
+          } catch (error) {
+            showToast(error.message || 'Realms招待コードを追加できませんでした。')
+          } finally {
+            inviteButton.disabled = !!bot.isGuest
+            inviteButton.textContent = '招待コードから追加'
+          }
+        })
+        targetArea.append(inviteInput, inviteButton)
         const scan = createElement('button', 'small-button lan-search-button', 'Realms検索')
         scan.type = 'button'
         scan.disabled = worldBusy
