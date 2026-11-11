@@ -1421,11 +1421,16 @@ async function useBotItemOnce (botId, slot) {
   }
   await agent.equip(item, 'hand')
   if (bot.agent !== agent) throw new Error('アイテムを装備中にBotが切断されました。')
-  agent.activateItem()
-  bot.itemUseStatus = '使用中: ' + (item.displayName || item.name)
-  publishModuleStatus(bot)
-  await new Promise(resolve => setTimeout(resolve, 350))
-  if (bot.agent === agent) agent.deactivateItem()
+  if (bot.modules.itemUse.useMode === 'consume') {
+    if (typeof agent.consume !== 'function') throw new Error('このアイテムは食べる・飲むAPIに対応していません。')
+    await agent.consume()
+  } else {
+    agent.activateItem()
+    bot.itemUseStatus = '使用中: ' + (item.displayName || item.name)
+    publishModuleStatus(bot)
+    await new Promise(resolve => setTimeout(resolve, 350))
+    if (bot.agent === agent) agent.deactivateItem()
+  }
   if (bot.agent !== agent) throw new Error('アイテム使用中にBotが切断されました。')
   bot.itemUseStatus = '使用完了: ' + (item.displayName || item.name)
   pushLog(bot.label + ': ' + (item.displayName || item.name) + ' を使用しました。', 'success', bot.id)
