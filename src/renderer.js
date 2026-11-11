@@ -1055,7 +1055,10 @@ api.onBotUpdated((bot) => {
   const previous = state.bots.get(bot.id)
   state.bots.set(bot.id, bot)
   renderBots()
-  if (bot.id === state.selectedBotId && previous?.status !== bot.status) loadSelectedBotData()
+  if (bot.id === state.selectedBotId) {
+    renderBotModulesPanel(false)
+    if (previous?.status !== bot.status) loadSelectedBotData()
+  }
 })
 api.onBotRemoved((botId) => {
   state.bots.delete(botId)
