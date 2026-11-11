@@ -11,6 +11,7 @@ const path = require('node:path')
 const fs = require('node:fs/promises')
 const fsSync = require('node:fs')
 const util = require('node:util')
+const { Vec3 } = require('vec3')
 const { randomUUID } = require('node:crypto')
 const mineflayer = require('mineflayer')
 const bedrockProtocol = require('bedrock-protocol')
@@ -22,6 +23,9 @@ const { assertCanAuthenticate, assertCanJoinWorld } = require('./account-state')
 const { createEncryptedAuthCacheFactory, hasEncryptedAuthCache } = require('./auth-cache')
 const { normalizeChatMessage, normalizeDropRequest, createInventorySnapshot } = require('./bot-actions')
 const { installSubClientSupport, createGuestLoginTokens, MAX_SUB_CLIENTS } = require('./subclients')
+const { normalizeBotModules, moduleConfigComplete, isModuleAssigned, reconnectDelay, isTransientDisconnect } = require('./modules')
+const { listRealms } = require('./realms')
+const { discoverLanWorlds } = require('./lan-discovery')
 const { DEFAULT_PORT, normalizeServerProfile, normalizeTarget, migrateSettings, serverOriginKey, serverHttpSignallingOrigin, getTrustedServerKeyFingerprints, addTrustedServerKey, recordSuccessfulServerConnection, resetTrustedServerKey } = require('./destinations')
 
 const MC_VERSION = '1.26.60'
@@ -164,6 +168,13 @@ function publicBot (bot) {
     targetId: bot.targetId || '',
     networkId: bot.networkId || '',
     worldName: bot.worldName || '',
+    modules: normalizeBotModules(bot.modules),
+    moduleStatus: {
+      itemUse: bot.itemUseStatus || '未実行',
+      containerSupply: bot.containerSupplyStatus || '未実行',
+      connectionManager: bot.reconnectStatus || '未割り当て',
+      reconnectAttempts: bot.reconnectAttempts || 0
+    },
     targetLabel: describeBotTarget(bot),
     status: bot.status,
     accountStatus: bot.accountStatus || 'unverified',
@@ -202,6 +213,7 @@ function cleanLabel (value) {
 function createBotRecord (saved) {
   return {
     ...saved,
+    modules: normalizeBotModules(saved.modules),
     parentBotId: saved.parentBotId || '',
     subClientId: saved.parentBotId ? Number(saved.subClientId) || 0 : 0,
     targetType: saved.targetType || 'none',
@@ -235,7 +247,21 @@ function createBotRecord (saved) {
     worldColumnsLoaded: 0,
     lastServerTick: '',
     chatHistory: [],
-    inventoryPublishTimer: null
+    inventoryPublishTimer: null,
+    itemUseTimer: null,
+    itemUseRunning: false,
+    itemUseBusy: false,
+    itemUseSlot: null,
+    itemUseStatus: '未実行',
+    containerSupplyTimer: null,
+    containerSupplyRunning: false,
+    containerSupplyBusy: false,
+    containerSupplyGeneration: 0,
+    containerSupplyStatus: '未実行',
+    reconnectTimer: null,
+    reconnectAttempts: 0,
+    reconnectStatus: '未割り当て',
+    kicked: false
   }
 }
 
@@ -246,6 +272,7 @@ function describeBotTarget (bot) {
   }
   if (!bot || bot.targetType === 'none') return '参加先未設定'
   if (bot.targetType === 'friend-world') return 'フレンドのワールド（参加時に選択）'
+  if (bot.targetType === 'realm') return bot.targetId ? `Realms：${bot.worldName || bot.targetId}` : 'Realms（一覧から選択）'
   if (bot.targetType === 'lan-world') return bot.networkId ? `${bot.worldName || 'LANワールド'}（LAN）` : 'LANワールド（未検索）'
   const server = settings.servers.find(item => item.id === bot.targetId)
   return server ? `${server.label} · ${server.host}:${server.port}` : 'サーバー設定が見つかりません'
@@ -289,8 +316,8 @@ function saveSettings () {
       id, label, host, port, mode, signallingUrl, lastSuccessfulMode: lastSuccessfulMode || '', lastSuccessfulAt: lastSuccessfulAt || ''
     })),
     trustedServerKeys: { ...settings.trustedServerKeys },
-    bots: Array.from(bots.values()).map(({ id, label, targetType, targetId, networkId, worldName, parentBotId, subClientId }) => ({
-      id, label, targetType, targetId, networkId, worldName, ...(parentBotId ? { parentBotId, subClientId } : {})
+    bots: Array.from(bots.values()).map(({ id, label, targetType, targetId, networkId, worldName, modules, parentBotId, subClientId }) => ({
+      id, label, targetType, targetId, networkId, worldName, modules: normalizeBotModules(modules), ...(parentBotId ? { parentBotId, subClientId } : {})
     }))
   }
   settingsSaveQueue = settingsSaveQueue.catch(() => {}).then(async () => {
@@ -535,31 +562,44 @@ function setBotTarget (botId, input) {
   return publicBot(bot)
 }
 
-async function discoverLanWorld (botId) {
+async function discoverLanWorldsForBot (botId) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
   if (bot.parentBotId) throw new Error('ゲストBotは親Botの参加先を共有します。')
   if (bot.client || bot.connectionStarting) throw new Error('接続中はLANワールドを検索できません。')
-  pushLog(`${bot.label}: LAN上のNetherNetワールドを検索しています。`, 'info', bot.id)
+  pushLog(`${bot.label}: LAN上のNetherNetワールドを複数検索しています。`, 'info', bot.id)
   try {
-    const advertisement = await bedrockProtocol.ping({
-      transport: 'nethernet',
-      host: '255.255.255.255',
-      nethernet: { signalling: 'lan' },
-      timeout: 5000
-    })
-    if (!advertisement?.networkId) throw new Error('LAN広告からネットワークIDを取得できませんでした。')
-    const result = {
-      type: 'lan-world',
-      networkId: String(advertisement.networkId),
-      worldName: String(advertisement.levelName || advertisement.motd || 'LANワールド'),
-      hostName: String(advertisement.motd || ''),
-      gameVersion: String(advertisement.gameVersion || '')
-    }
-    pushLog(`${bot.label}: LANワールド「${result.worldName}」を検出しました。`, 'success', bot.id)
-    return result
+    const worlds = await discoverLanWorlds(6000)
+    pushLog(worlds.length
+      ? `${bot.label}: LANワールドを${worlds.length}件検出しました。`
+      : `${bot.label}: LANワールドは見つかりませんでした。`, worlds.length ? 'success' : 'warning', bot.id)
+    return worlds
   } catch (error) {
     pushLog(`${bot.label}: LAN検索に失敗しました: ${describeFailure(error)}`, 'warning', bot.id)
+    throw error
+  }
+}
+
+async function discoverLanWorld (botId) {
+  const worlds = await discoverLanWorldsForBot(botId)
+  if (!worlds.length) throw new Error('LAN上に参加可能なワールドが見つかりませんでした。')
+  return worlds[0]
+}
+
+async function getBotRealms (botId) {
+  const bot = bots.get(botId)
+  if (!bot) throw new Error('Botが見つかりません。')
+  const accountBot = bot.parentBotId ? bots.get(bot.parentBotId) : bot
+  if (!accountBot?.authflow || accountBot.accountStatus !== 'authenticated') {
+    throw new Error('先にこのBotのMicrosoft / Xboxアカウントを認証してください。')
+  }
+  pushLog(`${bot.label}: 認証済みアカウントのRealms一覧を取得しています。`, 'info', bot.id)
+  try {
+    const realms = await listRealms(accountBot.authflow, MC_VERSION)
+    pushLog(`${bot.label}: Realmsを${realms.length}件取得しました。`, realms.length ? 'success' : 'warning', bot.id)
+    return realms
+  } catch (error) {
+    pushLog(`${bot.label}: Realms一覧の取得に失敗しました: ${describeFailure(error)}`, 'warning', bot.id)
     throw error
   }
 }
@@ -697,7 +737,7 @@ async function authenticateBot (botId) {
   }
 }
 
-async function connectBot (botId) {
+async function connectBot (botId, options = {}) {
   const bot = bots.get(botId)
   if (bot?.parentBotId) throw new Error('ゲストBotは個別接続できません。親Botをワールドに参加させてください。')
   assertCanJoinWorld(bot)
@@ -707,6 +747,8 @@ async function connectBot (botId) {
   bot.connectionStarting = true
   setBotStatus(bot, 'connecting')
   bot.manualDisconnect = false
+  if (!options.reconnect) bot.reconnectAttempts = 0
+  bot.kicked = false
   bot.hadError = false
   bot.lastError = ''
   bot.playerName = ''
@@ -745,6 +787,10 @@ async function connectBot (botId) {
         connectTimeout: 60000
       }
       pushLog(`${bot.label}: Xboxで参加可能なフレンドのワールドを検索します。`, 'info', bot.id)
+    } else if (bot.targetType === 'realm') {
+      if (!/^\\d{1,20}$/.test(String(bot.targetId || ''))) throw new Error('先にRealms一覧を検索して参加するRealmを選択してください。')
+      connectionOptions = { realms: { realmId: bot.targetId } }
+      pushLog(`${bot.label}: Realms「${bot.worldName || bot.targetId}」への接続を開始します。`, 'info', bot.id)
     } else if (bot.targetType === 'lan-world') {
       if (!/^\d{1,20}$/.test(String(bot.networkId || ''))) throw new Error('先に「LAN検索」を実行して参加するワールドを選択してください。')
       connectionOptions = {
@@ -935,6 +981,8 @@ async function connectBot (botId) {
         })
       }
     }
+    bot.reconnectAttempts = 0
+    bot.reconnectStatus = isModuleAssigned(bot.modules, 'connectionManager') ? '接続済み' : '未割り当て'
     setBotStatus(bot, 'connected')
     preparePathfinder(bot)
     publishBotInventory(bot)
@@ -951,6 +999,8 @@ async function connectBot (botId) {
     recordBotChatMessage(bot, 'incoming', sender, message)
   })
   agent.on('kicked', (reason) => {
+    bot.kicked = true
+    bot.hadError = true
     bot.lastError = String(reason || 'サーバーから切断されました。')
     pushLog(`${bot.label}: キックされました: ${bot.lastError}`, 'warning', bot.id)
   })
@@ -974,9 +1024,11 @@ async function connectBot (botId) {
     bot.connectionStarting = false
     bot.connectionAbortController = null
     bot.pathfinderReady = false
+    stopBotModules(bot, '接続終了')
     const finalStatus = bot.hadError ? 'error' : 'disconnected'
     setBotStatus(bot, finalStatus)
     if (!bot.manualDisconnect) pushLog(`${bot.label}: 接続が終了しました。${reason ? ` (${String(reason)})` : ''}`, bot.hadError ? 'warning' : 'info', bot.id)
+    scheduleBotReconnect(bot, reason || bot.lastError)
   })
   agent.on('move', () => {
     const now = Date.now()
