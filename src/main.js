@@ -1568,7 +1568,7 @@ async function supplyContainerOnce (bot) {
     if (window?.position && (Math.floor(window.position.x) !== config.x || Math.floor(window.position.y) !== config.y || Math.floor(window.position.z) !== config.z)) {
       throw new Error('指定した座標とは異なるコンテナが開かれました。')
     }
-    if (typeof window.containerItems !== 'function' || typeof window.deposit !== 'function') throw new Error('開いた画面はアイテム投入に対応していないコンテナです。')
+    if (typeof window.containerItems !== 'function' || typeof agent.deposit !== 'function') throw new Error('開いた画面はアイテム投入に対応していないコンテナです。')
     if (!bot.containerSupplyRunning || generation !== bot.containerSupplyGeneration || bot.agent !== agent) return '停止済み'
     const containerItems = typeof window.containerItems === 'function' ? window.containerItems() : []
     const matchingItems = containerItems.filter(item => item && item.name === config.itemName)
@@ -1577,7 +1577,7 @@ async function supplyContainerOnce (bot) {
     if (needed === 0) return '目標数に到達 (' + currentCount + '/' + config.targetCount + ')'
     const inventoryItems = (agent.inventory?.items?.() || []).filter(item => item && item.name === config.itemName && Number(item.count) > 0)
     if (!inventoryItems.length) return 'Botのインベントリに指定アイテムがありません'
-    if (typeof window.deposit !== 'function') throw new Error('コンテナへのアイテム投入APIが利用できません。')
+    if (typeof agent.deposit !== 'function') throw new Error('コンテナへのアイテム投入APIが利用できません。')
     let remaining = needed
     let depositCount = 0
     for (const sourceItem of inventoryItems) {
@@ -1585,7 +1585,7 @@ async function supplyContainerOnce (bot) {
       if (!bot.containerSupplyRunning || generation !== bot.containerSupplyGeneration || bot.agent !== agent) return '停止済み'
       const count = Math.min(remaining, Number(sourceItem.count) || 0)
       if (count <= 0) continue
-      await window.deposit(sourceItem, null, count)
+      await agent.deposit(sourceItem, null, count)
       depositCount += count
       remaining -= count
     }
@@ -1595,7 +1595,7 @@ async function supplyContainerOnce (bot) {
     publishBotInventory(bot)
     return result
   } finally {
-    try { await window.close?.() } catch {}
+    try { await agent.closeWindow?.(window) } catch {}
   }
 }
 
