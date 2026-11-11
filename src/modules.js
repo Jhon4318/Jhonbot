@@ -11,6 +11,12 @@ function boundedInteger (value, fallback, min, max) {
   return Number.isInteger(number) && number >= min && number <= max ? number : fallback
 }
 
+function clampedInteger (value, fallback, min, max) {
+  const number = Number(value)
+  if (!Number.isInteger(number)) return fallback
+  return Math.min(max, Math.max(min, number))
+}
+
 function coordinate (value) {
   if (value === '' || value === null || value === undefined) return null
   const number = Number(value)
@@ -32,7 +38,7 @@ function normalizeBotModules (input = {}) {
     itemUse: {
       assigned: itemUse.assigned === true,
       useMode: itemUse.useMode === 'consume' ? 'consume' : 'activate',
-      intervalMs: boundedInteger(itemUse.intervalMs, DEFAULT_MODULES.itemUse.intervalMs, 750, 60000)
+      intervalMs: clampedInteger(itemUse.intervalMs, DEFAULT_MODULES.itemUse.intervalMs, 750, 60000)
     },
     containerSupply: {
       assigned: containerSupply.assigned === true,
@@ -41,7 +47,7 @@ function normalizeBotModules (input = {}) {
       z,
       itemName,
       targetCount: boundedInteger(containerSupply.targetCount, 64, 1, 100000),
-      intervalMs: boundedInteger(containerSupply.intervalMs, 5000, 1000, 60000)
+      intervalMs: clampedInteger(containerSupply.intervalMs, 5000, 1000, 60000)
     },
     connectionManager: {
       assigned: connectionManager.assigned === true,
