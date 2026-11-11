@@ -45,7 +45,7 @@ test('the UI labels the two operations separately and prevents joining before au
 
 test('the account-only action never creates a Mineflayer network client', () => {
   const start = main.indexOf('async function authenticateBot (botId)')
-  const end = main.indexOf('async function connectBot (botId)', start)
+  const end = main.indexOf('function connectBot (botId, options = {})', start)
   assert.ok(start >= 0 && end > start)
   const authOnlyBody = main.slice(start, end)
   assert.match(authOnlyBody, /authflow\.getXboxToken\(\)/)
