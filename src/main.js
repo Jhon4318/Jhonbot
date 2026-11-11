@@ -1581,13 +1581,19 @@ async function supplyContainerOnce (bot) {
     let remaining = needed
     let depositCount = 0
     for (const sourceItem of inventoryItems) {
+      while (remaining > 0) {
+        if (!bot.containerSupplyRunning || generation !== bot.containerSupplyGeneration || bot.agent !== agent) return '停止済み'
+        const sourceCount = Number(sourceItem.count) || 0
+        if (sourceCount <= 0) break
+        const count = Math.min(remaining, sourceCount)
+        const response = await agent.deposit(sourceItem, null, count)
+        const movedCount = Number(response?.movedCount)
+        const moved = Number.isInteger(movedCount) && movedCount > 0 ? Math.min(count, movedCount) : count
+        if (moved <= 0) throw new Error('コンテナへの投入数が0でした。')
+        depositCount += moved
+        remaining -= moved
+      }
       if (remaining <= 0) break
-      if (!bot.containerSupplyRunning || generation !== bot.containerSupplyGeneration || bot.agent !== agent) return '停止済み'
-      const count = Math.min(remaining, Number(sourceItem.count) || 0)
-      if (count <= 0) continue
-      await agent.deposit(sourceItem, null, count)
-      depositCount += count
-      remaining -= count
     }
     if (bot.agent !== agent) throw new Error('補充処理中にBotが切断されました。')
     const result = remaining > 0 ? '一部補充 (' + depositCount + '個)・在庫不足' : depositCount + '個を補充しました'
