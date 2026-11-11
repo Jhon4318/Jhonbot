@@ -26,7 +26,7 @@ test('patches Bedrock container deposit to merge a matching partial stack and ca
   assert.match(result.source, /mergeSlot/)
   assert.match(result.source, /destItem\?\.stackId \?\? 0/)
   assert.match(result.source, /Math\.min\(Number\(requestedCount\)/)
-  assert.match(result.source, /movedCount/)
+  assert.match(result.source, /movedCount: moveCount/)
   assert.ok(result.source.includes(MARKER))
 })
 
