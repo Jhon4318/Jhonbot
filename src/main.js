@@ -173,7 +173,9 @@ function publicBot (bot) {
       itemUse: bot.itemUseStatus || '未実行',
       containerSupply: bot.containerSupplyStatus || '未実行',
       connectionManager: bot.reconnectStatus || '未割り当て',
-      reconnectAttempts: bot.reconnectAttempts || 0
+      reconnectAttempts: bot.reconnectAttempts || 0,
+      itemUseRunning: bot.itemUseRunning === true,
+      containerSupplyRunning: bot.containerSupplyRunning === true
     },
     targetLabel: describeBotTarget(bot),
     status: bot.status,
@@ -1392,8 +1394,8 @@ async function updateBotModules (botId, input) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
   const next = normalizeBotModules(input)
-  if (!next.itemUse.assigned) stopBotItemUse(bot, 'モジュール未割り当て')
-  if (!next.containerSupply.assigned) stopContainerSupply(bot, 'モジュール未割り当て')
+  if (JSON.stringify(bot.modules.itemUse) !== JSON.stringify(next.itemUse)) stopBotItemUse(bot, next.itemUse.assigned ? '設定変更・停止' : 'モジュール未割り当て')
+  if (JSON.stringify(bot.modules.containerSupply) !== JSON.stringify(next.containerSupply)) stopContainerSupply(bot, next.containerSupply.assigned ? '設定変更・停止' : 'モジュール未割り当て')
   if (!next.connectionManager.assigned) {
     clearTimeout(bot.reconnectTimer)
     bot.reconnectTimer = null
@@ -1444,6 +1446,10 @@ async function runItemUseCycle (bot) {
   bot.itemUseBusy = true
   try {
     await useBotItemOnce(bot.id, bot.itemUseSlot)
+    if (bot.itemUseRunning) {
+      bot.itemUseStatus = '連続使用中'
+      publishModuleStatus(bot)
+    }
   } catch (error) {
     stopBotItemUse(bot, 'エラーで停止')
     pushLog(bot.label + ': Item Useを停止しました: ' + safeErrorMessage(error), 'warning', bot.id)
