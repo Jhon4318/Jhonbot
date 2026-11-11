@@ -1232,6 +1232,7 @@ async function joinGuestBot (parent, guest) {
     guest.client = null
     guest.agent = null
     guest.pathfinderReady = false
+    stopBotModules(guest, 'ゲスト接続終了')
     const finalStatus = guest.hadError ? 'error' : 'disconnected'
     setBotStatus(guest, finalStatus)
     if (!guest.manualDisconnect) pushLog(`${guest.label}: ゲスト接続が終了しました。${reason ? ` (${String(reason)})` : ''}`, guest.hadError ? 'warning' : 'info', guest.id)
@@ -1394,6 +1395,7 @@ async function updateBotModules (botId, input) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
   const next = normalizeBotModules(input)
+  if (bot.parentBotId && next.connectionManager.assigned) throw new Error('ゲストBotの再接続は親Botに連動します。')
   if (JSON.stringify(bot.modules.itemUse) !== JSON.stringify(next.itemUse)) stopBotItemUse(bot, next.itemUse.assigned ? '設定変更・停止' : 'モジュール未割り当て')
   if (JSON.stringify(bot.modules.containerSupply) !== JSON.stringify(next.containerSupply)) stopContainerSupply(bot, next.containerSupply.assigned ? '設定変更・停止' : 'モジュール未割り当て')
   if (JSON.stringify(bot.modules.connectionManager) !== JSON.stringify(next.connectionManager)) {
@@ -1564,7 +1566,6 @@ async function supplyContainerOnce (bot) {
     const inventoryItems = (agent.inventory?.items?.() || []).filter(item => item && item.name === config.itemName && Number(item.count) > 0)
     if (!inventoryItems.length) return 'Botのインベントリに指定アイテムがありません'
     const sourceItem = inventoryItems[0]
-    const matchingSourceItems = inventoryItems.filter(item => item.type === sourceItem.type && item.metadata === sourceItem.metadata && JSON.stringify(item.nbt || null) === JSON.stringify(sourceItem.nbt || null))
     const available = Number(sourceItem.count) || 0
     const depositCount = Math.min(needed, available)
     if (typeof window.deposit !== 'function') throw new Error('コンテナへのアイテム投入APIが利用できません。')
@@ -1627,6 +1628,7 @@ function scheduleBotReconnect (bot, reason) {
     publishModuleStatus(bot)
     return false
   }
+  if (!bot.hadError && !/(timeout|connecterror:|ECONN|EHOST|ENET|EPIPE|socket|network|ICE|WebRTC|connection reset|connection closed|transport closed)/i.test(String(reason || ''))) return false
   const errorText = [bot.lastError, reason].filter(Boolean).join(' ')
   if (!isTransientDisconnect(errorText)) {
     bot.reconnectStatus = '対象外の切断理由'
@@ -1919,14 +1921,6 @@ app.on('child-process-gone', (_event, details) => {
   writeDiagnosticLog(`[child-process-gone] ${message}`)
   pushLog(message, 'error')
 })
-app.on('before-quit', () => {
-  writeDiagnosticLog('[electron] before-quit')
-  for (const bot of bots.values()) {
-    stopBotModules(bot, 'アプリ終了')
-    clearTimeout(bot.reconnectTimer)
-    bot.reconnectTimer = null
-  }
-})
 app.on('quit', (_event, code) => { writeDiagnosticLog(`[electron] quit code=${code}`) })
 
 app.whenReady().then(async () => {
@@ -1944,6 +1938,7 @@ app.whenReady().then(async () => {
 })
 
 app.on('before-quit', () => {
+  writeDiagnosticLog('[electron] before-quit')
   for (const bot of bots.values()) {
     stopBotModules(bot, 'アプリ終了')
     clearTimeout(bot.reconnectTimer)
