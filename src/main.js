@@ -1660,6 +1660,9 @@ async function removeBot (botId) {
     ? [bot]
     : [...Array.from(bots.values()).filter(item => item.parentBotId === bot.id), bot]
   for (const item of removed) {
+    stopBotModules(item, 'Bot削除')
+    clearTimeout(item.reconnectTimer)
+    item.reconnectTimer = null
     if (item.client || item.connectionStarting) {
       try { disconnectBot(item.id) } catch (error) { writeDiagnosticLog(`[remove-bot] ${item.id}: ${error.message}`) }
     }
@@ -1690,6 +1693,10 @@ function disconnectBot (botId) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
   bot.manualDisconnect = true
+  clearTimeout(bot.reconnectTimer)
+  bot.reconnectTimer = null
+  bot.reconnectStatus = '手動切断'
+  stopBotModules(bot, '手動切断')
   bot.connectionAttempt++
   try { bot.connectionAbortController?.abort(new Error('接続処理がキャンセルされました。')) } catch {}
   bot.connectionAbortController = null
@@ -1769,6 +1776,14 @@ ipcMain.handle('server:remove', (_event, serverId) => removeServerProfile(server
 ipcMain.handle('server:reset-key', (_event, serverId) => resetServerKey(serverId))
 ipcMain.handle('bot:set-target', (_event, args) => setBotTarget(args?.botId, args?.target))
 ipcMain.handle('bot:discover-lan', (_event, botId) => discoverLanWorld(botId))
+ipcMain.handle('bot:discover-lans', (_event, botId) => discoverLanWorldsForBot(botId))
+ipcMain.handle('bot:get-realms', (_event, botId) => getBotRealms(botId))
+ipcMain.handle('bot:update-modules', (_event, args) => updateBotModules(args?.botId, args?.modules))
+ipcMain.handle('bot:use-item', (_event, args) => useBotItemOnce(args?.botId, args?.slot))
+ipcMain.handle('bot:start-item-use', (_event, args) => startBotItemUse(args?.botId, args?.slot))
+ipcMain.handle('bot:stop-item-use', (_event, botId) => { const bot = bots.get(botId); if (!bot) throw new Error('Botが見つかりません。'); stopBotItemUse(bot, '手動停止'); return publicBot(bot) })
+ipcMain.handle('bot:start-container-supply', (_event, botId) => startContainerSupply(botId))
+ipcMain.handle('bot:stop-container-supply', (_event, botId) => { const bot = bots.get(botId); if (!bot) throw new Error('Botが見つかりません。'); stopContainerSupply(bot, '手動停止'); return publicBot(bot) })
 ipcMain.handle('world:select-session', (_event, args) => {
   const requestId = String(args?.requestId || '')
   const pending = pendingWorldSelections.get(requestId)
@@ -1797,7 +1812,11 @@ ipcMain.handle('bot:authenticate', async (_event, botId) => {
 ipcMain.handle('bot:connect', async (_event, botId) => {
   try { await connectBot(botId) } catch (error) {
     const bot = bots.get(botId)
-    if (bot) setBotStatus(bot, 'error', { lastError: safeErrorMessage(error) })
+    if (bot) {
+      setBotStatus(bot, 'error', { lastError: safeErrorMessage(error) })
+      bot.hadError = true
+      scheduleBotReconnect(bot, safeErrorMessage(error))
+    }
     throw error
   }
   return publicBot(bots.get(botId))
@@ -1844,6 +1863,9 @@ app.whenReady().then(async () => {
 
 app.on('before-quit', () => {
   for (const bot of bots.values()) {
+    stopBotModules(bot, 'アプリ終了')
+    clearTimeout(bot.reconnectTimer)
+    bot.reconnectTimer = null
     if (bot.client) {
       try { bot.agent?.clearControlStates() } catch {}
       try { bot.client.disconnect('Application closing') } catch { try { bot.client.close() } catch {} }
