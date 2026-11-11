@@ -10,6 +10,7 @@ test('requires a completed account Authflow before a world join', () => {
   assert.throws(() => assertCanJoinWorld({ accountStatus: 'authenticated', authflow: {}, targetType: 'none' }), /参加先が選択されていません/)
   assert.equal(assertCanJoinWorld({ accountStatus: 'authenticated', authflow: {}, targetType: 'friend-world' }), true)
   assert.equal(assertCanJoinWorld({ accountStatus: 'authenticated', authflow: {}, targetType: 'server' }), true)
+  assert.equal(assertCanJoinWorld({ accountStatus: 'authenticated', authflow: {}, targetType: 'realm', targetId: '123456' }), true)
   assert.throws(() => assertCanJoinWorld({ accountStatus: 'authenticated', authflow: {}, targetType: 'lan-world', networkId: '' }), /LANワールドが選択されていません/)
 })
 
