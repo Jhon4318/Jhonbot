@@ -1426,7 +1426,7 @@ async function useBotItemOnce (botId, slot, options = {}) {
   const { bot, agent } = getConnectedAgent(botId)
   if (!isModuleAssigned(bot.modules, 'itemUse')) throw new Error('このBotにItem Useモジュールが割り当てられていません。')
   if (bot.containerSupplyRunning || bot.containerSupplyBusy) throw new Error('Container Supplyの実行中はインベントリ操作できません。')
-  if (bot.itemUseBusy && !options.fromCycle) throw new Error('このBotはすでにアイテム操作を実行中です。')
+  if ((bot.itemUseBusy || bot.itemUseRunning) && !options.fromCycle) throw new Error('このBotはすでにアイテム操作を実行中です。')
   if (!options.fromCycle) bot.itemUseBusy = true
   const generation = bot.itemUseGeneration
   let activated = false
@@ -1497,12 +1497,11 @@ function startBotItemUse (botId, slot) {
   if (!isModuleAssigned(bot.modules, 'itemUse')) throw new Error('先にItem Useモジュールを割り当ててください。')
   const { agent } = getConnectedAgent(botId)
   if (bot.containerSupplyRunning || bot.containerSupplyBusy) throw new Error('Container Supplyの実行中はアイテムを使用できません。')
-  if (bot.itemUseBusy) throw new Error('このBotはすでにアイテム操作を実行中です。')
+  if (bot.itemUseBusy || bot.itemUseRunning) throw new Error('このBotはすでにアイテム操作を実行中です。')
   const index = Number(slot)
   if (!Number.isInteger(index) || index < 9 || index > 44 || !agent.inventory?.slots?.[index]) {
     throw new Error('連続使用するアイテムを選択してください。')
   }
-  if (bot.itemUseBusy) throw new Error('前回のアイテム使用が終了するまで待ってください。')
   stopBotItemUse(bot, '再設定')
   bot.itemUseSlot = index
   bot.itemUseRunning = true
@@ -1579,7 +1578,6 @@ async function supplyContainerOnce (bot) {
     const inventoryItems = (agent.inventory?.items?.() || []).filter(item => item && item.name === config.itemName && Number(item.count) > 0)
     if (!inventoryItems.length) return 'Botのインベントリに指定アイテムがありません'
     if (typeof window.deposit !== 'function') throw new Error('コンテナへのアイテム投入APIが利用できません。')
-    const available = inventoryItems.reduce((total, item) => total + (Number(item.count) || 0), 0)
     let remaining = needed
     let depositCount = 0
     for (const sourceItem of inventoryItems) {
@@ -1611,7 +1609,7 @@ async function runContainerSupplyCycle (bot) {
     if (bot.containerSupplyRunning) {
       bot.containerSupplyStatus = /destination full|container is full|コンテナ.*満杯/i.test(safeErrorMessage(error)) ? 'コンテナ満杯・収納不可' : 'エラー: ' + safeErrorMessage(error)
       pushLog(bot.label + ': Container Supply: ' + safeErrorMessage(error), 'warning', bot.id)
-      if (/destination full|コンテナ.*満杯/i.test(safeErrorMessage(error))) bot.containerSupplyRunning = false
+      if (/destination full|container is full|コンテナ.*満杯/i.test(safeErrorMessage(error))) bot.containerSupplyRunning = false
       publishModuleStatus(bot)
     }
   } finally {
