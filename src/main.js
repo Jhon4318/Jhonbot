@@ -1410,42 +1410,52 @@ async function updateBotModules (botId, input) {
   return publicBot(bot)
 }
 
-async function useBotItemOnce (botId, slot) {
+async function useBotItemOnce (botId, slot, options = {}) {
   const { bot, agent } = getConnectedAgent(botId)
   if (!isModuleAssigned(bot.modules, 'itemUse')) throw new Error('このBotにItem Useモジュールが割り当てられていません。')
-  if (bot.containerSupplyBusy) throw new Error('Container Supplyがインベントリを操作中です。')
-  const index = Number(slot)
-  if (!Number.isInteger(index) || index < 9 || index > 44) throw new Error('使用するアイテムのスロットが不正です。')
-  const item = agent.inventory?.slots?.[index]
-  if (!item || !Number.isInteger(item.count) || item.count < 1) throw new Error('選択したスロットにアイテムがありません。')
-  if (typeof agent.equip !== 'function' || typeof agent.activateItem !== 'function' || typeof agent.deactivateItem !== 'function') {
-    throw new Error('このBedrockクライアントではアイテム使用APIが利用できません。')
-  }
-  await agent.equip(item, 'hand')
-  if (bot.agent !== agent) throw new Error('アイテムを装備中にBotが切断されました。')
-  if (bot.modules.itemUse.useMode === 'consume') {
-    if (typeof agent.consume !== 'function') throw new Error('このアイテムは食べる・飲むAPIに対応していません。')
-    await agent.consume()
-  } else {
-    agent.activateItem()
-    bot.itemUseStatus = '使用中: ' + (item.displayName || item.name)
+  if (bot.containerSupplyRunning || bot.containerSupplyBusy) throw new Error('Container Supplyの実行中はインベントリ操作できません。')
+  if (bot.itemUseBusy && !options.fromCycle) throw new Error('このBotはすでにアイテム操作を実行中です。')
+  if (!options.fromCycle) bot.itemUseBusy = true
+  try {
+    const index = Number(slot)
+    if (!Number.isInteger(index) || index < 9 || index > 44) throw new Error('使用するアイテムのスロットが不正です。')
+    const item = agent.inventory?.slots?.[index]
+    if (!item || !Number.isInteger(item.count) || item.count < 1) throw new Error('選択したスロットにアイテムがありません。')
+    if (typeof agent.equip !== 'function' || typeof agent.activateItem !== 'function' || typeof agent.deactivateItem !== 'function') {
+      throw new Error('このBedrockクライアントではアイテム使用APIが利用できません。')
+    }
+    bot.itemUseStatus = 'アイテムを装備中'
     publishModuleStatus(bot)
-    await new Promise(resolve => setTimeout(resolve, 350))
-    if (bot.agent === agent) agent.deactivateItem()
+    await agent.equip(item, 'hand')
+    if (bot.agent !== agent) throw new Error('アイテムを装備中にBotが切断されました。')
+    if (bot.modules.itemUse.useMode === 'consume') {
+      if (typeof agent.consume !== 'function') throw new Error('このアイテムは食べる・飲むAPIに対応していません。')
+      await agent.consume()
+    } else {
+      agent.activateItem()
+      bot.itemUseStatus = '使用中: ' + (item.displayName || item.name)
+      publishModuleStatus(bot)
+      await new Promise(resolve => setTimeout(resolve, 350))
+    }
+    if (bot.agent !== agent) throw new Error('アイテム使用中にBotが切断されました。')
+    bot.itemUseStatus = '使用完了: ' + (item.displayName || item.name)
+    pushLog(bot.label + ': ' + (item.displayName || item.name) + ' を使用しました。', 'success', bot.id)
+    publishBotInventory(bot)
+    publishModuleStatus(bot)
+    return true
+  } finally {
+    if (bot.agent === agent) {
+      try { agent.deactivateItem() } catch {}
+    }
+    if (!options.fromCycle) bot.itemUseBusy = false
   }
-  if (bot.agent !== agent) throw new Error('アイテム使用中にBotが切断されました。')
-  bot.itemUseStatus = '使用完了: ' + (item.displayName || item.name)
-  pushLog(bot.label + ': ' + (item.displayName || item.name) + ' を使用しました。', 'success', bot.id)
-  publishBotInventory(bot)
-  publishModuleStatus(bot)
-  return true
 }
 
 async function runItemUseCycle (bot) {
   if (!bot.itemUseRunning || bot.status !== 'connected' || bot.itemUseBusy) return
   bot.itemUseBusy = true
   try {
-    await useBotItemOnce(bot.id, bot.itemUseSlot)
+    await useBotItemOnce(bot.id, bot.itemUseSlot, { fromCycle: true })
     if (bot.itemUseRunning) {
       bot.itemUseStatus = '連続使用中'
       publishModuleStatus(bot)
@@ -1466,10 +1476,13 @@ function startBotItemUse (botId, slot) {
   if (!bot) throw new Error('Botが見つかりません。')
   if (!isModuleAssigned(bot.modules, 'itemUse')) throw new Error('先にItem Useモジュールを割り当ててください。')
   const { agent } = getConnectedAgent(botId)
+  if (bot.containerSupplyRunning || bot.containerSupplyBusy) throw new Error('Container Supplyの実行中はアイテムを使用できません。')
+  if (bot.itemUseBusy) throw new Error('このBotはすでにアイテム操作を実行中です。')
   const index = Number(slot)
   if (!Number.isInteger(index) || index < 9 || index > 44 || !agent.inventory?.slots?.[index]) {
     throw new Error('連続使用するアイテムを選択してください。')
   }
+  if (bot.itemUseBusy) throw new Error('前回のアイテム使用が終了するまで待ってください。')
   stopBotItemUse(bot, '再設定')
   bot.itemUseSlot = index
   bot.itemUseRunning = true
@@ -1484,6 +1497,7 @@ async function supplyContainerOnce (bot) {
   const config = bot.modules.containerSupply
   if (!moduleConfigComplete(config)) throw new Error('Container Supplyの座標・アイテム・目標数を設定してください。')
   const { agent } = getConnectedAgent(bot.id)
+  if (bot.itemUseBusy) throw new Error('Item Useの実行中はコンテナ補充を開始できません。')
   if (!bot.pathfinderReady || typeof agent.pathfinder?.goto !== 'function') throw new Error('経路探索が利用できません。')
   if (bot.movementStatus.startsWith('手動操作中')) throw new Error('手動移動を停止してからContainer Supplyを開始してください。')
   const coordinates = new Vec3(config.x, config.y, config.z)
@@ -1502,16 +1516,18 @@ async function supplyContainerOnce (bot) {
   if (typeof agent.openContainer !== 'function') throw new Error('このBedrockクライアントではコンテナ操作APIが利用できません。')
   const window = await agent.openContainer(block)
   try {
+    if (!bot.containerSupplyRunning || generation !== bot.containerSupplyGeneration || bot.agent !== agent) return '停止済み'
     const containerItems = typeof window.containerItems === 'function' ? window.containerItems() : []
     const matchingItems = containerItems.filter(item => item && item.name === config.itemName)
     const currentCount = matchingItems.reduce((total, item) => total + (Number(item.count) || 0), 0)
     const needed = Math.max(0, config.targetCount - currentCount)
     if (needed === 0) return '目標数に到達 (' + currentCount + '/' + config.targetCount + ')'
     const inventoryItems = (agent.inventory?.items?.() || []).filter(item => item && item.name === config.itemName && Number(item.count) > 0)
-    const available = inventoryItems.reduce((total, item) => total + item.count, 0)
-    if (!available) return 'Botのインベントリに指定アイテムがありません'
-    const depositCount = Math.min(needed, available)
+    if (!inventoryItems.length) return 'Botのインベントリに指定アイテムがありません'
     const sourceItem = inventoryItems[0]
+    const matchingSourceItems = inventoryItems.filter(item => item.type === sourceItem.type && item.metadata === sourceItem.metadata && JSON.stringify(item.nbt || null) === JSON.stringify(sourceItem.nbt || null))
+    const available = matchingSourceItems.reduce((total, item) => total + item.count, 0)
+    const depositCount = Math.min(needed, available)
     if (typeof window.deposit !== 'function') throw new Error('コンテナへのアイテム投入APIが利用できません。')
     await window.deposit(sourceItem.type, sourceItem.metadata, depositCount, sourceItem.nbt)
     if (bot.agent !== agent) throw new Error('補充処理中にBotが切断されました。')
@@ -1531,9 +1547,12 @@ async function runContainerSupplyCycle (bot) {
     bot.containerSupplyStatus = await supplyContainerOnce(bot)
     publishModuleStatus(bot)
   } catch (error) {
-    bot.containerSupplyStatus = 'エラー: ' + safeErrorMessage(error)
-    pushLog(bot.label + ': Container Supply: ' + safeErrorMessage(error), 'warning', bot.id)
-    publishModuleStatus(bot)
+    if (bot.containerSupplyRunning) {
+      bot.containerSupplyStatus = /destination full|コンテナ.*満杯/i.test(safeErrorMessage(error)) ? 'コンテナ満杯・収納不可' : 'エラー: ' + safeErrorMessage(error)
+      pushLog(bot.label + ': Container Supply: ' + safeErrorMessage(error), 'warning', bot.id)
+      if (/destination full|コンテナ.*満杯/i.test(safeErrorMessage(error))) bot.containerSupplyRunning = false
+      publishModuleStatus(bot)
+    }
   } finally {
     bot.containerSupplyBusy = false
   }
@@ -1548,6 +1567,9 @@ function startContainerSupply (botId) {
   if (!isModuleAssigned(bot.modules, 'containerSupply')) throw new Error('先にContainer Supplyモジュールを割り当ててください。')
   if (!moduleConfigComplete(bot.modules.containerSupply)) throw new Error('補充先のX/Y/Z、アイテム名、目標個数を設定してください。')
   getConnectedAgent(botId)
+  if (bot.containerSupplyBusy) throw new Error('現在のコンテナ処理が終わるまで待ってください。')
+  if (bot.itemUseBusy) throw new Error('Item Useの実行中はコンテナ補充を開始できません。')
+  if (bot.movementStatus.startsWith('手動操作中')) throw new Error('手動移動を停止してからContainer Supplyを開始してください。')
   stopContainerSupply(bot, '再設定')
   bot.containerSupplyRunning = true
   bot.containerSupplyStatus = '開始準備中'
@@ -1558,7 +1580,7 @@ function startContainerSupply (botId) {
 }
 
 function scheduleBotReconnect (bot, reason) {
-  if (bot.manualDisconnect || bot.kicked || !bot.hadError || bot.reconnectTimer) return false
+  if (bot.manualDisconnect || bot.kicked || bot.reconnectTimer) return false
   if (!isModuleAssigned(bot.modules, 'connectionManager')) return false
   const config = bot.modules.connectionManager
   if (bot.reconnectAttempts >= config.maxRetries) {
@@ -1566,7 +1588,7 @@ function scheduleBotReconnect (bot, reason) {
     publishModuleStatus(bot)
     return false
   }
-  const errorText = String(reason || bot.lastError || '')
+  const errorText = [bot.lastError, reason].filter(Boolean).join(' ')
   if (!isTransientDisconnect(errorText)) {
     bot.reconnectStatus = '対象外の切断理由'
     publishModuleStatus(bot)
@@ -1595,6 +1617,7 @@ function scheduleBotReconnect (bot, reason) {
 
 function stopBotMovement (botId, statusText = '停止中') {
   const { bot, agent } = getConnectedAgent(botId)
+  if (bot.containerSupplyRunning) stopContainerSupply(bot, '手動停止')
   bot.movementRequestId++
   try { agent.pathfinder?.setGoal(null) } catch {}
   try { agent.pathfinder?.stop() } catch {}
@@ -1607,6 +1630,7 @@ function stopBotMovement (botId, statusText = '停止中') {
 function setBotControl (botId, control, active) {
   const { bot, agent } = getConnectedAgent(botId)
   validateControl(control)
+  if (active && bot.containerSupplyRunning) throw new Error('Container Supply実行中は手動移動できません。先にContainer Supplyを停止してください。')
   if (active) {
     bot.movementRequestId++
     if (bot.movementStatus.startsWith('座標移動中') || bot.movementStatus === '周囲のチャンクを確認中') {
@@ -1621,6 +1645,7 @@ function setBotControl (botId, control, active) {
 
 async function gotoBot (botId, input) {
   const { bot, agent } = getConnectedAgent(botId)
+  if (bot.containerSupplyRunning) throw new Error('Container Supply実行中は別の座標移動を開始できません。先にContainer Supplyを停止してください。')
   if (!bot.pathfinderReady || !agent.pathfinder) throw new Error(bot.pathfinderError || '経路探索の準備ができていません。周囲の地形データを確認してください。')
   if (agent._bedrockWorldSupport && !agent._bedrockWorldSupport.supported) {
     throw new Error(`地形データを読み取れないため座標移動できません: ${agent._bedrockWorldSupport.reason || '未対応の形式'}`)
