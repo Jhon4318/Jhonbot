@@ -6,7 +6,7 @@ const { DEFAULT_MODULES, normalizeBotModules, moduleConfigComplete, isModuleAssi
 test('provides independent unassigned modules by default', () => {
   const modules = normalizeBotModules()
   assert.deepEqual(modules, {
-    itemUse: { assigned: false, intervalMs: 1500 },
+    itemUse: { assigned: false, useMode: 'activate', intervalMs: 1500 },
     containerSupply: { assigned: false, x: null, y: null, z: null, itemName: '', targetCount: 64, intervalMs: 5000 },
     connectionManager: { assigned: false, maxRetries: 5, initialDelayMs: 5000, maxDelayMs: 60000 }
   })
@@ -16,12 +16,13 @@ test('provides independent unassigned modules by default', () => {
 test('normalizes module assignments and clamps unsafe settings', () => {
   const modules = normalizeBotModules({
     itemUse: { assigned: true, intervalMs: 1 },
-    containerSupply: { assigned: true, x: 100.5, y: 64, z: -20, itemName: ' minecraft:stone ', targetCount: 999999, intervalMs: 50 },
+    containerSupply: { assigned: true, x: 100, y: 64, z: -20, itemName: ' minecraft:stone ', targetCount: 999999, intervalMs: 50 },
     connectionManager: { assigned: true, maxRetries: 99, initialDelayMs: 100, maxDelayMs: 400000 }
   })
   assert.equal(modules.itemUse.assigned, true)
+  assert.equal(modules.itemUse.useMode, 'activate')
   assert.equal(modules.itemUse.intervalMs, 750)
-  assert.deepEqual([modules.containerSupply.x, modules.containerSupply.y, modules.containerSupply.z], [100.5, 64, -20])
+  assert.deepEqual([modules.containerSupply.x, modules.containerSupply.y, modules.containerSupply.z], [100, 64, -20])
   assert.equal(modules.containerSupply.itemName, 'minecraft:stone')
   assert.equal(modules.containerSupply.targetCount, 64)
   assert.equal(modules.containerSupply.intervalMs, 1000)
