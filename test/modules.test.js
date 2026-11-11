@@ -53,7 +53,8 @@ test('calculates capped exponential reconnect delay', () => {
 test('classifies transient network errors but excludes authentication and kick errors', () => {
   assert.equal(isTransientDisconnect('Connect timed out'), true)
   assert.equal(isTransientDisconnect('ECONNRESET socket hang up'), true)
-  assert.equal(isTransientDisconnect('Server disconnected'), true)
+  assert.equal(isTransientDisconnect('Server disconnected'), false)
+  assert.equal(isTransientDisconnect('connection lost: socket closed'), true)
   assert.equal(isTransientDisconnect('Xbox authentication failed'), false)
   assert.equal(isTransientDisconnect('Player was kicked'), false)
   assert.equal(isTransientDisconnect('Server key approval denied'), false)
