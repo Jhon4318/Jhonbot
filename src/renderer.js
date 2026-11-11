@@ -906,6 +906,10 @@ dropItemForm.addEventListener('submit', async (event) => {
   }
 })
 
+for (const checkboxId of ['itemUseAssigned', 'containerSupplyAssigned', 'connectionManagerAssigned']) {
+  document.getElementById(checkboxId).addEventListener('change', () => renderBotModulesPanel(false))
+}
+
 async function saveAndUpdateModules () {
   try {
     await saveModulesFromForm()
