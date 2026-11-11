@@ -1,7 +1,7 @@
 'use strict'
 
 const DEFAULT_MODULES = Object.freeze({
-  itemUse: Object.freeze({ assigned: false, intervalMs: 1500 }),
+  itemUse: Object.freeze({ assigned: false, useMode: 'activate', intervalMs: 1500 }),
   containerSupply: Object.freeze({ assigned: false, x: null, y: null, z: null, itemName: '', targetCount: 64, intervalMs: 5000 }),
   connectionManager: Object.freeze({ assigned: false, maxRetries: 5, initialDelayMs: 5000, maxDelayMs: 60000 })
 })
@@ -31,6 +31,7 @@ function normalizeBotModules (input = {}) {
   return {
     itemUse: {
       assigned: itemUse.assigned === true,
+      useMode: itemUse.useMode === 'consume' ? 'consume' : 'activate',
       intervalMs: boundedInteger(itemUse.intervalMs, DEFAULT_MODULES.itemUse.intervalMs, 750, 60000)
     },
     containerSupply: {
