@@ -188,6 +188,129 @@ function renderControlPanel () {
   inventorySelect.disabled = !connected || !(state.inventoryByBot.get(bot?.id) || []).length
   dropItemCount.disabled = !connected || !(state.inventoryByBot.get(bot?.id) || []).length
   document.getElementById('dropItemButton').disabled = !connected || !(state.inventoryByBot.get(bot?.id) || []).length
+  renderBotModulesPanel(false)
+}
+
+function renderBotModulesPanel (refreshConfig = false) {
+  const bot = selectedBot()
+  const connected = bot?.status === 'connected'
+  const modules = bot?.modules || {}
+  const items = bot ? (state.inventoryByBot.get(bot.id) || []) : []
+  const moduleSelectedBot = document.getElementById('moduleSelectedBot')
+  const itemUseAssigned = document.getElementById('itemUseAssigned')
+  const itemUseMode = document.getElementById('itemUseMode')
+  const itemUseInterval = document.getElementById('itemUseInterval')
+  const containerSupplyAssigned = document.getElementById('containerSupplyAssigned')
+  const supplyX = document.getElementById('supplyX')
+  const supplyY = document.getElementById('supplyY')
+  const supplyZ = document.getElementById('supplyZ')
+  const supplyItemName = document.getElementById('supplyItemName')
+  const supplyTargetCount = document.getElementById('supplyTargetCount')
+  const supplyInterval = document.getElementById('supplyInterval')
+  const connectionManagerAssigned = document.getElementById('connectionManagerAssigned')
+  const reconnectMaxRetries = document.getElementById('reconnectMaxRetries')
+  const reconnectInitialDelay = document.getElementById('reconnectInitialDelay')
+  const reconnectMaxDelay = document.getElementById('reconnectMaxDelay')
+  const moduleItemUseSelect = document.getElementById('moduleItemUseSelect')
+
+  if (!bot) {
+    moduleSelectedBot.textContent = 'Botを追加して選択してください。'
+  } else {
+    moduleSelectedBot.textContent = bot.label + ' · ' + (connected ? 'ワールド参加中' : (statusLabels[bot.status] || bot.status))
+  }
+
+  const previousUseSlot = moduleItemUseSelect.value
+  const selectedUseSlot = refreshConfig ? '' : previousUseSlot
+  moduleItemUseSelect.replaceChildren()
+  moduleItemUseSelect.append(new Option(items.length ? '使用するアイテムを選択…' : 'アイテムなし', ''))
+  for (const item of items) {
+    moduleItemUseSelect.append(new Option(chatSlotLabel(item.slot) + ' · ' + (item.displayName || item.name) + ' × ' + item.count, String(item.slot)))
+  }
+  moduleItemUseSelect.value = items.some(item => String(item.slot) === selectedUseSlot)
+    ? selectedUseSlot
+    : (items[0] ? String(items[0].slot) : '')
+
+  const previousSupplyName = supplyItemName.value
+  const desiredSupplyName = refreshConfig ? (modules.containerSupply?.itemName || '') : previousSupplyName
+  const uniqueItems = new Map()
+  for (const item of items) {
+    if (!uniqueItems.has(item.name)) uniqueItems.set(item.name, item.displayName || item.name)
+  }
+  if (desiredSupplyName && !uniqueItems.has(desiredSupplyName)) uniqueItems.set(desiredSupplyName, desiredSupplyName)
+  supplyItemName.replaceChildren()
+  supplyItemName.append(new Option(uniqueItems.size ? '補充するアイテムを選択…' : 'アイテムなし', ''))
+  for (const [name, label] of uniqueItems) supplyItemName.append(new Option(label, name))
+  supplyItemName.value = desiredSupplyName
+
+  if (refreshConfig) {
+    itemUseAssigned.checked = modules.itemUse?.assigned === true
+    itemUseMode.value = modules.itemUse?.useMode === 'consume' ? 'consume' : 'activate'
+    itemUseInterval.value = String(modules.itemUse?.intervalMs || 1500)
+    containerSupplyAssigned.checked = modules.containerSupply?.assigned === true
+    supplyX.value = modules.containerSupply?.x ?? ''
+    supplyY.value = modules.containerSupply?.y ?? ''
+    supplyZ.value = modules.containerSupply?.z ?? ''
+    supplyTargetCount.value = String(modules.containerSupply?.targetCount || 64)
+    supplyInterval.value = String(modules.containerSupply?.intervalMs || 5000)
+    connectionManagerAssigned.checked = modules.connectionManager?.assigned === true
+    reconnectMaxRetries.value = String(modules.connectionManager?.maxRetries ?? 5)
+    reconnectInitialDelay.value = String(modules.connectionManager?.initialDelayMs || 5000)
+    reconnectMaxDelay.value = String(modules.connectionManager?.maxDelayMs || 60000)
+  }
+
+  const assignedUse = itemUseAssigned.checked
+  const assignedSupply = containerSupplyAssigned.checked
+  const status = bot?.moduleStatus || {}
+  document.getElementById('itemUseStatus').textContent = status.itemUse || '未実行'
+  document.getElementById('containerSupplyStatus').textContent = status.containerSupply || '未実行'
+  document.getElementById('connectionManagerStatus').textContent = (status.connectionManager || '未割り当て') + (status.reconnectAttempts ? ' · 再試行 ' + status.reconnectAttempts + '回' : '')
+  const noBot = !bot
+  itemUseAssigned.disabled = noBot
+  itemUseMode.disabled = noBot || !assignedUse
+  itemUseInterval.disabled = noBot || !assignedUse
+  moduleItemUseSelect.disabled = !connected || !items.length
+  document.getElementById('itemUseOnceButton').disabled = !connected || !assignedUse || !moduleItemUseSelect.value
+  document.getElementById('itemUseStartButton').disabled = !connected || !assignedUse || !moduleItemUseSelect.value
+  document.getElementById('itemUseStopButton').disabled = !bot || !String(status.itemUse || '').includes('連続使用中')
+  containerSupplyAssigned.disabled = noBot
+  for (const input of [supplyX, supplyY, supplyZ, supplyTargetCount, supplyInterval, supplyItemName]) input.disabled = noBot || !assignedSupply
+  document.getElementById('supplySaveButton').disabled = noBot
+  document.getElementById('supplyStartButton').disabled = !connected || !assignedSupply
+  document.getElementById('supplyStopButton').disabled = !bot || !String(status.containerSupply || '').match(/移動中|補充|開始準備|在庫|目標数|エラー/)
+  connectionManagerAssigned.disabled = noBot
+  for (const input of [reconnectMaxRetries, reconnectInitialDelay, reconnectMaxDelay]) input.disabled = noBot || !connectionManagerAssigned.checked
+  document.getElementById('moduleSaveButton').disabled = noBot
+}
+
+async function saveModulesFromForm () {
+  const bot = selectedBot()
+  if (!bot) throw new Error('設定するBotを選択してください。')
+  const modules = {
+    itemUse: {
+      assigned: document.getElementById('itemUseAssigned').checked,
+      useMode: document.getElementById('itemUseMode').value,
+      intervalMs: document.getElementById('itemUseInterval').value
+    },
+    containerSupply: {
+      assigned: document.getElementById('containerSupplyAssigned').checked,
+      x: document.getElementById('supplyX').value,
+      y: document.getElementById('supplyY').value,
+      z: document.getElementById('supplyZ').value,
+      itemName: document.getElementById('supplyItemName').value,
+      targetCount: document.getElementById('supplyTargetCount').value,
+      intervalMs: document.getElementById('supplyInterval').value
+    },
+    connectionManager: {
+      assigned: document.getElementById('connectionManagerAssigned').checked,
+      maxRetries: document.getElementById('reconnectMaxRetries').value,
+      initialDelayMs: document.getElementById('reconnectInitialDelay').value,
+      maxDelayMs: document.getElementById('reconnectMaxDelay').value
+    }
+  }
+  const updated = await api.updateModules({ botId: bot.id, modules })
+  state.bots.set(updated.id, updated)
+  renderBotModulesPanel(true)
+  return updated
 }
 
 function chatSlotLabel (slot) {
@@ -391,6 +514,7 @@ function renderBots () {
       targetSelect.append(new Option('参加先を選択…', ''))
       targetSelect.append(new Option('フレンドのワールド（参加時に一覧表示）', 'friend-world'))
       targetSelect.append(new Option('LANワールド（検索して選択）', 'lan-world'))
+      targetSelect.append(new Option('Realms（一覧から選択）', 'realm'))
       for (const server of state.servers) targetSelect.append(new Option(`サーバー：${server.label}`, `server:${server.id}`))
       const currentTarget = bot.targetType === 'server' ? `server:${bot.targetId}` : (bot.targetType || '')
       targetSelect.value = currentTarget
@@ -414,15 +538,71 @@ function renderBots () {
           scan.disabled = true
           scan.textContent = '検索中…'
           try {
-            const result = await api.discoverLanWorld(bot.id)
-            const updated = await api.setBotTarget({ botId: bot.id, target: result })
-            state.bots.set(bot.id, updated)
-            showToast(`LANワールド「${result.worldName}」を選択しました。`)
-            renderBots()
+            const worlds = await api.discoverLanWorlds(bot.id)
+            if (!worlds.length) throw new Error('LAN上に参加可能なワールドが見つかりませんでした。')
+            worldDialogTitle.textContent = bot.label + '：参加するLANワールドを選択'
+            document.getElementById('worldDialogDescription').textContent = '検索中に応答したNetherNetワールドです。'
+            worldChoices.replaceChildren()
+            for (const world of worlds) {
+              const button = createElement('button', 'world-choice-button')
+              button.type = 'button'
+              button.append(createElement('strong', '', world.worldName), createElement('span', '', (world.gameVersion || 'バージョン不明') + ' · ' + world.playerCount + '/' + (world.maxPlayers ?? '?') + '人'))
+              button.addEventListener('click', async () => {
+                try {
+                  const updated = await api.setBotTarget({ botId: bot.id, target: world })
+                  state.bots.set(bot.id, updated)
+                  worldDialog.close()
+                  showToast('LANワールド「' + world.worldName + '」を選択しました。')
+                  renderBots()
+                } catch (error) { showToast(error.message || '参加先を設定できませんでした。') }
+              })
+              worldChoices.append(button)
+            }
+            if (!worldDialog.open) worldDialog.showModal()
           } catch (error) {
             showToast(error.message || 'LANワールドを検索できませんでした。')
+          } finally {
             scan.disabled = false
-            scan.textContent = '再検索'
+            scan.textContent = 'LAN再検索'
+          }
+        })
+        targetArea.append(scan)
+      }
+      if (bot.targetType === 'realm') {
+        const scan = createElement('button', 'small-button lan-search-button', 'Realms検索')
+        scan.type = 'button'
+        scan.disabled = worldBusy
+        scan.addEventListener('click', async () => {
+          scan.disabled = true
+          scan.textContent = '取得中…'
+          try {
+            const realms = await api.getRealms(bot.id)
+            if (!realms.length) throw new Error('このアカウントで参加可能なRealmsが見つかりません。')
+            worldDialogTitle.textContent = bot.label + '：参加するRealmを選択'
+            document.getElementById('worldDialogDescription').textContent = '認証済みアカウントで参加可能なRealmsです。期限切れのRealmは接続できません。'
+            worldChoices.replaceChildren()
+            for (const realm of realms) {
+              const button = createElement('button', 'world-choice-button')
+              const stateLabel = realm.expired ? '期限切れ' : realm.state
+              button.disabled = realm.expired
+              button.append(createElement('strong', '', realm.name), createElement('span', '', 'ID ' + realm.id + ' · ' + stateLabel + (realm.owner ? ' · ' + realm.owner : '') + (realm.players != null ? ' · ' + realm.players + '/' + (realm.maxPlayers ?? '?') + '人' : '')))
+              button.addEventListener('click', async () => {
+                try {
+                  const updated = await api.setBotTarget({ botId: bot.id, target: { type: 'realm', realmId: realm.id, worldName: realm.name } })
+                  state.bots.set(bot.id, updated)
+                  worldDialog.close()
+                  showToast('Realm「' + realm.name + '」を参加先に設定しました。')
+                  renderBots()
+                } catch (error) { showToast(error.message || 'Realmを選択できませんでした。') }
+              })
+              worldChoices.append(button)
+            }
+            if (!worldDialog.open) worldDialog.showModal()
+          } catch (error) {
+            showToast(error.message || 'Realms一覧を取得できませんでした。')
+          } finally {
+            scan.disabled = false
+            scan.textContent = 'Realms再検索'
           }
         })
         targetArea.append(scan)
@@ -464,7 +644,7 @@ function renderBots () {
         actions.append(disconnect)
       } else {
         const join = createElement('button', 'small-button join-button', bot.status === 'error' ? '再参加' : 'ワールド参加')
-        const hasTarget = bot.targetType === 'server' || bot.targetType === 'friend-world' || (bot.targetType === 'lan-world' && !!bot.networkId)
+        const hasTarget = bot.targetType === 'server' || bot.targetType === 'friend-world' || (bot.targetType === 'lan-world' && !!bot.networkId) || (bot.targetType === 'realm' && /^\\d+$/.test(String(bot.targetId || '')))
         join.type = 'button'
         join.disabled = bot.accountStatus !== 'authenticated' || !hasTarget
         join.title = !hasTarget ? '先に参加先を選択してください。' : (bot.accountStatus !== 'authenticated' ? '先にMicrosoft / Xbox認証を完了してください。' : '選択したサーバーまたはワールドに参加します。')
@@ -597,6 +777,7 @@ controlBotSelect.addEventListener('change', () => {
   releaseAllHeldInputs()
   state.selectedBotId = controlBotSelect.value
   renderControlPanel()
+  renderBotModulesPanel(true)
   loadSelectedBotData()
 })
 
@@ -866,6 +1047,7 @@ async function initialise () {
   if (!initial.logs.length) logList.append(createElement('div', 'log-empty', 'ログはまだありません。Botを認証・参加させるとここに表示されます。'))
   renderServerProfiles()
   renderBots()
+  renderBotModulesPanel(true)
   loadSelectedBotData()
 }
 
