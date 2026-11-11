@@ -257,6 +257,7 @@ function createBotRecord (saved) {
     containerSupplyRunning: false,
     containerSupplyBusy: false,
     containerSupplyGeneration: 0,
+    containerSupplyNavigating: false,
     containerSupplyStatus: '未実行',
     reconnectTimer: null,
     reconnectAttempts: 0,
@@ -1353,6 +1354,232 @@ async function tossBotItem (botId, input) {
   if (bot.agent !== agent) throw new Error('投棄処理中にBotが切断されました。')
   pushLog(`${bot.label}: ${request.item.displayName || request.item.name} x ${request.count} を投げました。`, 'success', bot.id)
   return publishBotInventory(bot)
+}
+
+function publishModuleStatus (bot) {
+  publishBot(bot)
+}
+
+function stopBotItemUse (bot, status = '停止中') {
+  clearTimeout(bot.itemUseTimer)
+  bot.itemUseTimer = null
+  bot.itemUseRunning = false
+  bot.itemUseBusy = false
+  try { bot.agent?.deactivateItem?.() } catch {}
+  bot.itemUseStatus = status
+  publishModuleStatus(bot)
+}
+
+function stopContainerSupply (bot, status = '停止中') {
+  clearTimeout(bot.containerSupplyTimer)
+  bot.containerSupplyTimer = null
+  bot.containerSupplyRunning = false
+  bot.containerSupplyGeneration++
+  if (bot.containerSupplyNavigating) {
+    try { bot.agent?.pathfinder?.setGoal(null) } catch {}
+  }
+  bot.containerSupplyNavigating = false
+  bot.containerSupplyStatus = status
+  publishModuleStatus(bot)
+}
+
+function stopBotModules (bot, status = '接続終了') {
+  stopBotItemUse(bot, status)
+  stopContainerSupply(bot, status)
+}
+
+async function updateBotModules (botId, input) {
+  const bot = bots.get(botId)
+  if (!bot) throw new Error('Botが見つかりません。')
+  const next = normalizeBotModules(input)
+  if (!next.itemUse.assigned) stopBotItemUse(bot, 'モジュール未割り当て')
+  if (!next.containerSupply.assigned) stopContainerSupply(bot, 'モジュール未割り当て')
+  if (!next.connectionManager.assigned) {
+    clearTimeout(bot.reconnectTimer)
+    bot.reconnectTimer = null
+    bot.reconnectStatus = '無効'
+  } else {
+    bot.reconnectStatus = bot.status === 'connected' ? '接続済み' : '待機中'
+  }
+  bot.modules = next
+  await saveSettings()
+  publishBot(bot)
+  pushLog(bot.label + ': Botモジュール設定を保存しました。', 'success', bot.id)
+  return publicBot(bot)
+}
+
+async function useBotItemOnce (botId, slot) {
+  const { bot, agent } = getConnectedAgent(botId)
+  if (!isModuleAssigned(bot.modules, 'itemUse')) throw new Error('このBotにItem Useモジュールが割り当てられていません。')
+  if (bot.containerSupplyBusy) throw new Error('Container Supplyがインベントリを操作中です。')
+  const index = Number(slot)
+  if (!Number.isInteger(index) || index < 9 || index > 44) throw new Error('使用するアイテムのスロットが不正です。')
+  const item = agent.inventory?.slots?.[index]
+  if (!item || !Number.isInteger(item.count) || item.count < 1) throw new Error('選択したスロットにアイテムがありません。')
+  if (typeof agent.equip !== 'function' || typeof agent.activateItem !== 'function' || typeof agent.deactivateItem !== 'function') {
+    throw new Error('このBedrockクライアントではアイテム使用APIが利用できません。')
+  }
+  await agent.equip(item, 'hand')
+  if (bot.agent !== agent) throw new Error('アイテムを装備中にBotが切断されました。')
+  agent.activateItem()
+  bot.itemUseStatus = '使用中: ' + (item.displayName || item.name)
+  publishModuleStatus(bot)
+  await new Promise(resolve => setTimeout(resolve, 350))
+  if (bot.agent === agent) agent.deactivateItem()
+  if (bot.agent !== agent) throw new Error('アイテム使用中にBotが切断されました。')
+  bot.itemUseStatus = '使用完了: ' + (item.displayName || item.name)
+  pushLog(bot.label + ': ' + (item.displayName || item.name) + ' を使用しました。', 'success', bot.id)
+  publishBotInventory(bot)
+  publishModuleStatus(bot)
+  return true
+}
+
+async function runItemUseCycle (bot) {
+  if (!bot.itemUseRunning || bot.status !== 'connected' || bot.itemUseBusy) return
+  bot.itemUseBusy = true
+  try {
+    await useBotItemOnce(bot.id, bot.itemUseSlot)
+  } catch (error) {
+    stopBotItemUse(bot, 'エラーで停止')
+    pushLog(bot.label + ': Item Useを停止しました: ' + safeErrorMessage(error), 'warning', bot.id)
+  } finally {
+    bot.itemUseBusy = false
+  }
+  if (bot.itemUseRunning && bot.status === 'connected') {
+    bot.itemUseTimer = setTimeout(() => runItemUseCycle(bot), bot.modules.itemUse.intervalMs)
+  }
+}
+
+function startBotItemUse (botId, slot) {
+  const bot = bots.get(botId)
+  if (!bot) throw new Error('Botが見つかりません。')
+  if (!isModuleAssigned(bot.modules, 'itemUse')) throw new Error('先にItem Useモジュールを割り当ててください。')
+  const { agent } = getConnectedAgent(botId)
+  const index = Number(slot)
+  if (!Number.isInteger(index) || index < 9 || index > 44 || !agent.inventory?.slots?.[index]) {
+    throw new Error('連続使用するアイテムを選択してください。')
+  }
+  stopBotItemUse(bot, '再設定')
+  bot.itemUseSlot = index
+  bot.itemUseRunning = true
+  bot.itemUseStatus = '連続使用中'
+  pushLog(bot.label + ': Item Useの連続動作を開始しました。', 'info', bot.id)
+  runItemUseCycle(bot)
+  publishModuleStatus(bot)
+  return publicBot(bot)
+}
+
+async function supplyContainerOnce (bot) {
+  const config = bot.modules.containerSupply
+  if (!moduleConfigComplete(config)) throw new Error('Container Supplyの座標・アイテム・目標数を設定してください。')
+  const { agent } = getConnectedAgent(bot.id)
+  if (!bot.pathfinderReady || typeof agent.pathfinder?.goto !== 'function') throw new Error('経路探索が利用できません。')
+  if (bot.movementStatus.startsWith('手動操作中')) throw new Error('手動移動を停止してからContainer Supplyを開始してください。')
+  const coordinates = new Vec3(config.x, config.y, config.z)
+  const generation = bot.containerSupplyGeneration
+  bot.containerSupplyStatus = '補充先へ移動中'
+  bot.containerSupplyNavigating = true
+  publishModuleStatus(bot)
+  try {
+    await agent.pathfinder.goto(new goals.GoalNear(config.x, config.y, config.z, 2))
+  } finally {
+    bot.containerSupplyNavigating = false
+  }
+  if (!bot.containerSupplyRunning || generation !== bot.containerSupplyGeneration || bot.agent !== agent) return '停止済み'
+  const block = agent.blockAt(coordinates)
+  if (!block || !block.name || block.name === 'air') throw new Error('指定座標にコンテナが見つかりません。')
+  if (typeof agent.openContainer !== 'function') throw new Error('このBedrockクライアントではコンテナ操作APIが利用できません。')
+  const window = await agent.openContainer(block)
+  try {
+    const containerItems = typeof window.containerItems === 'function' ? window.containerItems() : []
+    const matchingItems = containerItems.filter(item => item && item.name === config.itemName)
+    const currentCount = matchingItems.reduce((total, item) => total + (Number(item.count) || 0), 0)
+    const needed = Math.max(0, config.targetCount - currentCount)
+    if (needed === 0) return '目標数に到達 (' + currentCount + '/' + config.targetCount + ')'
+    const inventoryItems = (agent.inventory?.items?.() || []).filter(item => item && item.name === config.itemName && Number(item.count) > 0)
+    const available = inventoryItems.reduce((total, item) => total + item.count, 0)
+    if (!available) return 'Botのインベントリに指定アイテムがありません'
+    const depositCount = Math.min(needed, available)
+    const sourceItem = inventoryItems[0]
+    if (typeof window.deposit !== 'function') throw new Error('コンテナへのアイテム投入APIが利用できません。')
+    await window.deposit(sourceItem.type, sourceItem.metadata, depositCount, sourceItem.nbt)
+    if (bot.agent !== agent) throw new Error('補充処理中にBotが切断されました。')
+    const result = available < needed ? '一部補充 (' + depositCount + '個)・在庫不足' : depositCount + '個を補充しました'
+    pushLog(bot.label + ': ' + block.name + ' [' + config.x + ', ' + config.y + ', ' + config.z + '] に ' + config.itemName + ' を' + depositCount + '個投入しました。', 'success', bot.id)
+    publishBotInventory(bot)
+    return result
+  } finally {
+    try { await window.close?.() } catch {}
+  }
+}
+
+async function runContainerSupplyCycle (bot) {
+  if (!bot.containerSupplyRunning || bot.status !== 'connected' || bot.containerSupplyBusy) return
+  bot.containerSupplyBusy = true
+  try {
+    bot.containerSupplyStatus = await supplyContainerOnce(bot)
+    publishModuleStatus(bot)
+  } catch (error) {
+    bot.containerSupplyStatus = 'エラー: ' + safeErrorMessage(error)
+    pushLog(bot.label + ': Container Supply: ' + safeErrorMessage(error), 'warning', bot.id)
+    publishModuleStatus(bot)
+  } finally {
+    bot.containerSupplyBusy = false
+  }
+  if (bot.containerSupplyRunning && bot.status === 'connected') {
+    bot.containerSupplyTimer = setTimeout(() => runContainerSupplyCycle(bot), bot.modules.containerSupply.intervalMs)
+  }
+}
+
+function startContainerSupply (botId) {
+  const bot = bots.get(botId)
+  if (!bot) throw new Error('Botが見つかりません。')
+  if (!isModuleAssigned(bot.modules, 'containerSupply')) throw new Error('先にContainer Supplyモジュールを割り当ててください。')
+  if (!moduleConfigComplete(bot.modules.containerSupply)) throw new Error('補充先のX/Y/Z、アイテム名、目標個数を設定してください。')
+  getConnectedAgent(botId)
+  stopContainerSupply(bot, '再設定')
+  bot.containerSupplyRunning = true
+  bot.containerSupplyStatus = '開始準備中'
+  pushLog(bot.label + ': Container Supplyを開始しました。', 'info', bot.id)
+  runContainerSupplyCycle(bot)
+  publishModuleStatus(bot)
+  return publicBot(bot)
+}
+
+function scheduleBotReconnect (bot, reason) {
+  if (bot.manualDisconnect || bot.kicked || !bot.hadError || bot.reconnectTimer) return false
+  if (!isModuleAssigned(bot.modules, 'connectionManager')) return false
+  const config = bot.modules.connectionManager
+  if (bot.reconnectAttempts >= config.maxRetries) {
+    bot.reconnectStatus = '再試行上限に到達'
+    publishModuleStatus(bot)
+    return false
+  }
+  const errorText = String(reason || bot.lastError || '')
+  if (!isTransientDisconnect(errorText)) {
+    bot.reconnectStatus = '対象外の切断理由'
+    publishModuleStatus(bot)
+    return false
+  }
+  bot.reconnectAttempts++
+  const delay = reconnectDelay(bot.reconnectAttempts, config)
+  bot.reconnectStatus = bot.reconnectAttempts + '/' + config.maxRetries + '回目を' + Math.ceil(delay / 1000) + '秒後に再試行'
+  pushLog(bot.label + ': 一時的な通信切断を検知しました。' + Math.ceil(delay / 1000) + '秒後に再接続します。', 'warning', bot.id)
+  publishModuleStatus(bot)
+  bot.reconnectTimer = setTimeout(async () => {
+    bot.reconnectTimer = null
+    if (bot.manualDisconnect || bot.status === 'connected' || bot.connectionStarting) return
+    bot.reconnectStatus = '再接続中'
+    publishModuleStatus(bot)
+    try {
+      await connectBot(bot.id, { reconnect: true })
+    } catch (error) {
+      bot.hadError = true
+      bot.lastError = safeErrorMessage(error)
+      scheduleBotReconnect(bot, bot.lastError)
+    }
+  }, delay)
+  return true
 }
 
 function stopBotMovement (botId, statusText = '停止中') {
