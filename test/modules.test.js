@@ -21,7 +21,7 @@ test('normalizes module assignments and clamps unsafe settings', () => {
   })
   assert.equal(modules.itemUse.assigned, true)
   assert.equal(modules.itemUse.useMode, 'activate')
-  assert.equal(modules.itemUse.intervalMs, 1500)
+  assert.equal(modules.itemUse.intervalMs, 750)
   assert.deepEqual([modules.containerSupply.x, modules.containerSupply.y, modules.containerSupply.z], [100, 64, -20])
   assert.equal(modules.containerSupply.itemName, 'minecraft:stone')
   assert.equal(modules.containerSupply.targetCount, 64)
