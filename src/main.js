@@ -791,7 +791,7 @@ async function connectBot (botId, options = {}) {
       }
       pushLog(`${bot.label}: Xboxで参加可能なフレンドのワールドを検索します。`, 'info', bot.id)
     } else if (bot.targetType === 'realm') {
-      if (!/^\\d{1,20}$/.test(String(bot.targetId || ''))) throw new Error('先にRealms一覧を検索して参加するRealmを選択してください。')
+      if (!/^\d{1,20}$/.test(String(bot.targetId || ''))) throw new Error('先にRealms一覧を検索して参加するRealmを選択してください。')
       connectionOptions = { realms: { realmId: bot.targetId } }
       pushLog(`${bot.label}: Realms「${bot.worldName || bot.targetId}」への接続を開始します。`, 'info', bot.id)
     } else if (bot.targetType === 'lan-world') {
