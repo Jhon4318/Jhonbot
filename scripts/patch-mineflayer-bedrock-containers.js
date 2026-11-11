@@ -55,7 +55,7 @@ function patchContainerDepositSource (source) {
 
 function applyPatch () {
   const entry = require.resolve('mineflayer')
-  const containersPath = path.join(path.dirname(entry), 'bedrock_plugins', 'containers.js')
+  const containersPath = path.join(path.dirname(entry), 'lib', 'bedrock_plugins', 'containers.js')
   const original = fs.readFileSync(containersPath, 'utf8')
   const result = patchContainerDepositSource(original)
   if (result.changed) fs.writeFileSync(containersPath, result.source, 'utf8')
