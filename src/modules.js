@@ -77,7 +77,7 @@ function isTransientDisconnect (errorText) {
   const text = String(errorText || '')
   if (!text) return false
   if (/auth|xbox|microsoft|banned|ban|kick|denied|unauthorized|鍵|公開鍵|本人確認|permission|not invited|couldn't find a realm/i.test(text)) return false
-  return /timeout|timed out|ECONN|EHOST|ENET|EPIPE|socket|network|connecterror|ICE|WebRTC|disconnected|connection reset|connection closed|transport closed/i.test(text)
+  return /timeout|timed out|ECONN|EHOST|ENET|EPIPE|socket|network|connecterror|ICE|WebRTC|connection reset|connection closed|connection lost|transport closed/i.test(text)
 }
 
 module.exports = {
