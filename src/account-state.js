@@ -13,8 +13,8 @@ function assertCanJoinWorld (bot) {
   if (bot.accountStatus !== 'authenticated' || !bot.authflow) {
     throw new Error('先に「アカウント認証」を完了してください。')
   }
-  if (!['server', 'friend-world', 'lan-world'].includes(bot.targetType)) {
-    throw new Error('Botの参加先が選択されていません。Bot一覧からサーバーまたはワールドを選択してください。')
+  if (!['server', 'friend-world', 'lan-world', 'realm'].includes(bot.targetType)) {
+    throw new Error('Botの参加先が選択されていません。Bot一覧からサーバー・Realms・ワールドを選択してください。')
   }
   if (bot.targetType === 'lan-world' && !/^\d{1,20}$/.test(String(bot.networkId || ''))) {
     throw new Error('LANワールドが選択されていません。先にLANワールドを検索してください。')
