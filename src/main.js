@@ -1350,6 +1350,7 @@ function queueBotInventoryPublish (bot, agent) {
 
 async function tossBotItem (botId, input) {
   const { bot, agent } = getConnectedAgent(botId)
+  if (bot.itemUseBusy || bot.containerSupplyBusy || bot.containerSupplyRunning) throw new Error('別のモジュールがインベントリを操作中です。')
   const request = normalizeDropRequest(input, agent.inventory)
   if (typeof agent.tossStack !== 'function') throw new Error('Bedrock用のアイテム投棄APIが利用できません。')
   await agent.tossStack(request.item, request.count)
@@ -1366,7 +1367,6 @@ function stopBotItemUse (bot, status = '停止中') {
   clearTimeout(bot.itemUseTimer)
   bot.itemUseTimer = null
   bot.itemUseRunning = false
-  bot.itemUseBusy = false
   try { bot.agent?.deactivateItem?.() } catch {}
   bot.itemUseStatus = status
   publishModuleStatus(bot)
@@ -1396,6 +1396,11 @@ async function updateBotModules (botId, input) {
   const next = normalizeBotModules(input)
   if (JSON.stringify(bot.modules.itemUse) !== JSON.stringify(next.itemUse)) stopBotItemUse(bot, next.itemUse.assigned ? '設定変更・停止' : 'モジュール未割り当て')
   if (JSON.stringify(bot.modules.containerSupply) !== JSON.stringify(next.containerSupply)) stopContainerSupply(bot, next.containerSupply.assigned ? '設定変更・停止' : 'モジュール未割り当て')
+  if (JSON.stringify(bot.modules.connectionManager) !== JSON.stringify(next.connectionManager)) {
+    clearTimeout(bot.reconnectTimer)
+    bot.reconnectTimer = null
+    bot.reconnectAttempts = 0
+  }
   if (!next.connectionManager.assigned) {
     clearTimeout(bot.reconnectTimer)
     bot.reconnectTimer = null
@@ -1493,6 +1498,36 @@ function startBotItemUse (botId, slot) {
   return publicBot(bot)
 }
 
+function openContainerWindow (agent, block, timeoutMs = 8000) {
+  if (agent.currentWindow) throw new Error('別のコンテナ画面がすでに開いています。先に閉じてください。')
+  if (typeof agent.openContainer !== 'function') throw new Error('このBedrockクライアントではコンテナ操作APIが利用できません。')
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const cleanup = () => {
+      clearTimeout(timer)
+      agent.removeListener('windowOpen', onOpen)
+      agent.removeListener('end', onEnd)
+    }
+    const finish = (error, window) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      if (error) reject(error)
+      else resolve(window)
+    }
+    const onOpen = window => finish(null, window)
+    const onEnd = reason => finish(new Error('コンテナを開く前にBotが切断されました: ' + String(reason || 'disconnected')))
+    const timer = setTimeout(() => finish(new Error('コンテナを開く応答がタイムアウトしました。')), timeoutMs)
+    agent.once('windowOpen', onOpen)
+    agent.once('end', onEnd)
+    try {
+      Promise.resolve(agent.openContainer(block)).catch(error => finish(error))
+    } catch (error) {
+      finish(error)
+    }
+  })
+}
+
 async function supplyContainerOnce (bot) {
   const config = bot.modules.containerSupply
   if (!moduleConfigComplete(config)) throw new Error('Container Supplyの座標・アイテム・目標数を設定してください。')
@@ -1514,8 +1549,12 @@ async function supplyContainerOnce (bot) {
   const block = agent.blockAt(coordinates)
   if (!block || !block.name || block.name === 'air') throw new Error('指定座標にコンテナが見つかりません。')
   if (typeof agent.openContainer !== 'function') throw new Error('このBedrockクライアントではコンテナ操作APIが利用できません。')
-  const window = await agent.openContainer(block)
+  const window = await openContainerWindow(agent, block)
   try {
+    if (window?.position && (Math.floor(window.position.x) !== config.x || Math.floor(window.position.y) !== config.y || Math.floor(window.position.z) !== config.z)) {
+      throw new Error('指定した座標とは異なるコンテナが開かれました。')
+    }
+    if (typeof window.containerItems !== 'function' || typeof window.deposit !== 'function') throw new Error('開いた画面はアイテム投入に対応していないコンテナです。')
     if (!bot.containerSupplyRunning || generation !== bot.containerSupplyGeneration || bot.agent !== agent) return '停止済み'
     const containerItems = typeof window.containerItems === 'function' ? window.containerItems() : []
     const matchingItems = containerItems.filter(item => item && item.name === config.itemName)
@@ -1529,7 +1568,7 @@ async function supplyContainerOnce (bot) {
     const available = matchingSourceItems.reduce((total, item) => total + item.count, 0)
     const depositCount = Math.min(needed, available)
     if (typeof window.deposit !== 'function') throw new Error('コンテナへのアイテム投入APIが利用できません。')
-    await window.deposit(sourceItem.type, sourceItem.metadata, depositCount, sourceItem.nbt)
+    await window.deposit(sourceItem, null, depositCount)
     if (bot.agent !== agent) throw new Error('補充処理中にBotが切断されました。')
     const result = available < needed ? '一部補充 (' + depositCount + '個)・在庫不足' : depositCount + '個を補充しました'
     pushLog(bot.label + ': ' + block.name + ' [' + config.x + ', ' + config.y + ', ' + config.z + '] に ' + config.itemName + ' を' + depositCount + '個投入しました。', 'success', bot.id)
@@ -1880,7 +1919,14 @@ app.on('child-process-gone', (_event, details) => {
   writeDiagnosticLog(`[child-process-gone] ${message}`)
   pushLog(message, 'error')
 })
-app.on('before-quit', () => { writeDiagnosticLog('[electron] before-quit') })
+app.on('before-quit', () => {
+  writeDiagnosticLog('[electron] before-quit')
+  for (const bot of bots.values()) {
+    stopBotModules(bot, 'アプリ終了')
+    clearTimeout(bot.reconnectTimer)
+    bot.reconnectTimer = null
+  }
+})
 app.on('quit', (_event, code) => { writeDiagnosticLog(`[electron] quit code=${code}`) })
 
 app.whenReady().then(async () => {
