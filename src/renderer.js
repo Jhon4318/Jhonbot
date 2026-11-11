@@ -271,12 +271,12 @@ function renderBotModulesPanel (refreshConfig = false) {
   moduleItemUseSelect.disabled = !connected || !items.length
   document.getElementById('itemUseOnceButton').disabled = !connected || !assignedUse || !moduleItemUseSelect.value
   document.getElementById('itemUseStartButton').disabled = !connected || !assignedUse || !moduleItemUseSelect.value
-  document.getElementById('itemUseStopButton').disabled = !bot || !String(status.itemUse || '').includes('連続使用中')
+  document.getElementById('itemUseStopButton').disabled = !bot || status.itemUseRunning !== true
   containerSupplyAssigned.disabled = noBot
   for (const input of [supplyX, supplyY, supplyZ, supplyTargetCount, supplyInterval, supplyItemName]) input.disabled = noBot || !assignedSupply
   document.getElementById('supplySaveButton').disabled = noBot
   document.getElementById('supplyStartButton').disabled = !connected || !assignedSupply
-  document.getElementById('supplyStopButton').disabled = !bot || !String(status.containerSupply || '').match(/移動中|補充|開始準備|在庫|目標数|エラー/)
+  document.getElementById('supplyStopButton').disabled = !bot || status.containerSupplyRunning !== true
   connectionManagerAssigned.disabled = noBot
   for (const input of [reconnectMaxRetries, reconnectInitialDelay, reconnectMaxDelay]) input.disabled = noBot || !connectionManagerAssigned.checked
   document.getElementById('moduleSaveButton').disabled = noBot
@@ -309,7 +309,7 @@ async function saveModulesFromForm () {
   }
   const updated = await api.updateModules({ botId: bot.id, modules })
   state.bots.set(updated.id, updated)
-  renderBotModulesPanel(true)
+  renderBotModulesPanel(false)
   return updated
 }
 
@@ -540,7 +540,7 @@ function renderBots () {
           try {
             const worlds = await api.discoverLanWorlds(bot.id)
             if (!worlds.length) throw new Error('LAN上に参加可能なワールドが見つかりませんでした。')
-            worldDialogTitle.textContent = bot.label + '：参加するLANワールドを選択'
+            document.getElementById('worldDialogTitle').textContent = bot.label + '：参加するLANワールドを選択'
             document.getElementById('worldDialogDescription').textContent = '検索中に応答したNetherNetワールドです。'
             worldChoices.replaceChildren()
             for (const world of worlds) {
@@ -903,6 +903,81 @@ dropItemForm.addEventListener('submit', async (event) => {
   } finally {
     renderInventoryPanel()
   }
+})
+
+async function saveAndUpdateModules () {
+  try {
+    await saveModulesFromForm()
+    showToast('Botモジュールの設定を保存しました。')
+  } catch (error) {
+    showToast(error.message || 'モジュール設定を保存できませんでした。')
+  }
+}
+
+document.getElementById('moduleSaveButton').addEventListener('click', saveAndUpdateModules)
+document.getElementById('supplySaveButton').addEventListener('click', saveAndUpdateModules)
+
+document.getElementById('itemUseOnceButton').addEventListener('click', async () => {
+  const bot = selectedBot()
+  if (!bot) return showToast('Botを選択してください。')
+  const slot = Number(document.getElementById('moduleItemUseSelect').value)
+  try {
+    await saveModulesFromForm()
+    await api.useItem({ botId: bot.id, slot })
+  } catch (error) {
+    showToast(error.message || 'アイテムを使用できませんでした。')
+  }
+})
+
+document.getElementById('itemUseStartButton').addEventListener('click', async () => {
+  const bot = selectedBot()
+  if (!bot) return showToast('Botを選択してください。')
+  const slot = Number(document.getElementById('moduleItemUseSelect').value)
+  try {
+    await saveModulesFromForm()
+    const updated = await api.startItemUse({ botId: bot.id, slot })
+    state.bots.set(updated.id, updated)
+    renderBotModulesPanel(false)
+    showToast('Item Useの連続使用を開始しました。')
+  } catch (error) {
+    showToast(error.message || '連続使用を開始できませんでした。')
+  }
+})
+
+document.getElementById('itemUseStopButton').addEventListener('click', async () => {
+  const bot = selectedBot()
+  if (!bot) return
+  try {
+    const updated = await api.stopItemUse(bot.id)
+    state.bots.set(updated.id, updated)
+    renderBotModulesPanel(false)
+    showToast('Item Useを停止しました。')
+  } catch (error) { showToast(error.message || 'Item Useを停止できませんでした。') }
+})
+
+document.getElementById('supplyStartButton').addEventListener('click', async () => {
+  const bot = selectedBot()
+  if (!bot) return showToast('Botを選択してください。')
+  try {
+    await saveModulesFromForm()
+    const updated = await api.startContainerSupply(bot.id)
+    state.bots.set(updated.id, updated)
+    renderBotModulesPanel(false)
+    showToast('Container Supplyを開始しました。')
+  } catch (error) {
+    showToast(error.message || 'Container Supplyを開始できませんでした。')
+  }
+})
+
+document.getElementById('supplyStopButton').addEventListener('click', async () => {
+  const bot = selectedBot()
+  if (!bot) return
+  try {
+    const updated = await api.stopContainerSupply(bot.id)
+    state.bots.set(updated.id, updated)
+    renderBotModulesPanel(false)
+    showToast('Container Supplyを停止しました。')
+  } catch (error) { showToast(error.message || 'Container Supplyを停止できませんでした。') }
 })
 
 gotoForm.addEventListener('submit', async (event) => {
