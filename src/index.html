@@ -198,6 +198,68 @@
         </div>
       </section>
 
+      <section class="panel module-panel" id="modulePanel">
+        <div class="panel-heading">
+          <div>
+            <h2>Botモジュール</h2>
+            <p class="muted small">選択したBotに機能を割り当てます。未割り当ての機能は動作しません。</p>
+          </div>
+          <span class="step-chip">04 / MODULES</span>
+        </div>
+        <div class="module-selected" id="moduleSelectedBot">Botを選択してください。</div>
+        <div class="module-grid">
+          <section class="module-card">
+            <div class="module-card-heading"><h3>Item Use</h3><label class="module-assignment"><input id="itemUseAssigned" type="checkbox"> 割り当て</label></div>
+            <p class="muted tiny">インベントリから選んだアイテムを使用します。通常使用または食べる・飲む動作を選べます。</p>
+            <label class="field"><span>使用するアイテム</span><select id="moduleItemUseSelect" class="inventory-select"><option value="">アイテムなし</option></select></label>
+            <div class="module-inline-fields">
+              <label class="field"><span>使用方法</span><select id="itemUseMode" class="inventory-select"><option value="activate">通常使用</option><option value="consume">食べる・飲む</option></select></label>
+              <label class="field"><span>連続間隔（ms）</span><input id="itemUseInterval" type="number" min="750" max="60000" step="250" value="1500"></label>
+            </div>
+            <div class="module-actions">
+              <button id="itemUseOnceButton" type="button" class="secondary-button">1回使用</button>
+              <button id="itemUseStartButton" type="button" class="primary-button">連続使用</button>
+              <button id="itemUseStopButton" type="button" class="secondary-button" disabled>停止</button>
+            </div>
+            <div class="module-status" id="itemUseStatus">未実行</div>
+          </section>
+
+          <section class="module-card">
+            <div class="module-card-heading"><h3>Container Supply</h3><label class="module-assignment"><input id="containerSupplyAssigned" type="checkbox"> 割り当て</label></div>
+            <p class="muted tiny">指定したコンテナの中身を確認し、目標数になるまでBotの所持品から補充します。</p>
+            <div class="module-coordinate-fields">
+              <label class="field"><span>X</span><input id="supplyX" type="number" step="any" placeholder="X座標"></label>
+              <label class="field"><span>Y</span><input id="supplyY" type="number" step="any" placeholder="Y座標"></label>
+              <label class="field"><span>Z</span><input id="supplyZ" type="number" step="any" placeholder="Z座標"></label>
+            </div>
+            <label class="field"><span>補充するアイテム</span><select id="supplyItemName" class="inventory-select"><option value="">アイテムなし</option></select></label>
+            <div class="module-inline-fields">
+              <label class="field"><span>コンテナ内の目標数</span><input id="supplyTargetCount" type="number" min="1" max="100000" step="1" value="64"></label>
+              <label class="field"><span>確認間隔（ms）</span><input id="supplyInterval" type="number" min="1000" max="60000" step="500" value="5000"></label>
+            </div>
+            <div class="module-actions">
+              <button id="supplySaveButton" type="button" class="secondary-button">設定を保存</button>
+              <button id="supplyStartButton" type="button" class="primary-button">補充開始</button>
+              <button id="supplyStopButton" type="button" class="secondary-button" disabled>停止</button>
+            </div>
+            <div class="module-status" id="containerSupplyStatus">未実行</div>
+          </section>
+
+          <section class="module-card">
+            <div class="module-card-heading"><h3>Connection Manager</h3><label class="module-assignment"><input id="connectionManagerAssigned" type="checkbox"> 割り当て</label></div>
+            <p class="muted tiny">一時的な通信エラー時だけ再接続します。手動切断・キック・認証エラーでは再試行しません。</p>
+            <div class="module-inline-fields">
+              <label class="field"><span>最大再試行回数</span><input id="reconnectMaxRetries" type="number" min="0" max="20" step="1" value="5"></label>
+              <label class="field"><span>初回待機（ms）</span><input id="reconnectInitialDelay" type="number" min="1000" max="60000" step="1000" value="5000"></label>
+              <label class="field"><span>最大待機（ms）</span><input id="reconnectMaxDelay" type="number" min="1000" max="300000" step="1000" value="60000"></label>
+            </div>
+            <div class="module-actions"><button id="moduleSaveButton" type="button" class="primary-button">全モジュール設定を保存</button></div>
+            <div class="module-status" id="connectionManagerStatus">未割り当て</div>
+          </section>
+        </div>
+        <p class="module-footnote">同じBotのインベントリ操作は同時実行しません。Container Supplyは補充先への移動中、手動移動を開始できない設計です。</p>
+      </section>
+
       <section class="panel log-panel">
         <div class="panel-heading log-heading">
           <div>
