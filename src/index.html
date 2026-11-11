@@ -232,7 +232,7 @@
               <label class="field"><span>Y</span><input id="supplyY" type="number" step="any" placeholder="Y座標"></label>
               <label class="field"><span>Z</span><input id="supplyZ" type="number" step="any" placeholder="Z座標"></label>
             </div>
-            <label class="field"><span>補充するアイテム</span><select id="supplyItemName" class="inventory-select"><option value="">アイテムなし</option></select></label>
+            <label class="field"><span>補充するアイテム</span><input id="supplyItemName" type="text" list="supplyItemOptions" class="inventory-select" placeholder="minecraft:stone"><datalist id="supplyItemOptions"></datalist></label>
             <div class="module-inline-fields">
               <label class="field"><span>コンテナ内の目標数</span><input id="supplyTargetCount" type="number" min="1" max="100000" step="1" value="64"></label>
               <label class="field"><span>確認間隔（ms）</span><input id="supplyInterval" type="number" min="1000" max="60000" step="500" value="5000"></label>
