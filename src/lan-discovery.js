@@ -27,7 +27,7 @@ async function discoverLanWorlds (timeoutMs = 6000) {
     client.on('pong', response => {
       try {
         const networkId = String(response?.sender_id ?? '')
-        if (!/^\\d{1,20}$/.test(networkId)) return
+        if (!/^\d{1,20}$/.test(networkId)) return
         const raw = Buffer.from(String(response?.data || ''), 'hex')
         if (!raw.length) return
         const advertisement = NethernetServerAdvertisement.fromBuffer(raw)
