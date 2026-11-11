@@ -6,7 +6,7 @@ const DEFAULT_PORT = 19132
 const MODES = new Set(['auto', 'http', 'raknet'])
 const SERVER_CONNECTION_METHODS = new Set(['raknet', 'nethernet-http', 'nethernet-lan'])
 const SERVER_KEY_FINGERPRINT_RE = /^sha256:[a-f0-9]{64}$/
-const TARGET_TYPES = new Set(['none', 'server', 'friend-world', 'lan-world'])
+const TARGET_TYPES = new Set(['none', 'server', 'friend-world', 'lan-world', 'realm'])
 
 function cleanText (value, max = 64) {
   const text = String(value ?? '').trim()
@@ -65,6 +65,11 @@ function normalizeTarget (input, serverProfiles = []) {
     return { type, serverId, networkId: '', worldName: '' }
   }
   if (type === 'friend-world') return { type, serverId: '', networkId: '', worldName: '' }
+  if (type === 'realm') {
+    const realmId = String(input?.realmId ?? input?.serverId ?? '').trim()
+    if (realmId && !/^\\d{1,20}$/.test(realmId)) throw new Error('Realms IDが不正です。')
+    return { type, serverId: realmId, networkId: '', worldName: cleanText(input?.worldName, 100) || '' }
+  }
   const networkId = String(input?.networkId ?? '').trim()
   if (type === 'lan-world' && networkId) {
     if (!/^\d{1,20}$/.test(networkId)) throw new Error('LANワールドのネットワークIDが不正です。')
@@ -98,6 +103,8 @@ function migrateSettings (parsed) {
       target = { type: 'server', serverId: item.targetId, networkId: '', worldName: '' }
     } else if (item.targetType === 'friend-world') {
       target = { type: 'friend-world', serverId: '', networkId: '', worldName: '' }
+    } else if (item.targetType === 'realm' && (!item.targetId || /^\\d{1,20}$/.test(String(item.targetId)))) {
+      target = { type: 'realm', serverId: String(item.targetId || ''), networkId: '', worldName: cleanText(item.worldName, 100) || '' }
     } else if (item.targetType === 'lan-world' && /^\d{1,20}$/.test(String(item.networkId || ''))) {
       target = { type: 'lan-world', serverId: '', networkId: String(item.networkId), worldName: cleanText(item.worldName, 100) || 'LANワールド' }
     } else if (validateHost(item.host) && validatePort(item.port)) {
@@ -126,6 +133,7 @@ function migrateSettings (parsed) {
       targetId: target.serverId,
       networkId: target.networkId,
       worldName: target.worldName,
+      modules: item.modules && typeof item.modules === 'object' ? item.modules : {},
       ...(typeof item.parentBotId === 'string' && item.parentBotId !== item.id && [1, 2, 3].includes(Number(item.subClientId))
         ? { parentBotId: item.parentBotId, subClientId: Number(item.subClientId) }
         : {})
