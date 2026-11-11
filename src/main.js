@@ -1565,7 +1565,7 @@ async function supplyContainerOnce (bot) {
     if (!inventoryItems.length) return 'Botのインベントリに指定アイテムがありません'
     const sourceItem = inventoryItems[0]
     const matchingSourceItems = inventoryItems.filter(item => item.type === sourceItem.type && item.metadata === sourceItem.metadata && JSON.stringify(item.nbt || null) === JSON.stringify(sourceItem.nbt || null))
-    const available = matchingSourceItems.reduce((total, item) => total + item.count, 0)
+    const available = Number(sourceItem.count) || 0
     const depositCount = Math.min(needed, available)
     if (typeof window.deposit !== 'function') throw new Error('コンテナへのアイテム投入APIが利用できません。')
     await window.deposit(sourceItem, null, depositCount)
@@ -1587,7 +1587,7 @@ async function runContainerSupplyCycle (bot) {
     publishModuleStatus(bot)
   } catch (error) {
     if (bot.containerSupplyRunning) {
-      bot.containerSupplyStatus = /destination full|コンテナ.*満杯/i.test(safeErrorMessage(error)) ? 'コンテナ満杯・収納不可' : 'エラー: ' + safeErrorMessage(error)
+      bot.containerSupplyStatus = /destination full|container is full|コンテナ.*満杯/i.test(safeErrorMessage(error)) ? 'コンテナ満杯・収納不可' : 'エラー: ' + safeErrorMessage(error)
       pushLog(bot.label + ': Container Supply: ' + safeErrorMessage(error), 'warning', bot.id)
       if (/destination full|コンテナ.*満杯/i.test(safeErrorMessage(error))) bot.containerSupplyRunning = false
       publishModuleStatus(bot)
