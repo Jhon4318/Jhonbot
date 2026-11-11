@@ -18,7 +18,7 @@ async function listRealms (authflow, minecraftVersion = '1.26.60') {
     expired: realm.expired === true,
     players: Array.isArray(realm.players) ? realm.players.length : null,
     maxPlayers: Number.isInteger(realm.maxPlayers) ? realm.maxPlayers : null
-  })).filter(realm => /^\\d+$/.test(realm.id))
+  })).filter(realm => /^\d+$/.test(realm.id))
 }
 
 module.exports = { listRealms }
