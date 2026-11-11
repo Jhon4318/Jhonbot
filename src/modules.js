@@ -14,7 +14,7 @@ function boundedInteger (value, fallback, min, max) {
 function coordinate (value) {
   if (value === '' || value === null || value === undefined) return null
   const number = Number(value)
-  return Number.isFinite(number) && Math.abs(number) <= 30000000 ? number : null
+  return Number.isInteger(number) && Math.abs(number) <= 30000000 ? number : null
 }
 
 function normalizeBotModules (input = {}) {
