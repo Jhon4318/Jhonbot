@@ -644,7 +644,7 @@ function renderBots () {
         actions.append(disconnect)
       } else {
         const join = createElement('button', 'small-button join-button', bot.status === 'error' ? '再参加' : 'ワールド参加')
-        const hasTarget = bot.targetType === 'server' || bot.targetType === 'friend-world' || (bot.targetType === 'lan-world' && !!bot.networkId) || (bot.targetType === 'realm' && /^\\d+$/.test(String(bot.targetId || '')))
+        const hasTarget = bot.targetType === 'server' || bot.targetType === 'friend-world' || (bot.targetType === 'lan-world' && !!bot.networkId) || (bot.targetType === 'realm' && /^\d+$/.test(String(bot.targetId || '')))
         join.type = 'button'
         join.disabled = bot.accountStatus !== 'authenticated' || !hasTarget
         join.title = !hasTarget ? '先に参加先を選択してください。' : (bot.accountStatus !== 'authenticated' ? '先にMicrosoft / Xbox認証を完了してください。' : '選択したサーバーまたはワールドに参加します。')
