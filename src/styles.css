@@ -604,9 +604,9 @@ main#dashboardGrid {
 }
 .server-panel .server-profile-info { gap: 2px; }
 .server-panel .server-profile-name { font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.server-panel .server-profile-address { font-size: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.server-panel .server-profile-address { font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .server-panel .server-profile-actions { flex: 0 0 auto; gap: 4px; }
-.server-panel .server-profile-actions button { min-height: 24px; padding: 0 6px; font-size: 8px; }
+.server-panel .server-profile-actions button { min-height: 25px; padding: 0 7px; font-size: 9px; }
 .server-panel .server-empty { padding: 5px; font-size: 9px; }
 .panel-pager {
   flex: 0 0 24px;
@@ -655,7 +655,7 @@ main#dashboardGrid {
 .bots-panel .bot-main { grid-column: 1; grid-row: 1; gap: 7px; }
 .bots-panel .bot-avatar { width: 27px; height: 27px; flex-basis: 27px; border-radius: 7px; font-size: 11px; }
 .bots-panel .bot-name { font-size: 10px; }
-.bots-panel .bot-player { margin-top: 2px; font-size: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bots-panel .bot-player { margin-top: 2px; font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bots-panel .bot-target-area {
   grid-column: 2;
   grid-row: 1;
@@ -667,10 +667,10 @@ main#dashboardGrid {
   gap: 4px;
   overflow: hidden;
 }
-.bots-panel .bot-target-select { flex: 0 0 100%; width: 100%; height: 27px; padding: 0 5px; font-size: 8px; }
+.bots-panel .bot-target-select { flex: 0 0 100%; width: 100%; height: 29px; padding: 0 6px; font-size: 9px; }
 .bots-panel .bot-target-area .target-current { flex: 0 0 100%; }
-.bots-panel .realm-invite-input { flex: 1 1 110px; width: auto; min-width: 90px; min-height: 24px; height: 24px; padding: 0 5px; font-size: 8px; }
-.bots-panel .lan-search-button { min-height: 23px; padding: 0 6px; font-size: 8px; }
+.bots-panel .realm-invite-input { flex: 1 1 110px; width: auto; min-width: 90px; min-height: 25px; height: 25px; padding: 0 6px; font-size: 9px; }
+.bots-panel .lan-search-button { min-height: 25px; padding: 0 7px; font-size: 9px; }
 .bots-panel .target-current { font-size: 8px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bots-panel .bot-status-stack {
   grid-column: 1;
@@ -680,7 +680,7 @@ main#dashboardGrid {
   flex-wrap: wrap;
   gap: 4px;
 }
-.bots-panel .status { padding: 3px 6px; font-size: 7px; }
+.bots-panel .status { padding: 4px 7px; font-size: 8px; }
 .bots-panel .status::before { width: 4px; height: 4px; }
 .bots-panel .bot-actions {
   grid-column: 1 / -1;
@@ -691,7 +691,7 @@ main#dashboardGrid {
   gap: 4px;
   overflow: hidden;
 }
-.bots-panel .bot-actions button { min-height: 24px; padding: 0 7px; font-size: 8px; white-space: nowrap; }
+.bots-panel .bot-actions button { min-height: 25px; padding: 0 8px; font-size: 9px; white-space: nowrap; }
 .bots-panel .bot-server-info {
   display: block;
   grid-column: 1 / -1;
@@ -702,7 +702,7 @@ main#dashboardGrid {
 .bots-panel .bot-position {
   margin: 0;
   color: #8290a8;
-  font: 8px/1.2 Consolas, monospace;
+  font: 9px/1.2 Consolas, monospace;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -801,7 +801,7 @@ main#dashboardGrid {
 .interaction-panel .inventory-item-row { grid-template-columns: 70px minmax(0, 1fr) auto; gap: 5px; padding: 4px 3px; }
 .interaction-panel .inventory-slot,
 .interaction-panel .inventory-item-name,
-.interaction-panel .inventory-item-count { font-size: 8px; }
+.interaction-panel .inventory-item-count { font-size: 9px; }
 .interaction-panel .drop-item-form { flex: 0 0 auto; grid-template-columns: minmax(0, 1fr) 48px; gap: 5px; margin-top: 0; }
 .interaction-panel .drop-item-form .field { gap: 3px; }
 .interaction-panel .drop-item-form .field span { font-size: 8px; }
@@ -817,10 +817,10 @@ main#dashboardGrid {
   overflow: hidden;
 }
 .mod-store-panel .mod-catalog-card { min-height: 0; padding: 8px; gap: 5px; overflow: hidden; }
-.mod-store-panel .mod-catalog-title strong { font-size: 10px; }
+.mod-store-panel .mod-catalog-title strong { font-size: 11px; }
 .mod-store-panel .mod-catalog-title span,
-.mod-store-panel .mod-catalog-card p { font-size: 8px; line-height: 1.35; }
-.mod-store-panel .mod-catalog-card button { min-height: 27px; padding: 0 9px; font-size: 8px; }
+.mod-store-panel .mod-catalog-card p { font-size: 9px; line-height: 1.4; }
+.mod-store-panel .mod-catalog-card button { min-height: 28px; padding: 0 10px; font-size: 9px; }
 .mod-store-panel .mod-installed,
 .mod-store-panel .mod-not-installed { padding: 3px 6px; font-size: 7px; }
 .module-panel .module-selected { flex: 0 0 auto; margin: 8px 0; padding: 6px 8px; font-size: 9px; }
@@ -839,18 +839,18 @@ main#dashboardGrid {
   gap: 6px;
   overflow: hidden;
 }
-.module-panel .module-card-heading h3 { font-size: 10px; }
+.module-panel .module-card-heading h3 { font-size: 11px; }
 .module-panel .module-assignment { font-size: 8px; }
-.module-panel .module-card .muted { font-size: 8px; line-height: 1.35; }
+.module-panel .module-card .muted { font-size: 9px; line-height: 1.4; }
 .module-panel .module-card .field { gap: 3px; }
-.module-panel .module-card .field span { font-size: 8px; }
+.module-panel .module-card .field span { font-size: 9px; }
 .module-panel .module-card .field input,
 .module-panel .module-card .field select { height: 29px; font-size: 9px; }
 .module-panel .module-inline-fields { gap: 5px; }
 .module-panel .module-coordinate-fields { gap: 5px; }
 .module-panel .module-actions { gap: 4px; }
-.module-panel .module-actions button { min-height: 27px; padding: 0 7px; font-size: 8px; }
-.module-panel .module-status { min-height: 23px; padding: 4px 6px; font-size: 8px; }
+.module-panel .module-actions button { min-height: 28px; padding: 0 8px; font-size: 9px; }
+.module-panel .module-status { min-height: 24px; padding: 4px 7px; font-size: 9px; }
 .module-panel .module-save-row { flex: 0 0 auto; margin-top: 6px; }
 .module-panel .module-footnote { display: none; }
 
