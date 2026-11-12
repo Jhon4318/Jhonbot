@@ -33,7 +33,7 @@ const dropItemCount = document.getElementById('dropItemCount')
 const dropItemForm = document.getElementById('dropItemForm')
 const refreshInventoryButton = document.getElementById('refreshInventoryButton')
 
-const state = { bots: new Map(), servers: [], installedMods: [], modCatalog: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map(), dashboardLayout: null, botPage: 0, serverPage: 0, activeDashboardView: 'bots' }
+const state = { bots: new Map(), servers: [], installedMods: [], modCatalog: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map(), botPage: 0, serverPage: 0, activeDashboardView: 'bots' }
 const statusLabels = {
   disconnected: '未参加',
   authenticating: '認証処理中',
