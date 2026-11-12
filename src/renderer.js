@@ -1,6 +1,7 @@
 'use strict'
 
 const api = window.botApp
+const dashboardLayoutApi = window.jhonbotDashboardLayout
 const botList = document.getElementById('botList')
 const emptyState = document.getElementById('emptyState')
 const logList = document.getElementById('logList')
@@ -31,13 +32,14 @@ const dropItemCount = document.getElementById('dropItemCount')
 const dropItemForm = document.getElementById('dropItemForm')
 const refreshInventoryButton = document.getElementById('refreshInventoryButton')
 
-const state = { bots: new Map(), servers: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map() }
+const state = { bots: new Map(), servers: [], installedMods: [], modCatalog: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map(), dashboardLayout: null }
 const statusLabels = {
   disconnected: '未参加',
   authenticating: '認証処理中',
   connecting: '接続中',
   joining: 'ログイン中',
   connected: 'ワールド参加中',
+  reconnecting: '自動再接続中',
   error: 'エラー'
 }
 const accountStatusLabels = {
@@ -128,6 +130,8 @@ function renderControlPanel () {
     ? `${positionText(bot)}${bot.health != null ? `  ·  HP ${bot.health}` : ''}${bot.food != null ? `  ·  満腹度 ${bot.food}` : ''}`
     : 'Botを選択すると位置と状態が表示されます。'
   movementStatus.textContent = bot ? bot.movementStatus || '停止中' : '操作待機中'
+  const reconnectStatus = document.getElementById('autoReconnectStatus')
+  reconnectStatus.textContent = !bot ? 'Botを選択してください。' : (bot.isGuest ? '親Botの接続管理に連動します。' : (bot.autoReconnect?.status || '自動再接続は有効です。')) + (bot?.autoReconnect?.attempts ? ' · 再試行 ' + bot.autoReconnect.attempts + '回' : '')
 
   const diag = {
     startGame: document.getElementById('diagStartGame'),
@@ -207,10 +211,6 @@ function renderBotModulesPanel (refreshConfig = false) {
   const supplyItemName = document.getElementById('supplyItemName')
   const supplyTargetCount = document.getElementById('supplyTargetCount')
   const supplyInterval = document.getElementById('supplyInterval')
-  const connectionManagerAssigned = document.getElementById('connectionManagerAssigned')
-  const reconnectMaxRetries = document.getElementById('reconnectMaxRetries')
-  const reconnectInitialDelay = document.getElementById('reconnectInitialDelay')
-  const reconnectMaxDelay = document.getElementById('reconnectMaxDelay')
   const moduleItemUseSelect = document.getElementById('moduleItemUseSelect')
 
   if (!bot) {
@@ -252,37 +252,200 @@ function renderBotModulesPanel (refreshConfig = false) {
     supplyZ.value = modules.containerSupply?.z ?? ''
     supplyTargetCount.value = String(modules.containerSupply?.targetCount || 64)
     supplyInterval.value = String(modules.containerSupply?.intervalMs || 5000)
-    connectionManagerAssigned.checked = !bot?.parentBotId && modules.connectionManager?.assigned === true
-    reconnectMaxRetries.value = String(modules.connectionManager?.maxRetries ?? 5)
-    reconnectInitialDelay.value = String(modules.connectionManager?.initialDelayMs || 5000)
-    reconnectMaxDelay.value = String(modules.connectionManager?.maxDelayMs || 60000)
   }
 
+  const itemUseInstalled = state.installedMods.includes('itemUse')
+  const containerSupplyInstalled = state.installedMods.includes('containerSupply')
+  const anyModInstalled = itemUseInstalled || containerSupplyInstalled
+  document.getElementById('modulePanel').hidden = !anyModInstalled
+  document.getElementById('itemUseModuleCard').hidden = !itemUseInstalled
+  document.getElementById('containerSupplyModuleCard').hidden = !containerSupplyInstalled
   const assignedUse = itemUseAssigned.checked
   const assignedSupply = containerSupplyAssigned.checked
   const status = bot?.moduleStatus || {}
   document.getElementById('itemUseStatus').textContent = status.itemUse || '未実行'
   document.getElementById('containerSupplyStatus').textContent = status.containerSupply || '未実行'
-  document.getElementById('connectionManagerStatus').textContent = (bot?.parentBotId ? '親Botの接続管理に連動' : (status.connectionManager || '未割り当て')) + (status.reconnectAttempts ? ' · 再試行 ' + status.reconnectAttempts + '回' : '')
   const noBot = !bot
-  itemUseAssigned.disabled = noBot
-  itemUseMode.disabled = noBot || !assignedUse
-  itemUseInterval.disabled = noBot || !assignedUse
+  itemUseAssigned.disabled = noBot || !itemUseInstalled
+  itemUseMode.disabled = noBot || !itemUseInstalled || !assignedUse
+  itemUseInterval.disabled = noBot || !itemUseInstalled || !assignedUse
   moduleItemUseSelect.disabled = !connected || !items.length
   document.getElementById('itemUseOnceButton').disabled = !connected || !assignedUse || !moduleItemUseSelect.value
   document.getElementById('itemUseStartButton').disabled = !connected || !assignedUse || !moduleItemUseSelect.value
   document.getElementById('itemUseStopButton').disabled = !bot || status.itemUseRunning !== true
-  containerSupplyAssigned.disabled = noBot
-  for (const input of [supplyX, supplyY, supplyZ, supplyTargetCount, supplyInterval, supplyItemName]) input.disabled = noBot || !assignedSupply
+  containerSupplyAssigned.disabled = noBot || !containerSupplyInstalled
+  for (const input of [supplyX, supplyY, supplyZ, supplyTargetCount, supplyInterval, supplyItemName]) input.disabled = noBot || !containerSupplyInstalled || !assignedSupply
   document.getElementById('supplySaveButton').disabled = noBot
   document.getElementById('supplyStartButton').disabled = !connected || !assignedSupply
   document.getElementById('supplyStopButton').disabled = !bot || status.containerSupplyRunning !== true
-  connectionManagerAssigned.disabled = noBot || !!bot?.parentBotId
-  for (const input of [reconnectMaxRetries, reconnectInitialDelay, reconnectMaxDelay]) input.disabled = noBot || !!bot?.parentBotId || !connectionManagerAssigned.checked
-  document.getElementById('moduleSaveButton').disabled = noBot
+  document.getElementById('moduleSaveButton').disabled = noBot || !anyModInstalled
 }
 
-async function saveModulesFromForm () {
+async 
+function renderModStore () {
+  const target = document.getElementById('modCatalogList')
+  target.replaceChildren()
+  for (const mod of state.modCatalog) {
+    const installed = state.installedMods.includes(mod.id)
+    const card = createElement('article', 'mod-catalog-card')
+    const top = createElement('div', 'mod-catalog-top')
+    const title = createElement('div', 'mod-catalog-title')
+    title.append(createElement('strong', '', mod.name), createElement('span', '', 'v' + mod.version + ' · ' + mod.category))
+    const status = createElement('span', installed ? 'mod-installed' : 'mod-not-installed', installed ? '導入済み' : '未導入')
+    top.append(title, status)
+    const description = createElement('p', 'muted tiny', mod.description)
+    const button = createElement('button', installed ? 'secondary-button' : 'primary-button', installed ? 'アンインストール' : '導入')
+    button.type = 'button'
+    button.addEventListener('click', async () => {
+      if (installed && !window.confirm('「' + mod.name + '」をアンインストールしますか？\n\n各Botへの割り当ては解除されますが、設定値は保持されます。')) return
+      button.disabled = true
+      try {
+        const result = installed ? await api.uninstallMod(mod.id) : await api.installMod(mod.id)
+        state.installedMods = result.installedMods || []
+        renderModStore()
+        renderBotModulesPanel(true)
+        showToast('Mod「' + mod.name + '」を' + (installed ? 'アンインストール' : '導入') + 'しました。')
+      } catch (error) {
+        showToast(error.message || 'Modの状態を変更できませんでした。')
+      } finally {
+        button.disabled = false
+      }
+    })
+    card.append(top, description, button)
+    target.append(card)
+  }
+  if (!state.modCatalog.length) target.append(createElement('p', 'server-empty', '利用可能なModはありません。'))
+}
+
+function persistDashboardLayout () {
+  try {
+    const layout = state.dashboardLayout
+    if (!layout) return
+    const root = document.getElementById('dashboardGrid')
+    layout.order = Array.from(root.querySelectorAll('[data-panel-id]')).map(panel => panel.dataset.panelId)
+    localStorage.setItem('jhonbot-dashboard-layout-v1', JSON.stringify(layout))
+  } catch (error) {
+    console.warn('Dashboard layout could not be saved:', error)
+  }
+}
+
+function initializeDashboardLayout () {
+  const root = document.getElementById('dashboardGrid')
+  const panels = Array.from(root.querySelectorAll('[data-panel-id]'))
+  const ids = panels.map(panel => panel.dataset.panelId)
+  let saved = null
+  try { saved = JSON.parse(localStorage.getItem('jhonbot-dashboard-layout-v1') || 'null') } catch {}
+  state.dashboardLayout = dashboardLayoutApi.normalizeDashboardLayout(saved, ids)
+  const panelById = new Map(panels.map(panel => [panel.dataset.panelId, panel]))
+  const applyPanel = (id) => {
+    const panel = panelById.get(id)
+    const config = state.dashboardLayout.panels[id]
+    if (!panel || !config) return
+    panel.style.gridColumn = 'span ' + config.span
+    panel.style.height = config.height ? config.height + 'px' : ''
+    panel.classList.toggle('panel-fixed-height', config.height > 0)
+    const width = panel.querySelector('.panel-width-control')
+    if (width) width.value = String(config.span)
+  }
+  const applyOrder = () => {
+    for (const id of state.dashboardLayout.order) {
+      const panel = panelById.get(id)
+      if (panel) root.append(panel)
+    }
+    for (const panel of panels) applyPanel(panel.dataset.panelId)
+  }
+  const save = () => persistDashboardLayout()
+
+  for (const panel of panels) {
+    const id = panel.dataset.panelId
+    const heading = panel.querySelector('.panel-heading')
+    if (!heading) continue
+    heading.classList.add('panel-drag-handle')
+    heading.draggable = true
+    const tools = createElement('div', 'panel-layout-tools')
+    const width = createElement('select', 'panel-width-control')
+    width.title = 'パネルの横幅'
+    for (const span of [3, 4, 6, 8, 9, 12]) width.append(new Option(({3:'25%',4:'約33%',6:'50%',8:'約67%',9:'75%',12:'100%'})[span], String(span)))
+    width.value = String(state.dashboardLayout.panels[id].span)
+    width.addEventListener('change', () => {
+      state.dashboardLayout.panels[id].span = Number(width.value)
+      applyPanel(id)
+      save()
+    })
+    const grip = createElement('span', 'panel-drag-grip', '⠿')
+    grip.title = '見出しをドラッグしてパネルを並べ替えます。'
+    const resize = createElement('span', 'panel-resize-handle', '↘')
+    resize.title = 'ドラッグして幅と高さを変更します。'
+    tools.append(width, grip)
+    heading.append(tools)
+    panel.append(resize)
+
+    heading.addEventListener('dragstart', (event) => {
+      if (event.target.closest('select,button,input,a')) { event.preventDefault(); return }
+      panel.classList.add('panel-dragging')
+      event.dataTransfer?.setData('text/plain', id)
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+    })
+    heading.addEventListener('dragend', () => {
+      panel.classList.remove('panel-dragging')
+      for (const item of panels) item.classList.remove('panel-drop-target')
+      save()
+    })
+    panel.addEventListener('dragover', (event) => {
+      const draggedId = event.dataTransfer?.getData('text/plain')
+      if (!draggedId || draggedId === id || !panelById.has(draggedId)) return
+      event.preventDefault()
+      panel.classList.add('panel-drop-target')
+    })
+    panel.addEventListener('dragleave', () => panel.classList.remove('panel-drop-target'))
+    panel.addEventListener('drop', (event) => {
+      const draggedId = event.dataTransfer?.getData('text/plain')
+      const dragged = panelById.get(draggedId)
+      if (!dragged || dragged === panel) return
+      event.preventDefault()
+      panel.classList.remove('panel-drop-target')
+      const rect = panel.getBoundingClientRect()
+      const after = event.clientY > rect.top + rect.height / 2
+      root.insertBefore(dragged, after ? panel.nextSibling : panel)
+      save()
+    })
+    resize.addEventListener('pointerdown', (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      const startX = event.clientX
+      const startY = event.clientY
+      const rect = panel.getBoundingClientRect()
+      const startSpan = state.dashboardLayout.panels[id].span
+      const startHeight = rect.height
+      const columns = Math.max(1, getComputedStyle(root).gridTemplateColumns.split(' ').length)
+      const columnWidth = root.getBoundingClientRect().width / columns
+      const move = (moveEvent) => {
+        const span = Math.max(3, Math.min(12, Math.round(startSpan + (moveEvent.clientX - startX) / columnWidth)))
+        const height = Math.max(220, Math.min(1200, Math.round(startHeight + moveEvent.clientY - startY)))
+        state.dashboardLayout.panels[id] = { span, height }
+        applyPanel(id)
+      }
+      const finish = () => {
+        window.removeEventListener('pointermove', move)
+        window.removeEventListener('pointerup', finish)
+        window.removeEventListener('pointercancel', finish)
+        save()
+      }
+      window.addEventListener('pointermove', move)
+      window.addEventListener('pointerup', finish, { once: true })
+      window.addEventListener('pointercancel', finish, { once: true })
+    })
+  }
+  applyOrder()
+  document.getElementById('resetDashboardLayoutButton').addEventListener('click', () => {
+    state.dashboardLayout = dashboardLayoutApi.normalizeDashboardLayout(null, ids)
+    applyOrder()
+    save()
+    showToast('パネル配置を初期状態に戻しました。')
+  })
+}
+
+function saveModulesFromForm () {function saveModulesFromForm () {
   const bot = selectedBot()
   if (!bot) throw new Error('設定するBotを選択してください。')
   const modules = {
@@ -299,12 +462,6 @@ async function saveModulesFromForm () {
       itemName: document.getElementById('supplyItemName').value,
       targetCount: document.getElementById('supplyTargetCount').value,
       intervalMs: document.getElementById('supplyInterval').value
-    },
-    connectionManager: {
-      assigned: document.getElementById('connectionManagerAssigned').checked,
-      maxRetries: document.getElementById('reconnectMaxRetries').value,
-      initialDelayMs: document.getElementById('reconnectInitialDelay').value,
-      maxDelayMs: document.getElementById('reconnectMaxDelay').value
     }
   }
   const updated = await api.updateModules({ botId: bot.id, modules })
@@ -936,7 +1093,7 @@ dropItemForm.addEventListener('submit', async (event) => {
   }
 })
 
-for (const checkboxId of ['itemUseAssigned', 'containerSupplyAssigned', 'connectionManagerAssigned']) {
+for (const checkboxId of ['itemUseAssigned', 'containerSupplyAssigned']) {
   document.getElementById(checkboxId).addEventListener('change', () => renderBotModulesPanel(false))
 }
 
@@ -1118,6 +1275,12 @@ api.onServersUpdated((servers) => {
   renderServerProfiles()
   renderBots()
 })
+api.onModsUpdated((info) => {
+  state.installedMods = Array.isArray(info?.installedMods) ? info.installedMods : []
+  state.modCatalog = Array.isArray(info?.modCatalog) ? info.modCatalog : state.modCatalog
+  renderModStore()
+  renderBotModulesPanel(true)
+})
 api.onWorldSessions((info) => {
   state.pendingWorldRequestId = info.requestId
   document.getElementById('worldDialogTitle').textContent = `${info.botLabel}：参加するワールドを選択`
@@ -1156,12 +1319,16 @@ async function initialise () {
   document.getElementById('versionText').textContent = initial.version
   document.getElementById('appVersionText').textContent = initial.appVersion ? `v${initial.appVersion}` : '不明'
   state.servers = initial.servers || []
+  state.installedMods = initial.installedMods || []
+  state.modCatalog = initial.modCatalog || []
   for (const bot of initial.bots) state.bots.set(bot.id, bot)
   for (const entry of initial.logs) appendLog(entry)
   if (!initial.logs.length) logList.append(createElement('div', 'log-empty', 'ログはまだありません。Botを認証・参加させるとここに表示されます。'))
   renderServerProfiles()
   renderBots()
+  renderModStore()
   renderBotModulesPanel(true)
+  initializeDashboardLayout()
   loadSelectedBotData()
 }
 

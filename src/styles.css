@@ -315,3 +315,64 @@ select { font: inherit; }
 @media (max-width: 600px) { .module-inline-fields { grid-template-columns: 1fr 1fr; } .module-coordinate-fields { grid-template-columns: 1fr; } .module-card { padding: 12px; } }
 
 .realm-invite-input { width: 100%; min-width: 180px; max-width: 320px; min-height: 34px; padding: 0 9px; border: 1px solid #354057; border-radius: 7px; background: #111722; color: var(--text); font-size: 10px; }
+
+
+/* 0.8.0 dashboard panels and Mod catalog */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-flow: dense;
+  grid-auto-rows: minmax(90px, auto);
+  align-items: start;
+  gap: 13px;
+  padding-top: 24px;
+}
+.dashboard-grid > [data-panel-id] { grid-column: span 6; min-width: 0; margin-bottom: 0; }
+.dashboard-grid > [data-panel-id="overview"],
+.dashboard-grid > [data-panel-id="bots"],
+.dashboard-grid > [data-panel-id="logs"],
+.dashboard-grid > [data-panel-id="module-operations"] { grid-column: span 12; }
+.dashboard-grid > footer { grid-column: 1 / -1; }
+.dashboard-grid > [hidden] { display: none !important; }
+.dashboard-grid .panel { position: relative; min-width: 0; }
+.dashboard-grid .panel-fixed-height { overflow-y: auto; overscroll-behavior: contain; }
+.panel-drag-handle { cursor: grab; user-select: none; }
+.panel-dragging { opacity: .58; }
+.panel-drop-target { outline: 2px dashed #8e84ff; outline-offset: 2px; }
+.panel-layout-tools { display: inline-flex; align-items: center; gap: 7px; margin-left: 8px; flex: 0 0 auto; }
+.panel-width-control { height: 26px; max-width: 78px; padding: 0 5px; border: 1px solid #39465d; border-radius: 6px; background: #111722; color: #b9c5d9; font-size: 9px; }
+.panel-drag-grip { display: inline-grid; place-items: center; width: 24px; height: 24px; border: 1px solid #39465d; border-radius: 6px; color: #8896ad; font-size: 16px; cursor: grab; }
+.panel-resize-handle { position: absolute; z-index: 5; right: 5px; bottom: 4px; display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid #46536b; border-radius: 6px; background: #1a2332dd; color: #a8b5ca; font-size: 13px; cursor: nwse-resize; touch-action: none; }
+.layout-reset-button { margin-left: auto; align-self: center; }
+.intro-row { grid-column: 1 / -1; }
+.auto-reconnect-status { min-height: 40px; display: flex; align-items: center; padding: 0 12px; border: 1px solid #2e624f; border-radius: 8px; background: #152a28; color: #9de4c6; font-size: 10px; }
+.control-select-row { grid-template-columns: minmax(160px, 240px) minmax(190px, 1fr) minmax(160px, .8fr); }
+.mod-catalog-list { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 11px; margin-top: 14px; }
+.mod-catalog-card { display: flex; min-width: 0; flex-direction: column; gap: 11px; border: 1px solid #303b50; border-radius: 10px; background: rgba(16,22,33,.65); padding: 14px; }
+.mod-catalog-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.mod-catalog-title { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.mod-catalog-title strong { color: #e5ecfa; font-size: 12px; }
+.mod-catalog-title span { color: #8795ac; font-size: 9px; }
+.mod-installed, .mod-not-installed { white-space: nowrap; border-radius: 20px; padding: 5px 8px; font-size: 9px; }
+.mod-installed { color: #9de4c6; background: #193c36; }
+.mod-not-installed { color: #b9c5d9; background: #303949; }
+.mod-catalog-card p { flex: 1; margin: 0; line-height: 1.65; }
+.mod-catalog-card button { align-self: flex-start; }
+.module-save-row { margin-top: 12px; }
+@media (max-width: 1100px) {
+  .dashboard-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .dashboard-grid > [data-panel-id] { grid-column: span 6 !important; }
+  .control-select-row { grid-template-columns: minmax(150px, .8fr) minmax(180px, 1fr); }
+  .auto-reconnect-status { grid-column: 1 / -1; }
+}
+@media (max-width: 650px) {
+  .dashboard-grid { grid-template-columns: 1fr; gap: 10px; padding-top: 16px; }
+  .dashboard-grid > [data-panel-id] { grid-column: 1 / -1 !important; height: auto !important; }
+  .mod-catalog-list { grid-template-columns: 1fr; }
+  .panel-layout-tools { gap: 4px; }
+  .panel-width-control { max-width: 68px; }
+  .control-select-row { grid-template-columns: 1fr; }
+  .auto-reconnect-status { grid-column: auto; }
+  .intro-row { align-items: flex-start; }
+  .layout-reset-button { margin: 5px 0 0; }
+}

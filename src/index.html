@@ -19,8 +19,8 @@
       <div class="version-chip">BEDROCK <span id="versionText">1.26.60</span></div>
     </header>
 
-    <main>
-      <section class="intro-row">
+    <main id="dashboardGrid" class="dashboard-grid">
+      <section class="intro-row" data-panel-id="overview">
         <div>
           <div class="eyebrow">CONTROL CENTER</div>
           <h1>Bot管理</h1>
@@ -30,9 +30,10 @@
           <div class="summary-card"><span>登録Bot</span><strong id="botCount">0</strong></div>
           <div class="summary-card"><span>ワールド参加中</span><strong id="onlineCount">0</strong></div>
         </div>
+        <button id="resetDashboardLayoutButton" type="button" class="secondary-button layout-reset-button">レイアウトをリセット</button>
       </section>
 
-      <section class="panel add-panel">
+      <section class="panel add-panel" data-panel-id="add-bot">
         <div class="panel-heading">
           <div>
             <h2>Botを追加</h2>
@@ -50,7 +51,7 @@
         <div class="notice-line"><span class="notice-dot"></span>通常Botを認証してワールド参加。1アカウントにつきゲストBotを最大3体追加できます。</div>
       </section>
 
-      <section class="panel server-panel">
+      <section class="panel server-panel" data-panel-id="servers">
         <div class="panel-heading">
           <div>
             <h2>接続先を登録</h2>
@@ -78,7 +79,7 @@
         <div id="serverProfileList" class="server-profile-list"></div>
       </section>
 
-      <section class="panel bots-panel">
+      <section class="panel bots-panel" data-panel-id="bots">
         <div class="panel-heading">
           <div>
             <h2>Bot一覧</h2>
@@ -94,7 +95,7 @@
         <div id="botList" class="bot-list"></div>
       </section>
 
-      <section class="panel control-panel">
+      <section class="panel control-panel" data-panel-id="control">
         <div class="panel-heading">
           <div>
             <h2>Bot操作</h2>
@@ -110,6 +111,7 @@
             </select>
           </label>
           <div class="selected-bot-info" id="selectedBotInfo">Botを選択すると位置と状態が表示されます。</div>
+          <div class="auto-reconnect-status" id="autoReconnectStatus">Botを選択してください。</div>
         </div>
         <div class="control-layout">
           <div class="movement-card">
@@ -157,7 +159,7 @@
         </div>
       </section>
 
-      <section class="panel interaction-panel">
+      <section class="panel interaction-panel" data-panel-id="interaction">
         <div class="panel-heading">
           <div>
             <h2>ワールドチャット・インベントリ</h2>
@@ -198,17 +200,25 @@
         </div>
       </section>
 
-      <section class="panel module-panel" id="modulePanel">
+      <section class="panel mod-store-panel" data-panel-id="mod-store">
+        <div class="panel-heading">
+          <div><h2>Mod管理</h2><p class="muted small">必要なModを導入すると、Bot操作パネルにその機能が追加されます。導入後はBotごとに割り当ててください。</p></div>
+          <span class="step-chip">MOD CATALOG</span>
+        </div>
+        <div id="modCatalogList" class="mod-catalog-list"></div>
+      </section>
+
+      <section class="panel module-panel" id="modulePanel" data-panel-id="module-operations" hidden>
         <div class="panel-heading">
           <div>
-            <h2>Botモジュール</h2>
-            <p class="muted small">選択したBotに機能を割り当てます。未割り当ての機能は動作しません。</p>
+            <h2>導入済みModの操作</h2>
+            <p class="muted small">Modを導入すると、ここに操作パネルが表示されます。各ModはBotごとに割り当てられます。</p>
           </div>
           <span class="step-chip">04 / MODULES</span>
         </div>
         <div class="module-selected" id="moduleSelectedBot">Botを選択してください。</div>
         <div class="module-grid">
-          <section class="module-card">
+          <section class="module-card" id="itemUseModuleCard">
             <div class="module-card-heading"><h3>Item Use</h3><label class="module-assignment"><input id="itemUseAssigned" type="checkbox"> 割り当て</label></div>
             <p class="muted tiny">インベントリから選んだアイテムを使用します。通常使用または食べる・飲む動作を選べます。</p>
             <label class="field"><span>使用するアイテム</span><select id="moduleItemUseSelect" class="inventory-select"><option value="">アイテムなし</option></select></label>
@@ -224,7 +234,7 @@
             <div class="module-status" id="itemUseStatus">未実行</div>
           </section>
 
-          <section class="module-card">
+          <section class="module-card" id="containerSupplyModuleCard">
             <div class="module-card-heading"><h3>Container Supply</h3><label class="module-assignment"><input id="containerSupplyAssigned" type="checkbox"> 割り当て</label></div>
             <p class="muted tiny">指定したコンテナの中身を確認し、目標数になるまでBotの所持品から補充します。</p>
             <div class="module-coordinate-fields">
@@ -245,22 +255,12 @@
             <div class="module-status" id="containerSupplyStatus">未実行</div>
           </section>
 
-          <section class="module-card">
-            <div class="module-card-heading"><h3>Connection Manager</h3><label class="module-assignment"><input id="connectionManagerAssigned" type="checkbox"> 割り当て</label></div>
-            <p class="muted tiny">一時的な通信エラー時だけ再接続します。手動切断・キック・認証エラーでは再試行しません。</p>
-            <div class="module-inline-fields">
-              <label class="field"><span>最大再試行回数</span><input id="reconnectMaxRetries" type="number" min="0" max="20" step="1" value="5"></label>
-              <label class="field"><span>初回待機（ms）</span><input id="reconnectInitialDelay" type="number" min="1000" max="60000" step="1000" value="5000"></label>
-              <label class="field"><span>最大待機（ms）</span><input id="reconnectMaxDelay" type="number" min="1000" max="300000" step="1000" value="60000"></label>
-            </div>
-            <div class="module-actions"><button id="moduleSaveButton" type="button" class="primary-button">全モジュール設定を保存</button></div>
-            <div class="module-status" id="connectionManagerStatus">未割り当て</div>
-          </section>
         </div>
+        <div class="module-actions module-save-row"><button id="moduleSaveButton" type="button" class="primary-button">Mod設定を保存</button></div>
         <p class="module-footnote">同じBotのインベントリ操作は同時実行しません。Container Supplyは補充先への移動中、手動移動を開始できない設計です。</p>
       </section>
 
-      <section class="panel log-panel">
+      <section class="panel log-panel" data-panel-id="logs">
         <div class="panel-heading log-heading">
           <div>
             <h2>接続ログ</h2>
@@ -306,6 +306,7 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
+  <script src="dashboard-layout.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>
