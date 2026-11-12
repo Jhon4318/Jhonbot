@@ -360,9 +360,7 @@ select { font: inherit; }
 .mod-catalog-card button { align-self: flex-start; }
 .module-save-row { margin-top: 12px; }
 @media (max-width: 1100px) {
-  .dashboard-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  .dashboard-grid > [data-panel-id] { grid-column: span 6 !important; }
-  .control-select-row { grid-template-columns: minmax(150px, .8fr) minmax(180px, 1fr); }
+  .control-select-row { grid-template-columns: minmax(140px, 1fr) minmax(170px, 1fr); }
   .auto-reconnect-status { grid-column: 1 / -1; }
 }
 @media (max-width: 650px) {

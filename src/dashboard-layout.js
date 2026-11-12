@@ -8,12 +8,12 @@
   const DEFAULT_SPANS = Object.freeze({
     overview: 12,
     'add-bot': 6,
-    servers: 6,
+    servers: 12,
     bots: 12,
     control: 6,
     interaction: 6,
     'mod-store': 6,
-    'module-operations': 6,
+    'module-operations': 12,
     logs: 12
   })
   const ALLOWED_SPANS = new Set([3, 4, 6, 8, 9, 12])
