@@ -7,14 +7,24 @@
 
   const DEFAULT_SPANS = Object.freeze({
     overview: 12,
-    'add-bot': 6,
-    servers: 12,
-    bots: 12,
-    control: 6,
+    'add-bot': 4,
+    servers: 8,
+    bots: 4,
+    control: 8,
     interaction: 6,
     'mod-store': 6,
-    'module-operations': 12,
-    logs: 12
+    'module-operations': 8,
+    logs: 4
+  })
+  const DEFAULT_HEIGHTS = Object.freeze({
+    'add-bot': 220,
+    servers: 320,
+    bots: 380,
+    control: 460,
+    interaction: 420,
+    'mod-store': 320,
+    'module-operations': 450,
+    logs: 220
   })
   const ALLOWED_SPANS = new Set([3, 4, 6, 8, 9, 12])
 
@@ -33,11 +43,11 @@
       const rawHeight = Number(saved.height)
       const height = Number.isFinite(rawHeight) && rawHeight >= 220 && rawHeight <= 1200
         ? Math.round(rawHeight)
-        : 0
+        : (DEFAULT_HEIGHTS[id] || 0)
       panels[id] = { span, height }
     }
     return { order, panels }
   }
 
-  return { DEFAULT_SPANS, ALLOWED_SPANS, normalizeDashboardLayout }
+  return { DEFAULT_SPANS, DEFAULT_HEIGHTS, ALLOWED_SPANS, normalizeDashboardLayout }
 })

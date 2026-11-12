@@ -363,6 +363,10 @@ select { font: inherit; }
   .control-select-row { grid-template-columns: minmax(140px, 1fr) minmax(170px, 1fr); }
   .auto-reconnect-status { grid-column: 1 / -1; }
 }
+@media (max-width: 900px) {
+  .dashboard-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .dashboard-grid > [data-panel-id] { grid-column: span 6 !important; }
+}
 @media (max-width: 650px) {
   .dashboard-grid { grid-template-columns: 1fr; gap: 10px; padding-top: 16px; }
   .dashboard-grid > [data-panel-id] { grid-column: 1 / -1 !important; height: auto !important; }

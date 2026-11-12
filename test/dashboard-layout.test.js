@@ -7,8 +7,13 @@ test('creates a default ordered layout for known panels', () => {
   const layout = normalizeDashboardLayout(null, ['overview', 'bots', 'logs'])
   assert.deepEqual(layout.order, ['overview', 'bots', 'logs'])
   assert.equal(layout.panels.overview.span, 12)
-  assert.equal(layout.panels.bots.span, 12)
-  assert.equal(layout.panels.logs.height, 0)
+  assert.equal(layout.panels['add-bot'].span, 4)
+  assert.equal(layout.panels.servers.span, 8)
+  assert.equal(layout.panels.bots.span, 4)
+  assert.equal(layout.panels.control.span, 8)
+  assert.equal(layout.panels['module-operations'].span, 8)
+  assert.equal(layout.panels.logs.span, 4)
+  assert.equal(layout.panels.logs.height, 220)
 })
 
 test('preserves valid order and removes unknown or duplicate panel IDs', () => {
