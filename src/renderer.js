@@ -572,7 +572,7 @@ function renderBots () {
   document.getElementById('onlineCount').textContent = String(values.filter(bot => bot.status === 'connected').length)
   document.getElementById('botListLabel').textContent = `${values.length} BOTS`
   botListFooter.replaceChildren()
-  const pageSize = 6
+  const pageSize = 4
   const pageCount = Math.max(1, Math.ceil(values.length / pageSize))
   state.botPage = Math.min(state.botPage, pageCount - 1)
   const visibleBots = values.slice(state.botPage * pageSize, (state.botPage + 1) * pageSize)
@@ -784,7 +784,7 @@ function renderBots () {
         try {
           const guest = await api.addGuestBot({ parentBotId: bot.id, label })
           if (guest?.id) state.bots.set(guest.id, guest)
-          state.botPage = Math.floor(Math.max(0, state.bots.size - 1) / 6)
+          state.botPage = Math.floor(Math.max(0, state.bots.size - 1) / 4)
           renderBots()
           showToast('ゲストBotを追加しました。')
         } catch (error) {
