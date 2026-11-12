@@ -11,6 +11,7 @@ test('uses capped exponential backoff with bounded jitter', () => {
   assert.ok(high >= 5000 && high <= 6000)
   assert.ok(reconnectDelay(10, () => 0.5) <= 60000)
   assert.equal(reconnectDelay(10, () => 0.5), 60000)
+  assert.equal(reconnectDelay(10, () => 1), 60000)
 })
 
 test('retries common connection losses even without module assignment', () => {

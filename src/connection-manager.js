@@ -13,7 +13,7 @@ function reconnectDelay (attempt, random = Math.random, policy = RECONNECT_POLIC
   const jitter = Math.max(0, Math.min(0.5, Number(policy.jitterRatio) || 0))
   const base = Math.min(maximum, initial * (2 ** (safeAttempt - 1)))
   const sample = Math.max(0, Math.min(0.999999, Number(random()) || 0))
-  return Math.max(1000, Math.round(base * (1 + ((sample * 2) - 1) * jitter)))
+  return Math.max(1000, Math.min(maximum, Math.round(base * (1 + ((sample * 2) - 1) * jitter))))
 }
 
 function isRetryableDisconnect (reason, lastError = '', wasConnected = false) {
