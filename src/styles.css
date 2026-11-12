@@ -683,16 +683,30 @@ main#dashboardGrid {
 .bots-panel .status { padding: 3px 6px; font-size: 7px; }
 .bots-panel .status::before { width: 4px; height: 4px; }
 .bots-panel .bot-actions {
-  grid-column: 2;
-  grid-row: 2;
+  grid-column: 1 / -1;
+  grid-row: 3;
   min-width: 0;
-  justify-content: flex-end;
-  flex-wrap: nowrap;
+  justify-content: flex-start;
+  flex-wrap: wrap;
   gap: 4px;
   overflow: hidden;
 }
-.bots-panel .bot-actions button { min-height: 24px; padding: 0 6px; font-size: 8px; white-space: nowrap; }
-.bots-panel .bot-server-info { display: none; }
+.bots-panel .bot-actions button { min-height: 24px; padding: 0 7px; font-size: 8px; white-space: nowrap; }
+.bots-panel .bot-server-info {
+  display: block;
+  grid-column: 1 / -1;
+  grid-row: 4;
+  min-width: 0;
+  overflow: hidden;
+}
+.bots-panel .bot-position {
+  margin: 0;
+  color: #8290a8;
+  font: 8px/1.2 Consolas, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .bots-panel .empty-state { margin: 12px 0 0; gap: 3px; }
 .bots-panel .empty-icon { width: 26px; height: 26px; margin-bottom: 2px; font-size: 17px; }
 .bots-panel .empty-state strong { font-size: 10px; }
@@ -885,4 +899,34 @@ main#dashboardGrid {
   .server-panel .server-form .primary-button { grid-column: 1 / -1; }
   .server-panel .server-profile-list { grid-template-columns: minmax(0, 1fr); }
   .interaction-panel .interaction-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+
+/* Final fit refinements: keep content readable inside fixed viewports */
+#dashboardGrid[data-active-view="mods"]:has(#modulePanel[hidden]) > [data-panel-id="mod-store"] {
+  grid-column: 1 / -1 !important;
+}
+.interaction-panel .chat-message-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.interaction-panel .inventory-item-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.log-panel .log-entry {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.log-panel .log-entry .log-message {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
