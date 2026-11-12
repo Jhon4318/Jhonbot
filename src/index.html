@@ -19,8 +19,17 @@
       <div class="version-chip">BEDROCK <span id="versionText">1.26.60</span></div>
     </header>
 
-    <main id="dashboardGrid" class="dashboard-grid">
-      <section class="intro-row" data-panel-id="overview">
+    <nav class="workspace-tabs" aria-label="作業画面">
+      <button type="button" class="workspace-tab" data-view-target="bots" aria-pressed="true">Bot管理</button>
+      <button type="button" class="workspace-tab" data-view-target="servers" aria-pressed="false">接続先</button>
+      <button type="button" class="workspace-tab" data-view-target="operations" aria-pressed="false">Bot操作</button>
+      <button type="button" class="workspace-tab" data-view-target="mods" aria-pressed="false">Mod管理</button>
+      <button type="button" class="workspace-tab" data-view-target="logs" aria-pressed="false">接続ログ</button>
+      <span class="workspace-note">画面を切り替えて操作します。各画面はスクロールせずに表示します。</span>
+    </nav>
+
+    <main id="dashboardGrid" class="dashboard-grid" data-active-view="bots">
+      <section class="intro-row" data-panel-id="overview" data-dashboard-view="bots">
         <div>
           <div class="eyebrow">CONTROL CENTER</div>
           <h1>Bot管理</h1>
@@ -33,7 +42,7 @@
         <button id="resetDashboardLayoutButton" type="button" class="secondary-button layout-reset-button">レイアウトをリセット</button>
       </section>
 
-      <section class="panel add-panel" data-panel-id="add-bot">
+      <section class="panel add-panel" data-panel-id="add-bot" data-dashboard-view="bots">
         <div class="panel-heading">
           <div>
             <h2>Botを追加</h2>
@@ -51,7 +60,7 @@
         <div class="notice-line"><span class="notice-dot"></span>通常Botを認証してワールド参加。1アカウントにつきゲストBotを最大3体追加できます。</div>
       </section>
 
-      <section class="panel server-panel" data-panel-id="servers">
+      <section class="panel server-panel" data-panel-id="servers" data-dashboard-view="servers">
         <div class="panel-heading">
           <div>
             <h2>接続先を登録</h2>
@@ -77,9 +86,10 @@
           <span class="muted tiny">ゲーム接続先：as.nethernet.playhive.com:19132 · シグナリング：HTTPS</span>
         </div>
         <div id="serverProfileList" class="server-profile-list"></div>
+        <div id="serverProfileFooter" class="panel-pager" aria-label="接続先ページ"></div>
       </section>
 
-      <section class="panel bots-panel" data-panel-id="bots">
+      <section class="panel bots-panel" data-panel-id="bots" data-dashboard-view="bots">
         <div class="panel-heading">
           <div>
             <h2>Bot一覧</h2>
@@ -93,9 +103,10 @@
           <span>上のフォームから最初のBotを追加してください。</span>
         </div>
         <div id="botList" class="bot-list"></div>
+        <div id="botListFooter" class="panel-pager" aria-label="Bot一覧ページ"></div>
       </section>
 
-      <section class="panel control-panel" data-panel-id="control">
+      <section class="panel control-panel" data-panel-id="control" data-dashboard-view="operations">
         <div class="panel-heading">
           <div>
             <h2>Bot操作</h2>
@@ -159,7 +170,7 @@
         </div>
       </section>
 
-      <section class="panel interaction-panel" data-panel-id="interaction">
+      <section class="panel interaction-panel" data-panel-id="interaction" data-dashboard-view="operations">
         <div class="panel-heading">
           <div>
             <h2>ワールドチャット・インベントリ</h2>
@@ -200,7 +211,7 @@
         </div>
       </section>
 
-      <section class="panel mod-store-panel" data-panel-id="mod-store">
+      <section class="panel mod-store-panel" data-panel-id="mod-store" data-dashboard-view="mods">
         <div class="panel-heading">
           <div><h2>Mod管理</h2><p class="muted small">必要なModを導入すると、Bot操作パネルにその機能が追加されます。導入後はBotごとに割り当ててください。</p></div>
           <span class="step-chip">MOD CATALOG</span>
@@ -208,7 +219,7 @@
         <div id="modCatalogList" class="mod-catalog-list"></div>
       </section>
 
-      <section class="panel module-panel" id="modulePanel" data-panel-id="module-operations" hidden>
+      <section class="panel module-panel" id="modulePanel" data-panel-id="module-operations" data-dashboard-view="mods" hidden>
         <div class="panel-heading">
           <div>
             <h2>導入済みModの操作</h2>
@@ -260,7 +271,7 @@
         <p class="module-footnote">同じBotのインベントリ操作は同時実行しません。Container Supplyは補充先への移動中、手動移動を開始できない設計です。</p>
       </section>
 
-      <section class="panel log-panel" data-panel-id="logs">
+      <section class="panel log-panel" data-panel-id="logs" data-dashboard-view="logs">
         <div class="panel-heading log-heading">
           <div>
             <h2>接続ログ</h2>
@@ -270,7 +281,6 @@
         </div>
         <div id="logList" class="log-list" aria-live="polite"></div>
       </section>
-      <footer>Jhonbot <span>·</span> 認証情報はWindowsの保護機能で暗号化して保存します。</footer>
     </main>
   </div>
 
