@@ -23,7 +23,9 @@ const { assertCanAuthenticate, assertCanJoinWorld } = require('./account-state')
 const { createEncryptedAuthCacheFactory, hasEncryptedAuthCache } = require('./auth-cache')
 const { normalizeChatMessage, normalizeDropRequest, createInventorySnapshot } = require('./bot-actions')
 const { installSubClientSupport, createGuestLoginTokens, MAX_SUB_CLIENTS } = require('./subclients')
-const { normalizeBotModules, moduleConfigComplete, isModuleAssigned, reconnectDelay, isTransientDisconnect } = require('./modules')
+const { normalizeBotModules, moduleConfigComplete, isModuleAssigned } = require('./modules')
+const { DEFAULT_RECONNECT_SETTINGS, normalizeReconnectSettings, nextReconnectDelay, shouldAutoReconnect } = require('./reconnect')
+const { MOD_CATALOG, normalizeInstalledMods, inferInstalledMods, isModInstalled } = require('./mod-catalog')
 const { listRealms, getRealmFromInvite } = require('./realms')
 const { discoverLanWorlds } = require('./lan-discovery')
 const { DEFAULT_PORT, normalizeServerProfile, normalizeTarget, migrateSettings, serverOriginKey, serverHttpSignallingOrigin, getTrustedServerKeyFingerprints, addTrustedServerKey, recordSuccessfulServerConnection, resetTrustedServerKey } = require('./destinations')
@@ -32,7 +34,7 @@ const MC_VERSION = '1.26.60'
 const MAX_LOGS = 300
 
 let mainWindow = null
-let settings = { servers: [], bots: [], trustedServerKeys: {} }
+let settings = { servers: [], bots: [], trustedServerKeys: {}, installedMods: [], reconnect: DEFAULT_RECONNECT_SETTINGS }
 let settingsSaveQueue = Promise.resolve()
 const bots = new Map()
 const pendingWorldSelections = new Map()
@@ -169,11 +171,11 @@ function publicBot (bot) {
     networkId: bot.networkId || '',
     worldName: bot.worldName || '',
     modules: normalizeBotModules(bot.modules),
+    reconnectStatus: bot.reconnectStatus || '自動再接続待機',
+    reconnectAttempts: bot.reconnectAttempts || 0,
     moduleStatus: {
       itemUse: bot.itemUseStatus || '未実行',
       containerSupply: bot.containerSupplyStatus || '未実行',
-      connectionManager: bot.reconnectStatus || '未割り当て',
-      reconnectAttempts: bot.reconnectAttempts || 0,
       itemUseRunning: bot.itemUseRunning === true,
       containerSupplyRunning: bot.containerSupplyRunning === true
     },
@@ -234,6 +236,11 @@ function createBotRecord (saved) {
     accountError: '',
     manualDisconnect: false,
     hadError: false,
+    connectionEstablished: false,
+    reconnectInProgress: false,
+    reconnectTimer: null,
+    reconnectAttempts: 0,
+    reconnectStatus: '自動再接続待機',
     playerName: '',
     lastError: '',
     movementStatus: '停止中',
@@ -290,13 +297,16 @@ function publicServerProfiles () {
 
 async function loadSettings () {
   const file = path.join(app.getPath('userData'), 'settings.json')
+  let parsed = null
   try {
-    const parsed = JSON.parse(await fs.readFile(file, 'utf8'))
+    parsed = JSON.parse(await fs.readFile(file, 'utf8'))
     settings = migrateSettings(parsed)
   } catch (error) {
     if (error.code !== 'ENOENT') pushLog(`設定ファイルを読み込めませんでした: ${error.message}`, 'warning')
     settings = { servers: [], bots: [], trustedServerKeys: {} }
   }
+  settings.installedMods = normalizeInstalledMods(parsed?.installedMods, inferInstalledMods(settings.bots))
+  settings.reconnect = normalizeReconnectSettings(parsed?.reconnect || DEFAULT_RECONNECT_SETTINGS)
 
   for (const saved of settings.bots) {
     const bot = createBotRecord(saved)
@@ -316,6 +326,8 @@ async function loadSettings () {
 
 function saveSettings () {
   const snapshot = {
+    installedMods: normalizeInstalledMods(settings.installedMods),
+    reconnect: normalizeReconnectSettings(settings.reconnect),
     servers: settings.servers.map(({ id, label, host, port, mode, signallingUrl, lastSuccessfulMode, lastSuccessfulAt }) => ({
       id, label, host, port, mode, signallingUrl, lastSuccessfulMode: lastSuccessfulMode || '', lastSuccessfulAt: lastSuccessfulAt || ''
     })),
@@ -548,6 +560,11 @@ function setBotTarget (botId, input) {
   if (bot.parentBotId) throw new Error('ゲストBotの参加先は親Botと共有されます。')
   if (bot.client || bot.connectionStarting) throw new Error('接続中は参加先を変更できません。先に切断してください。')
   const target = normalizeTarget(input, settings.servers)
+  clearTimeout(bot.reconnectTimer)
+  bot.reconnectTimer = null
+  bot.reconnectInProgress = false
+  bot.reconnectAttempts = 0
+  bot.reconnectStatus = '参加先変更・手動接続待ち'
   bot.targetType = target.type
   bot.targetId = target.serverId
   bot.networkId = target.networkId
@@ -767,7 +784,11 @@ async function connectBot (botId, options = {}) {
   bot.connectionStarting = true
   setBotStatus(bot, 'connecting')
   bot.manualDisconnect = false
-  if (!options.reconnect) bot.reconnectAttempts = 0
+  if (!options.reconnect) {
+    bot.reconnectAttempts = 0
+    bot.reconnectInProgress = false
+  }
+  bot.connectionEstablished = false
   bot.kicked = false
   bot.hadError = false
   bot.lastError = ''
@@ -1001,8 +1022,10 @@ async function connectBot (botId, options = {}) {
         })
       }
     }
+    bot.connectionEstablished = true
+    bot.reconnectInProgress = false
     bot.reconnectAttempts = 0
-    bot.reconnectStatus = isModuleAssigned(bot.modules, 'connectionManager') ? '接続済み' : '未割り当て'
+    bot.reconnectStatus = '接続済み・自動再接続有効'
     setBotStatus(bot, 'connected')
     preparePathfinder(bot)
     publishBotInventory(bot)
@@ -1033,6 +1056,8 @@ async function connectBot (botId, options = {}) {
   })
   agent.on('end', (reason) => {
     if (bot.agent !== agent) return
+    const wasEstablished = bot.connectionEstablished === true
+    bot.connectionEstablished = false
     bot.movementRequestId++
     clearInterval(bot.movementTimer)
     bot.movementTimer = null
@@ -1048,7 +1073,7 @@ async function connectBot (botId, options = {}) {
     const finalStatus = bot.hadError ? 'error' : 'disconnected'
     setBotStatus(bot, finalStatus)
     if (!bot.manualDisconnect) pushLog(`${bot.label}: 接続が終了しました。${reason ? ` (${String(reason)})` : ''}`, bot.hadError ? 'warning' : 'info', bot.id)
-    scheduleBotReconnect(bot, reason || bot.lastError)
+    scheduleBotReconnect(bot, reason || bot.lastError || '予期しない切断', { wasEstablished })
   })
   agent.on('move', () => {
     const now = Date.now()
@@ -1412,29 +1437,48 @@ function stopBotModules (bot, status = '接続終了') {
   stopContainerSupply(bot, status)
 }
 
+async function installMod (modId) {
+  if (!MOD_CATALOG.some(mod => mod.id === modId)) throw new Error('指定されたModはカタログにありません。')
+  if (isModInstalled(settings.installedMods, modId)) return { installedMods: [...settings.installedMods] }
+  settings.installedMods = normalizeInstalledMods([...settings.installedMods, modId])
+  await saveSettings()
+  send('mods:updated', settings.installedMods)
+  pushLog('Mod「' + modId + '」を導入しました。', 'success')
+  return { installedMods: [...settings.installedMods] }
+}
+
+async function uninstallMod (modId) {
+  if (!MOD_CATALOG.some(mod => mod.id === modId)) throw new Error('指定されたModはカタログにありません。')
+  if (!isModInstalled(settings.installedMods, modId)) return { installedMods: [...settings.installedMods] }
+  for (const bot of bots.values()) {
+    if (modId === 'itemUse') {
+      stopBotItemUse(bot, 'Modのアンインストール')
+      bot.modules.itemUse = { ...bot.modules.itemUse, assigned: false }
+    } else if (modId === 'containerSupply') {
+      stopContainerSupply(bot, 'Modのアンインストール')
+      bot.modules.containerSupply = { ...bot.modules.containerSupply, assigned: false }
+    }
+    publishBot(bot)
+  }
+  settings.installedMods = settings.installedMods.filter(id => id !== modId)
+  await saveSettings()
+  send('mods:updated', settings.installedMods)
+  pushLog('Mod「' + modId + '」をアンインストールしました。Botごとの詳細設定は保持しています。', 'info')
+  return { installedMods: [...settings.installedMods] }
+}
+
 async function updateBotModules (botId, input) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
   const next = normalizeBotModules(input)
-  if (bot.parentBotId && next.connectionManager.assigned) throw new Error('ゲストBotの再接続は親Botに連動します。')
-  if (JSON.stringify(bot.modules.itemUse) !== JSON.stringify(next.itemUse)) stopBotItemUse(bot, next.itemUse.assigned ? '設定変更・停止' : 'モジュール未割り当て')
-  if (JSON.stringify(bot.modules.containerSupply) !== JSON.stringify(next.containerSupply)) stopContainerSupply(bot, next.containerSupply.assigned ? '設定変更・停止' : 'モジュール未割り当て')
-  if (JSON.stringify(bot.modules.connectionManager) !== JSON.stringify(next.connectionManager)) {
-    clearTimeout(bot.reconnectTimer)
-    bot.reconnectTimer = null
-    bot.reconnectAttempts = 0
-  }
-  if (!next.connectionManager.assigned) {
-    clearTimeout(bot.reconnectTimer)
-    bot.reconnectTimer = null
-    bot.reconnectStatus = '無効'
-  } else {
-    bot.reconnectStatus = bot.status === 'connected' ? '接続済み' : '待機中'
-  }
+  if (next.itemUse.assigned && !isModInstalled(settings.installedMods, 'itemUse')) throw new Error('先にMod管理からItem Useを導入してください。')
+  if (next.containerSupply.assigned && !isModInstalled(settings.installedMods, 'containerSupply')) throw new Error('先にMod管理からContainer Supplyを導入してください。')
+  if (JSON.stringify(bot.modules.itemUse) !== JSON.stringify(next.itemUse)) stopBotItemUse(bot, next.itemUse.assigned ? '設定変更・停止' : 'Mod未割り当て')
+  if (JSON.stringify(bot.modules.containerSupply) !== JSON.stringify(next.containerSupply)) stopContainerSupply(bot, next.containerSupply.assigned ? '設定変更・停止' : 'Mod未割り当て')
   bot.modules = next
   await saveSettings()
   publishBot(bot)
-  pushLog(bot.label + ': Botモジュール設定を保存しました。', 'success', bot.id)
+  pushLog(bot.label + ': BotごとのMod設定を保存しました。', 'success', bot.id)
   return publicBot(bot)
 }
 
@@ -1660,38 +1704,41 @@ function startContainerSupply (botId) {
   return publicBot(bot)
 }
 
-function scheduleBotReconnect (bot, reason) {
-  if (bot.manualDisconnect || bot.kicked || bot.reconnectTimer) return false
-  if (!isModuleAssigned(bot.modules, 'connectionManager')) return false
-  const config = bot.modules.connectionManager
-  if (bot.reconnectAttempts >= config.maxRetries) {
-    bot.reconnectStatus = '再試行上限に到達'
-    publishModuleStatus(bot)
-    return false
-  }
-  if (!bot.hadError && !/(timeout|connecterror:|ECONN|EHOST|ENET|EPIPE|socket|network|ICE|WebRTC|connection reset|connection closed|transport closed)/i.test(String(reason || ''))) return false
-  const errorText = [bot.lastError, reason].filter(Boolean).join(' ')
-  if (!isTransientDisconnect(errorText)) {
-    bot.reconnectStatus = '対象外の切断理由'
-    publishModuleStatus(bot)
+function scheduleBotReconnect (bot, reason, options = {}) {
+  if (bot.reconnectTimer) return false
+  const shouldRetry = shouldAutoReconnect({
+    enabled: settings.reconnect?.enabled !== false,
+    manualDisconnect: bot.manualDisconnect,
+    kicked: bot.kicked,
+    isGuest: !!bot.parentBotId,
+    wasEstablished: options.wasEstablished === true,
+    reconnectInProgress: bot.reconnectInProgress,
+    hadError: bot.hadError,
+    reason,
+    lastError: bot.lastError
+  })
+  if (!shouldRetry) {
+    if (!bot.manualDisconnect && !bot.kicked) bot.reconnectStatus = '自動再接続の対象外'
+    publishBot(bot)
     return false
   }
   bot.reconnectAttempts++
-  const delay = reconnectDelay(bot.reconnectAttempts, config)
-  bot.reconnectStatus = bot.reconnectAttempts + '/' + config.maxRetries + '回目を' + Math.ceil(delay / 1000) + '秒後に再試行'
-  pushLog(bot.label + ': 一時的な通信切断を検知しました。' + Math.ceil(delay / 1000) + '秒後に再接続します。', 'warning', bot.id)
-  publishModuleStatus(bot)
+  const delay = nextReconnectDelay(bot.reconnectAttempts, settings.reconnect)
+  bot.reconnectInProgress = true
+  bot.reconnectStatus = '自動再接続 ' + bot.reconnectAttempts + '回目 · ' + Math.ceil(delay / 1000) + '秒後'
+  pushLog(bot.label + ': 予期しない切断を検知しました。' + Math.ceil(delay / 1000) + '秒後に再接続します（試行回数の上限なし）。', 'warning', bot.id)
+  publishBot(bot)
   bot.reconnectTimer = setTimeout(async () => {
     bot.reconnectTimer = null
     if (bot.manualDisconnect || bot.status === 'connected' || bot.connectionStarting) return
-    bot.reconnectStatus = '再接続中'
-    publishModuleStatus(bot)
+    bot.reconnectStatus = '自動再接続中'
+    publishBot(bot)
     try {
       await connectBot(bot.id, { reconnect: true })
     } catch (error) {
       bot.hadError = true
       bot.lastError = safeErrorMessage(error)
-      scheduleBotReconnect(bot, bot.lastError)
+      scheduleBotReconnect(bot, bot.lastError, { wasEstablished: true })
     }
   }, delay)
   return true
@@ -1811,6 +1858,7 @@ function disconnectBot (botId) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
   bot.manualDisconnect = true
+  bot.reconnectInProgress = false
   clearTimeout(bot.reconnectTimer)
   bot.reconnectTimer = null
   bot.reconnectStatus = '手動切断'
@@ -1881,6 +1929,9 @@ ipcMain.handle('app:get-state', () => ({
   appVersion: APP_VERSION,
   servers: publicServerProfiles(),
   bots: Array.from(bots.values()).map(publicBot),
+  installedMods: [...settings.installedMods],
+  availableMods: MOD_CATALOG,
+  reconnect: normalizeReconnectSettings(settings.reconnect),
   logs: logBuffer
 }))
 ipcMain.handle('bot:add', (_event, input) => publicBot(bots.get(addBot(input).id)))
@@ -1898,6 +1949,8 @@ ipcMain.handle('bot:discover-lans', (_event, botId) => discoverLanWorldsForBot(b
 ipcMain.handle('bot:get-realms', (_event, botId) => getBotRealms(botId))
 ipcMain.handle('bot:get-realm-invite', (_event, args) => getBotRealmFromInvite(args?.botId, args?.inviteCode))
 ipcMain.handle('bot:update-modules', (_event, args) => updateBotModules(args?.botId, args?.modules))
+ipcMain.handle('mods:install', (_event, modId) => installMod(String(modId || '')))
+ipcMain.handle('mods:uninstall', (_event, modId) => uninstallMod(String(modId || '')))
 ipcMain.handle('bot:use-item', (_event, args) => useBotItemOnce(args?.botId, args?.slot))
 ipcMain.handle('bot:start-item-use', (_event, args) => startBotItemUse(args?.botId, args?.slot))
 ipcMain.handle('bot:stop-item-use', (_event, botId) => { const bot = bots.get(botId); if (!bot) throw new Error('Botが見つかりません。'); stopBotItemUse(bot, '手動停止'); return publicBot(bot) })
