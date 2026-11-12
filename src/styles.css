@@ -636,14 +636,14 @@ main#dashboardGrid {
   margin-top: 8px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-rows: minmax(76px, auto);
+  grid-auto-rows: minmax(108px, auto);
   align-content: start;
   gap: 7px;
   overflow: hidden;
 }
 .bots-panel .bot-card {
   min-width: 0;
-  min-height: 76px;
+  min-height: 108px;
   padding: 7px 8px;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-rows: auto auto;
@@ -660,10 +660,17 @@ main#dashboardGrid {
   grid-column: 2;
   grid-row: 1;
   min-width: 0;
-  gap: 3px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
   overflow: hidden;
 }
-.bots-panel .bot-target-select { height: 27px; padding: 0 5px; font-size: 8px; }
+.bots-panel .bot-target-select { flex: 0 0 100%; width: 100%; height: 27px; padding: 0 5px; font-size: 8px; }
+.bots-panel .bot-target-area .target-current { flex: 0 0 100%; }
+.bots-panel .realm-invite-input { flex: 1 1 110px; width: auto; min-width: 90px; min-height: 24px; height: 24px; padding: 0 5px; font-size: 8px; }
+.bots-panel .lan-search-button { min-height: 23px; padding: 0 6px; font-size: 8px; }
 .bots-panel .target-current { font-size: 8px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bots-panel .bot-status-stack {
   grid-column: 1;
@@ -852,8 +859,8 @@ main#dashboardGrid {
   .workspace-tabs { height: 38px; flex-basis: 38px; }
   #dashboardGrid[data-active-view="bots"] { grid-template-rows: 42px 112px minmax(0, 1fr); }
   #dashboardGrid .panel { padding: 8px 10px; }
-  .bots-panel .bot-card { min-height: 66px; }
-  .bots-panel .bot-list { grid-auto-rows: minmax(66px, auto); }
+  .bots-panel .bot-card { min-height: 96px; }
+  .bots-panel .bot-list { grid-auto-rows: minmax(96px, auto); }
   .control-panel .dpad { grid-template-rows: repeat(3, 26px); }
   .control-panel .diagnostic-hint { display: none; }
 }
@@ -861,10 +868,6 @@ main#dashboardGrid {
   .app-shell { padding-left: 9px; padding-right: 9px; }
   .workspace-tab { padding: 0 10px; }
   .workspace-note { font-size: 8px; }
-  #dashboardGrid[data-active-view="operations"] > [data-panel-id="control"] { grid-column: 1 / -1 !important; }
-  #dashboardGrid[data-active-view="operations"] > [data-panel-id="interaction"] { grid-column: 1 / -1 !important; }
-  #dashboardGrid[data-active-view="operations"] { grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
-  #dashboardGrid[data-active-view="operations"] > [data-panel-id="interaction"] { grid-row: 2; }
 }
 @media (max-width: 720px) {
   .topbar { gap: 7px; }
