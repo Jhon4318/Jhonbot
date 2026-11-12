@@ -1,12 +1,13 @@
 'use strict'
 
 const api = window.botApp
-const dashboardLayoutApi = window.jhonbotDashboardLayout
 const botList = document.getElementById('botList')
 const emptyState = document.getElementById('emptyState')
 const logList = document.getElementById('logList')
 const form = document.getElementById('addBotForm')
 const serverProfileList = document.getElementById('serverProfileList')
+const serverProfileFooter = document.getElementById('serverProfileFooter')
+const botListFooter = document.getElementById('botListFooter')
 const serverForm = document.getElementById('serverForm')
 const authDialog = document.getElementById('authDialog')
 const authCode = document.getElementById('authCode')
@@ -32,7 +33,7 @@ const dropItemCount = document.getElementById('dropItemCount')
 const dropItemForm = document.getElementById('dropItemForm')
 const refreshInventoryButton = document.getElementById('refreshInventoryButton')
 
-const state = { bots: new Map(), servers: [], installedMods: [], modCatalog: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map(), dashboardLayout: null }
+const state = { bots: new Map(), servers: [], installedMods: [], modCatalog: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map(), dashboardLayout: null, botPage: 0, serverPage: 0, activeDashboardView: 'bots' }
 const statusLabels = {
   disconnected: '未参加',
   authenticating: '認証処理中',
@@ -98,8 +99,7 @@ function appendLog (entry) {
   const time = new Date(entry.at).toLocaleTimeString('ja-JP', { hour12: false })
   row.append(createElement('span', 'log-time', time), createElement('span', 'log-message', entry.message))
   logList.append(row)
-  while (logList.children.length > 300) logList.firstElementChild.remove()
-  logList.scrollTop = logList.scrollHeight
+  while (logList.children.length > 18) logList.firstElementChild.remove()
 }
 
 function renderControlPanel () {
@@ -316,135 +316,33 @@ function renderModStore () {
   if (!state.modCatalog.length) target.append(createElement('p', 'server-empty', '利用可能なModはありません。'))
 }
 
-function persistDashboardLayout () {
-  try {
-    const layout = state.dashboardLayout
-    if (!layout) return
-    const root = document.getElementById('dashboardGrid')
-    layout.order = Array.from(root.querySelectorAll('[data-panel-id]')).map(panel => panel.dataset.panelId)
-    localStorage.setItem('jhonbot-dashboard-layout-v1', JSON.stringify(layout))
-  } catch (error) {
-    console.warn('Dashboard layout could not be saved:', error)
-  }
-}
-
 function initializeDashboardLayout () {
   const root = document.getElementById('dashboardGrid')
-  const panels = Array.from(root.querySelectorAll('[data-panel-id]'))
-  const ids = panels.map(panel => panel.dataset.panelId)
-  let saved = null
-  try { saved = JSON.parse(localStorage.getItem('jhonbot-dashboard-layout-v1') || 'null') } catch {}
-  state.dashboardLayout = dashboardLayoutApi.normalizeDashboardLayout(saved, ids)
-  const panelById = new Map(panels.map(panel => [panel.dataset.panelId, panel]))
-  const applyPanel = (id) => {
-    const panel = panelById.get(id)
-    const config = state.dashboardLayout.panels[id]
-    if (!panel || !config) return
-    panel.style.gridColumn = 'span ' + config.span
-    panel.style.height = config.height ? config.height + 'px' : ''
-    panel.classList.toggle('panel-fixed-height', config.height > 0)
-    const width = panel.querySelector('.panel-width-control')
-    if (width) width.value = String(config.span)
-  }
-  const applyOrder = () => {
-    for (const id of state.dashboardLayout.order) {
-      const panel = panelById.get(id)
-      if (panel) root.append(panel)
+  const buttons = Array.from(document.querySelectorAll('[data-view-target]'))
+  const allowedViews = new Set(['bots', 'servers', 'operations', 'mods', 'logs'])
+  let savedView = 'bots'
+  try {
+    const candidate = localStorage.getItem('jhonbot-dashboard-view-v1')
+    if (allowedViews.has(candidate)) savedView = candidate
+  } catch {}
+
+  const activateView = (view) => {
+    if (!allowedViews.has(view)) return
+    state.activeDashboardView = view
+    root.dataset.activeView = view
+    for (const panel of root.querySelectorAll('[data-dashboard-view]')) {
+      panel.hidden = panel.dataset.dashboardView !== view
     }
-    for (const panel of panels) applyPanel(panel.dataset.panelId)
+    for (const button of buttons) {
+      button.setAttribute('aria-pressed', String(button.dataset.viewTarget === view))
+    }
+    try { localStorage.setItem('jhonbot-dashboard-view-v1', view) } catch {}
   }
-  const save = () => persistDashboardLayout()
-  let draggingId = ''
 
-  for (const panel of panels) {
-    const id = panel.dataset.panelId
-    const heading = panel.querySelector('.panel-heading')
-    if (!heading) continue
-    heading.classList.add('panel-drag-handle')
-    heading.draggable = true
-    const tools = createElement('div', 'panel-layout-tools')
-    const width = createElement('select', 'panel-width-control')
-    width.title = 'パネルの横幅'
-    for (const span of [3, 4, 6, 8, 9, 12]) width.append(new Option(({3:'25%',4:'約33%',6:'50%',8:'約67%',9:'75%',12:'100%'})[span], String(span)))
-    width.value = String(state.dashboardLayout.panels[id].span)
-    width.addEventListener('change', () => {
-      state.dashboardLayout.panels[id].span = Number(width.value)
-      applyPanel(id)
-      save()
-    })
-    const grip = createElement('span', 'panel-drag-grip', '⠿')
-    grip.title = '見出しをドラッグしてパネルを並べ替えます。'
-    const resize = createElement('span', 'panel-resize-handle', '↘')
-    resize.title = 'ドラッグして幅と高さを変更します。'
-    tools.append(width, grip)
-    heading.append(tools)
-    panel.append(resize)
-
-    heading.addEventListener('dragstart', (event) => {
-      if (event.target.closest('select,button,input,a')) { event.preventDefault(); return }
-      draggingId = id
-      panel.classList.add('panel-dragging')
-      event.dataTransfer?.setData('text/plain', id)
-      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
-    })
-    heading.addEventListener('dragend', () => {
-      panel.classList.remove('panel-dragging')
-      draggingId = ''
-      for (const item of panels) item.classList.remove('panel-drop-target')
-      save()
-    })
-    panel.addEventListener('dragover', (event) => {
-      const draggedId = draggingId
-      if (!draggedId || draggedId === id || !panelById.has(draggedId)) return
-      event.preventDefault()
-      panel.classList.add('panel-drop-target')
-    })
-    panel.addEventListener('dragleave', () => panel.classList.remove('panel-drop-target'))
-    panel.addEventListener('drop', (event) => {
-      const draggedId = draggingId
-      const dragged = panelById.get(draggedId)
-      if (!dragged || dragged === panel) return
-      event.preventDefault()
-      panel.classList.remove('panel-drop-target')
-      const rect = panel.getBoundingClientRect()
-      const after = event.clientY > rect.top + rect.height / 2
-      root.insertBefore(dragged, after ? panel.nextSibling : panel)
-      save()
-    })
-    resize.addEventListener('pointerdown', (event) => {
-      event.preventDefault()
-      event.stopPropagation()
-      const startX = event.clientX
-      const startY = event.clientY
-      const rect = panel.getBoundingClientRect()
-      const startSpan = state.dashboardLayout.panels[id].span
-      const startHeight = rect.height
-      const columns = Math.max(1, getComputedStyle(root).gridTemplateColumns.split(' ').length)
-      const columnWidth = root.getBoundingClientRect().width / columns
-      const move = (moveEvent) => {
-        const span = Math.max(3, Math.min(12, Math.round(startSpan + (moveEvent.clientX - startX) / columnWidth)))
-        const height = Math.max(220, Math.min(1200, Math.round(startHeight + moveEvent.clientY - startY)))
-        state.dashboardLayout.panels[id] = { span, height }
-        applyPanel(id)
-      }
-      const finish = () => {
-        window.removeEventListener('pointermove', move)
-        window.removeEventListener('pointerup', finish)
-        window.removeEventListener('pointercancel', finish)
-        save()
-      }
-      window.addEventListener('pointermove', move)
-      window.addEventListener('pointerup', finish, { once: true })
-      window.addEventListener('pointercancel', finish, { once: true })
-    })
+  for (const button of buttons) {
+    button.addEventListener('click', () => activateView(button.dataset.viewTarget))
   }
-  applyOrder()
-  document.getElementById('resetDashboardLayoutButton').addEventListener('click', () => {
-    state.dashboardLayout = dashboardLayoutApi.normalizeDashboardLayout(null, ids)
-    applyOrder()
-    save()
-    showToast('パネル配置を初期状態に戻しました。')
-  })
+  activateView(savedView)
 }
 
 async function saveModulesFromForm () {
@@ -483,7 +381,7 @@ function renderChatPanel () {
   if (!entries.length) {
     chatMessages.append(createElement('div', 'chat-empty', bot ? 'チャット履歴はありません。' : 'Botを選択してください。'))
   } else {
-    for (const entry of entries) {
+    for (const entry of entries.slice(-4)) {
       const row = createElement('div', `chat-message ${entry.direction === 'outgoing' ? 'outgoing' : 'incoming'}`)
       const meta = createElement('div', 'chat-message-meta')
       const time = new Date(entry.at).toLocaleTimeString('ja-JP', { hour12: false })
@@ -492,7 +390,6 @@ function renderChatPanel () {
       chatMessages.append(row)
     }
   }
-  chatMessages.scrollTop = chatMessages.scrollHeight
   const connected = bot?.status === 'connected'
   chatInput.disabled = !connected
   sendChatButton.disabled = !connected || !chatInput.value.trim()
@@ -519,7 +416,7 @@ function renderInventoryPanel () {
       ? `最終取得：${new Date(updatedAt).toLocaleTimeString('ja-JP', { hour12: false })}`
       : 'インベントリを取得しています…'
     if (!items.length) inventoryList.append(createElement('div', 'inventory-empty', 'アイテムがないか、サーバーからの同期を待っています。'))
-    for (const item of items) {
+    for (const item of items.slice(0, 8)) {
       const row = createElement('div', 'inventory-item-row')
       row.append(
         createElement('span', 'inventory-slot', chatSlotLabel(item.slot)),
@@ -527,6 +424,9 @@ function renderInventoryPanel () {
         createElement('strong', 'inventory-item-count', `× ${item.count}`)
       )
       inventoryList.append(row)
+    }
+    if (items.length > 8) {
+      inventoryList.append(createElement('div', 'inventory-empty', `ほか ${items.length - 8} 種類は下の選択欄から選べます。`))
     }
     if (items.length) {
       for (const item of items) inventorySelect.append(new Option(`${chatSlotLabel(item.slot)} · ${item.displayName || item.name} × ${item.count}`, String(item.slot)))
@@ -585,13 +485,33 @@ async function loadSelectedBotData () {
   })
 }
 
+
+function renderPanelPager (container, currentPage, pageCount, onChange) {
+  container.replaceChildren()
+  if (pageCount <= 1) return
+  const previous = createElement('button', '', '前へ')
+  previous.type = 'button'
+  previous.disabled = currentPage <= 0
+  previous.addEventListener('click', () => onChange(currentPage - 1))
+  const next = createElement('button', '', '次へ')
+  next.type = 'button'
+  next.disabled = currentPage >= pageCount - 1
+  next.addEventListener('click', () => onChange(currentPage + 1))
+  container.append(previous, createElement('span', '', `${currentPage + 1} / ${pageCount}`), next)
+}
+
 function renderServerProfiles () {
   serverProfileList.replaceChildren()
+  serverProfileFooter.replaceChildren()
   if (!state.servers.length) {
     serverProfileList.append(createElement('div', 'server-empty', '接続先はまだ登録されていません。上のフォームまたはThe Hiveプリセットから追加してください。'))
     return
   }
-  for (const server of state.servers) {
+  const pageSize = 10
+  const pageCount = Math.max(1, Math.ceil(state.servers.length / pageSize))
+  state.serverPage = Math.min(state.serverPage, pageCount - 1)
+  const pageServers = state.servers.slice(state.serverPage * pageSize, (state.serverPage + 1) * pageSize)
+  for (const server of pageServers) {
     const row = createElement('div', 'server-profile-row')
     const info = createElement('div', 'server-profile-info')
     const configuredModeLabel = server.mode === 'http' ? 'NetherNet HTTP' : (server.mode === 'raknet' ? 'RakNet' : '自動判定')
@@ -638,6 +558,10 @@ function renderServerProfiles () {
     row.append(info, actions)
     serverProfileList.append(row)
   }
+  renderPanelPager(serverProfileFooter, state.serverPage, pageCount, (page) => {
+    state.serverPage = page
+    renderServerProfiles()
+  })
 }
 
 function renderBots () {
@@ -647,8 +571,13 @@ function renderBots () {
   document.getElementById('botCount').textContent = String(values.length)
   document.getElementById('onlineCount').textContent = String(values.filter(bot => bot.status === 'connected').length)
   document.getElementById('botListLabel').textContent = `${values.length} BOTS`
+  botListFooter.replaceChildren()
+  const pageSize = 6
+  const pageCount = Math.max(1, Math.ceil(values.length / pageSize))
+  state.botPage = Math.min(state.botPage, pageCount - 1)
+  const visibleBots = values.slice(state.botPage * pageSize, (state.botPage + 1) * pageSize)
 
-  for (const bot of values) {
+  for (const bot of visibleBots) {
     const card = createElement('article', 'bot-card')
     const main = createElement('div', 'bot-main')
     const avatar = createElement('div', 'bot-avatar', bot.label.slice(0, 1).toUpperCase())
@@ -881,6 +810,10 @@ function renderBots () {
     if (bot.accountError || bot.lastError) card.title = [bot.accountError, bot.lastError].filter(Boolean).join('\n')
     botList.append(card)
   }
+  renderPanelPager(botListFooter, state.botPage, pageCount, (page) => {
+    state.botPage = page
+    renderBots()
+  })
   renderControlPanel()
 }
 
@@ -940,6 +873,7 @@ serverForm.addEventListener('submit', async (event) => {
       mode: document.getElementById('serverMode').value
     })
     if (!state.servers.some(item => item.id === profile.id)) state.servers.push(profile)
+    state.serverPage = Math.max(0, Math.ceil(state.servers.length / 10) - 1)
     renderServerProfiles()
     renderBots()
     document.getElementById('serverLabel').value = ''
