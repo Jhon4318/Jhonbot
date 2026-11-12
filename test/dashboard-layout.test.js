@@ -4,8 +4,9 @@ const assert = require('node:assert/strict')
 const { normalizeDashboardLayout } = require('../src/dashboard-layout')
 
 test('creates a default ordered layout for known panels', () => {
-  const layout = normalizeDashboardLayout(null, ['overview', 'bots', 'logs'])
-  assert.deepEqual(layout.order, ['overview', 'bots', 'logs'])
+  const panelIds = ['overview', 'add-bot', 'servers', 'bots', 'control', 'interaction', 'mod-store', 'module-operations', 'logs']
+  const layout = normalizeDashboardLayout(null, panelIds)
+  assert.deepEqual(layout.order, panelIds)
   assert.equal(layout.panels.overview.span, 12)
   assert.equal(layout.panels['add-bot'].span, 4)
   assert.equal(layout.panels.servers.span, 8)
