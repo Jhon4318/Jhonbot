@@ -281,7 +281,6 @@ function renderBotModulesPanel (refreshConfig = false) {
   document.getElementById('moduleSaveButton').disabled = noBot || !anyModInstalled
 }
 
-async 
 function renderModStore () {
   const target = document.getElementById('modCatalogList')
   target.replaceChildren()
@@ -355,6 +354,7 @@ function initializeDashboardLayout () {
     for (const panel of panels) applyPanel(panel.dataset.panelId)
   }
   const save = () => persistDashboardLayout()
+  let draggingId = ''
 
   for (const panel of panels) {
     const id = panel.dataset.panelId
@@ -382,24 +382,26 @@ function initializeDashboardLayout () {
 
     heading.addEventListener('dragstart', (event) => {
       if (event.target.closest('select,button,input,a')) { event.preventDefault(); return }
+      draggingId = id
       panel.classList.add('panel-dragging')
       event.dataTransfer?.setData('text/plain', id)
       if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
     })
     heading.addEventListener('dragend', () => {
       panel.classList.remove('panel-dragging')
+      draggingId = ''
       for (const item of panels) item.classList.remove('panel-drop-target')
       save()
     })
     panel.addEventListener('dragover', (event) => {
-      const draggedId = event.dataTransfer?.getData('text/plain')
+      const draggedId = draggingId
       if (!draggedId || draggedId === id || !panelById.has(draggedId)) return
       event.preventDefault()
       panel.classList.add('panel-drop-target')
     })
     panel.addEventListener('dragleave', () => panel.classList.remove('panel-drop-target'))
     panel.addEventListener('drop', (event) => {
-      const draggedId = event.dataTransfer?.getData('text/plain')
+      const draggedId = draggingId
       const dragged = panelById.get(draggedId)
       if (!dragged || dragged === panel) return
       event.preventDefault()
@@ -445,7 +447,7 @@ function initializeDashboardLayout () {
   })
 }
 
-function saveModulesFromForm () {function saveModulesFromForm () {
+async function saveModulesFromForm () {
   const bot = selectedBot()
   if (!bot) throw new Error('設定するBotを選択してください。')
   const modules = {
