@@ -787,7 +787,7 @@ main#dashboardGrid {
 .interaction-panel .chat-message-meta { margin-bottom: 2px; font-size: 7px; }
 .interaction-panel .chat-message-text { font-size: 9px; line-height: 1.3; }
 .interaction-panel .chat-form { flex: 0 0 auto; margin-top: 0; gap: 5px; }
-.interaction-panel .chat-form textarea { min-height: 32px; max-height: 32px; height: 32px; resize: none; padding: 6px; font-size: 9px; }
+.interaction-panel .chat-form textarea { min-height: 32px; max-height: 32px; height: 32px; resize: none; padding: 6px; font-size: 9px; } overflow: hidden;
 .interaction-panel .chat-form .primary-button { min-height: 32px; padding: 0 9px; font-size: 9px; }
 .interaction-panel .chat-card > .goto-note { display: none; }
 .interaction-panel .inventory-status { flex: 0 0 auto; margin: 0; font-size: 8px; }
