@@ -31,6 +31,8 @@ test('does not retry manual disconnect, guest, kick, ban or authentication failu
   assert.equal(shouldAutoReconnect({ wasEstablished: true, reason: 'Player was banned' }), false)
   assert.equal(shouldAutoReconnect({ wasEstablished: true, reason: 'Xbox authentication failed' }), false)
   assert.equal(containsNonRetryableReason('Server key approval denied'), true)
+  assert.equal(containsNonRetryableReason('Untrusted server public key fingerprint'), true)
+  assert.equal(containsNonRetryableReason('NetherNetサーバー鍵の追加確認が必要です'), true)
 })
 
 test('retries transient network failures during initial connection', () => {
