@@ -121,6 +121,10 @@ process.on('uncaughtException', (error) => {
   for (const bot of bots.values()) {
     bot.hadError = true
     bot.lastError = safeErrorMessage(error)
+    bot.manualDisconnect = true
+    bot.reconnectInProgress = false
+    clearTimeout(bot.reconnectTimer)
+    bot.reconnectTimer = null
     bot.movementRequestId++
     clearInterval(bot.movementTimer)
     bot.movementTimer = null
