@@ -99,7 +99,7 @@ function appendLog (entry) {
   const time = new Date(entry.at).toLocaleTimeString('ja-JP', { hour12: false })
   row.append(createElement('span', 'log-time', time), createElement('span', 'log-message', entry.message))
   logList.append(row)
-  while (logList.children.length > 18) logList.firstElementChild.remove()
+  while (logList.children.length > 35) logList.firstElementChild.remove()
 }
 
 function renderControlPanel () {
@@ -381,7 +381,7 @@ function renderChatPanel () {
   if (!entries.length) {
     chatMessages.append(createElement('div', 'chat-empty', bot ? 'チャット履歴はありません。' : 'Botを選択してください。'))
   } else {
-    for (const entry of entries.slice(-4)) {
+    for (const entry of entries.slice(-10)) {
       const row = createElement('div', `chat-message ${entry.direction === 'outgoing' ? 'outgoing' : 'incoming'}`)
       const meta = createElement('div', 'chat-message-meta')
       const time = new Date(entry.at).toLocaleTimeString('ja-JP', { hour12: false })
@@ -416,7 +416,7 @@ function renderInventoryPanel () {
       ? `最終取得：${new Date(updatedAt).toLocaleTimeString('ja-JP', { hour12: false })}`
       : 'インベントリを取得しています…'
     if (!items.length) inventoryList.append(createElement('div', 'inventory-empty', 'アイテムがないか、サーバーからの同期を待っています。'))
-    for (const item of items.slice(0, 8)) {
+    for (const item of items.slice(0, 24)) {
       const row = createElement('div', 'inventory-item-row')
       row.append(
         createElement('span', 'inventory-slot', chatSlotLabel(item.slot)),
@@ -425,8 +425,8 @@ function renderInventoryPanel () {
       )
       inventoryList.append(row)
     }
-    if (items.length > 8) {
-      inventoryList.append(createElement('div', 'inventory-empty', `ほか ${items.length - 8} 種類は下の選択欄から選べます。`))
+    if (items.length > 24) {
+      inventoryList.append(createElement('div', 'inventory-empty', `ほか ${items.length - 24} 種類は下の選択欄から選べます。`))
     }
     if (items.length) {
       for (const item of items) inventorySelect.append(new Option(`${chatSlotLabel(item.slot)} · ${item.displayName || item.name} × ${item.count}`, String(item.slot)))
