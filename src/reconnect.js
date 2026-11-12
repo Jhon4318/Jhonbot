@@ -24,7 +24,7 @@ function nextReconnectDelay (attempt, config = DEFAULT_RECONNECT_SETTINGS, rando
 }
 
 function containsNonRetryableReason (text) {
-  return /auth(?:entication)?|xbox|microsoft|banned|ban(?:ned)?|kick(?:ed)?|denied|unauthorized|鍵.*拒否|公開鍵.*拒否|本人確認.*拒否|permission|not invited|couldn't find a realm|アカウント認証|認証に失敗|キック|BAN|利用停止/i.test(text)
+  return /auth(?:entication)?|xbox|microsoft|banned|ban(?:ned)?|kick(?:ed)?|denied|unauthorized|cancelled|canceled|キャンセル|鍵.*拒否|公開鍵.*拒否|本人確認.*拒否|permission|not invited|couldn't find a realm|アカウント認証|認証に失敗|キック|BAN|利用停止/i.test(text)
 }
 
 function isTransientNetworkFailure (text) {

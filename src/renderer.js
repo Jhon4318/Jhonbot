@@ -98,7 +98,9 @@ function initializeDashboardLayout () {
     if (!target || target === draggedPanel) return
     event.preventDefault()
     const rect = target.getBoundingClientRect()
-    root.insertBefore(draggedPanel, event.clientY > rect.top + rect.height / 2 ? target.nextSibling : target)
+    const inSameRow = event.clientY >= rect.top && event.clientY <= rect.bottom
+    const after = inSameRow ? event.clientX > rect.left + rect.width / 2 : event.clientY > rect.top + rect.height / 2
+    root.insertBefore(draggedPanel, after ? target.nextSibling : target)
   })
   root.addEventListener('drop', (event) => { if (draggedPanel) { event.preventDefault(); saveDashboardLayout() } })
   root.addEventListener('dragend', () => {

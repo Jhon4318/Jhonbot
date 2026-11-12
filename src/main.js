@@ -171,7 +171,7 @@ function publicBot (bot) {
     networkId: bot.networkId || '',
     worldName: bot.worldName || '',
     modules: normalizeBotModules(bot.modules),
-    reconnectStatus: bot.reconnectStatus || '自動再接続待機',
+    reconnectStatus: bot.parentBotId ? '親Botの自動再接続に連動' : (bot.reconnectStatus || '自動再接続待機'),
     reconnectAttempts: bot.reconnectAttempts || 0,
     moduleStatus: {
       itemUse: bot.itemUseStatus || '未実行',
