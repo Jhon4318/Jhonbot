@@ -572,7 +572,7 @@ function renderBots () {
   document.getElementById('onlineCount').textContent = String(values.filter(bot => bot.status === 'connected').length)
   document.getElementById('botListLabel').textContent = `${values.length} BOTS`
   botListFooter.replaceChildren()
-  const pageSize = 6
+  const pageSize = 4
   const pageCount = Math.max(1, Math.ceil(values.length / pageSize))
   state.botPage = Math.min(state.botPage, pageCount - 1)
   const visibleBots = values.slice(state.botPage * pageSize, (state.botPage + 1) * pageSize)
