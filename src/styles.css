@@ -360,3 +360,6 @@ select { font: inherit; }
   .dashboard-grid > .intro-row { flex-direction:column; align-items:stretch; }
   .panel-drag-handle { width:27px; }
 }
+
+/* Both builtin Mod panes should use the normal two-column grid */
+.module-grid > .module-card:last-child { grid-column: auto; }
