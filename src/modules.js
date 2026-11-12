@@ -5,6 +5,11 @@ const DEFAULT_MODULES = Object.freeze({
   containerSupply: Object.freeze({ assigned: false, x: null, y: null, z: null, itemName: '', targetCount: 64, intervalMs: 5000 })
 })
 
+function boundedInteger (value, fallback, min, max) {
+  const number = Number(value)
+  return Number.isInteger(number) && number >= min && number <= max ? number : fallback
+}
+
 function clampedInteger (value, fallback, min, max) {
   const number = Number(value)
   if (!Number.isInteger(number)) return fallback
@@ -32,7 +37,7 @@ function normalizeBotModules (input = {}) {
       y: coordinate(containerSupply.y),
       z: coordinate(containerSupply.z),
       itemName: String(containerSupply.itemName || '').trim().slice(0, 100),
-      targetCount: clampedInteger(containerSupply.targetCount, 64, 1, 100000),
+      targetCount: boundedInteger(containerSupply.targetCount, 64, 1, 100000),
       intervalMs: clampedInteger(containerSupply.intervalMs, 5000, 1000, 60000)
     }
   }
