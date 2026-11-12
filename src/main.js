@@ -269,9 +269,6 @@ function createBotRecord (saved) {
     containerSupplyGeneration: 0,
     containerSupplyNavigating: false,
     containerSupplyStatus: '未実行',
-    reconnectTimer: null,
-    reconnectAttempts: 0,
-    reconnectStatus: '未割り当て',
     kicked: false
   }
 }

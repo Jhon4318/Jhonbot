@@ -66,7 +66,8 @@ function initializeDashboardLayout () {
   if (Array.isArray(saved.order)) {
     const rank = new Map(saved.order.map((id, index) => [id, index]))
     panels.sort((a, b) => (rank.get(a.dataset.panelId) ?? 999) - (rank.get(b.dataset.panelId) ?? 999))
-    for (const panel of panels) root.appendChild(panel)
+    const footer = root.querySelector(':scope > footer')
+    for (const panel of panels) footer ? root.insertBefore(panel, footer) : root.appendChild(panel)
   }
   for (const panel of panels) {
     const size = saved.sizes && saved.sizes[panel.dataset.panelId]
