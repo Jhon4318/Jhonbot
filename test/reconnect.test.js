@@ -37,5 +37,6 @@ test('retries transient network failures during initial connection', () => {
   assert.equal(isTransientNetworkFailure('Connect timed out'), true)
   assert.equal(isTransientNetworkFailure('ECONNRESET socket hang up'), true)
   assert.equal(shouldAutoReconnect({ hadError: true, reason: 'ECONNRESET' }), true)
+  assert.equal(shouldAutoReconnect({ hadError: false, reason: 'Connect timed out' }), true)
   assert.equal(shouldAutoReconnect({ hadError: true, reason: 'Invalid Realm invite' }), false)
 })

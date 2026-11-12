@@ -37,7 +37,7 @@ function shouldAutoReconnect (options = {}) {
   const text = [reason, lastError].filter(Boolean).join(' ')
   if (containsNonRetryableReason(text)) return false
   if (wasEstablished || reconnectInProgress) return true
-  return hadError && isTransientNetworkFailure(text)
+  return isTransientNetworkFailure(text)
 }
 
 module.exports = { DEFAULT_RECONNECT_SETTINGS, normalizeReconnectSettings, nextReconnectDelay, containsNonRetryableReason, isTransientNetworkFailure, shouldAutoReconnect }
