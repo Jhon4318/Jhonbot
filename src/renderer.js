@@ -782,7 +782,10 @@ function renderBots () {
         const label = window.prompt('追加するゲストBotの表示名を入力してください。', suggested)
         if (label == null) return
         try {
-          await api.addGuestBot({ parentBotId: bot.id, label })
+          const guest = await api.addGuestBot({ parentBotId: bot.id, label })
+          if (guest?.id) state.bots.set(guest.id, guest)
+          state.botPage = Math.floor(Math.max(0, state.bots.size - 1) / 4)
+          renderBots()
           showToast('ゲストBotを追加しました。')
         } catch (error) {
           showToast(error.message || 'ゲストBotを追加できませんでした。')
@@ -850,6 +853,7 @@ form.addEventListener('submit', async (event) => {
     const bot = await api.addBot({ label: document.getElementById('botLabel').value })
     state.bots.set(bot.id, bot)
     if (!state.selectedBotId) state.selectedBotId = bot.id
+    state.botPage = Math.floor(Math.max(0, state.bots.size - 1) / 4)
     renderBots()
     renderBotModulesPanel(true)
     document.getElementById('botLabel').value = ''
