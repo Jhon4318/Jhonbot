@@ -590,7 +590,7 @@ function renderServerProfiles () {
   serverProfileList.replaceChildren()
   serverProfileFooter.replaceChildren()
   if (!state.servers.length) {
-    serverProfileList.append(createElement('div', 'server-empty', '接続先はまだ登録されていません。上のフォームまたはThe Hiveプリセットから追加してください。'))
+    serverProfileList.append(createElement('div', 'server-empty', '接続先はまだ登録されていません。「接続先追加」またはThe Hiveプリセットから登録してください。'))
     return
   }
   const pageSize = 3
