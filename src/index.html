@@ -21,7 +21,8 @@
 
     <nav 
 
-    <main <main id="dashboardGrid" class="dashboard-grid"><div class="dashboard-overview"><div class="dashboard-overview-title"><div class="eyebrow">CONTROL CENTER</div><h1>Bot Dashboard</h1></div><div class="summary-cards"><div class="summary-card"><span>登録Bot</span><strong id="botCount">0</strong></div><div class="summary-card"><span>ワールド参加中</span><strong id="onlineCount">0</strong></div></div></div><section class="panel management-panel" data-panel-id="management"><div class="panel-heading"><div><h2>Bot・接続先管理</h2><p class="muted small">Botと参加先を登録し、一覧から操作対象を選択します。</p></div><span class="step-chip">MANAGEMENT</span></div><div class="management-toolbar"><button id="openAddBotFormButton" type="button" class="primary-button">＋ Bot追加</button><button id="openAddServerFormButton" type="button" class="secondary-button">＋ 接続先追加</button></div><div id="addBotFormPanel" class="management-drawer bot-form-drawer" hidden><div class="management-drawer-bar"><strong>Botを登録</strong><button id="closeAddBotFormButton" type="button" class="icon-button">閉じる</button></div>
+    <main class="dashboard-overview"><div class="dashboard-overview-title"><div class="eyebrow">CONTROL CENTER</div><h1>Bot Dashboard</h1></div><div class="summary-cards"><div class="summary-card"><span>登録Bot</span><strong id="botCount">0</strong></div><div class="summary-card"><span>ワールド参加中</span><strong id="onlineCount">0</strong></div></div></div>
+<main id="dashboardGrid" class="dashboard-grid"><div <section class="panel management-panel" data-panel-id="management"><div class="panel-heading"><div><h2>Bot・接続先管理</h2><p class="muted small">Botと参加先を登録し、一覧から操作対象を選択します。</p></div><span class="step-chip">MANAGEMENT</span></div><div class="management-toolbar"><button id="openAddBotFormButton" type="button" class="primary-button">＋ Bot追加</button><button id="openAddServerFormButton" type="button" class="secondary-button">＋ 接続先追加</button></div><div id="addBotFormPanel" class="management-drawer bot-form-drawer" hidden><div class="management-drawer-bar"><strong>Botを登録</strong><button id="closeAddBotFormButton" type="button" class="icon-button">閉じる</button></div>
         <div class="panel-heading">
           <div>
             <h2>Botを追加</h2>
@@ -81,16 +82,7 @@
           </div>
           <span class="step-chip">02 / CONTROL</span>
         </div><div class="selected-connection-card"><div class="connection-summary"><div class="connection-identity"><strong id="connectionBotName">Botを選択してください</strong><span id="connectionBotState">未選択</span></div><div id="connectionActionButtons" class="connection-action-buttons"></div></div><div class="connection-target-row"><label class="field connection-target-field"><span>このBotの接続先</span><select id="controlTargetSelect" disabled><option value="">Botを選択してください</option></select></label><div id="connectionTargetTools" class="connection-target-tools"></div></div></div><div class="control-select-row" hidden><label class="field control-select-field"><span>操作するBot</span><select id="controlBotSelect" disabled><option value="">Botを追加してください</option></select></label><div class="selected-bot-info" id="selectedBotInfo">Botを選択すると位置と状態が表示されます。</div><div class="auto-reconnect-status" id="autoReconnectStatus">Botを選択してください。</div></div>
-        <div class="control-select-row">
-          <label class="field control-select-field">
-            <span>操作するBot</span>
-            <select id="controlBotSelect" disabled>
-              <option value="">Botを追加してください</option>
-            </select>
-          </label>
-          <div class="selected-bot-info" id="selectedBotInfo">Botを選択すると位置と状態が表示されます。</div>
-          <div class="auto-reconnect-status" id="autoReconnectStatus">Botを選択してください。</div>
-        </div>
+        <div 
         <div class="control-layout">
           <div class="movement-card">
             <div class="subheading">手動移動 <span>ボタン長押し / WASD</span></div>
