@@ -329,6 +329,7 @@ function renderBotModulesPanel (refreshConfig = false) {
   const itemUseInstalled = state.installedMods.includes('itemUse')
   const containerSupplyInstalled = state.installedMods.includes('containerSupply')
   const anyModInstalled = itemUseInstalled || containerSupplyInstalled
+  const status = bot?.moduleStatus || {}
   const summary = document.getElementById('selectedBotModSummary'), summaryCount = document.getElementById('selectedModCount'), settingsButton = document.getElementById('openSelectedModSettingsButton')
   if (summary) {
     summary.replaceChildren()
@@ -346,7 +347,6 @@ function renderBotModulesPanel (refreshConfig = false) {
   document.getElementById('containerSupplyModuleCard').hidden = !containerSupplyInstalled
   const assignedUse = itemUseAssigned.checked
   const assignedSupply = containerSupplyAssigned.checked
-  const status = bot?.moduleStatus || {}
   document.getElementById('itemUseStatus').textContent = status.itemUse || '未実行'
   document.getElementById('containerSupplyStatus').textContent = status.containerSupply || '未実行'
   const noBot = !bot
