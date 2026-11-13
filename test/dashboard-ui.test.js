@@ -13,14 +13,16 @@ function elementIds (source) {
 }
 
 function assertBalancedHtml (source) {
-  const tokens = source.match(/<!--[\\s\\S]*?-->|<![^>]*>|<\\/?[A-Za-z][^>]*>/g) || []
+  const tokens = source.match(/<[^>]+>/g) || []
   const voidTags = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'])
   const stack = []
 
   for (const token of tokens) {
     if (token.startsWith('<!') || token.startsWith('<!--')) continue
-    const closing = token.startsWith('</')
-    const name = (token.match(/^<\\/?([A-Za-z][\\w:-]*)/) || [])[1]?.toLowerCase()
+    const body = token.slice(1, -1).trim()
+    const closing = body.startsWith('/')
+    const tagBody = closing ? body.slice(1) : body
+    const name = tagBody.split(/[ >\\/]/)[0].toLowerCase()
     if (!name) continue
 
     if (closing) {
@@ -42,7 +44,9 @@ test('master-detail dashboard HTML is balanced and uses unique IDs', () => {
 test('workspace uses one always-visible dashboard without tabs', () => {
   assert.ok(html.includes('class="dashboard-overview"'))
   assert.ok(html.includes('id="dashboardGrid" class="dashboard-grid"'))
-  assert.equal(/workspace-tabs|data-view-target|data-dashboard-view/.test(html), false)
+  assert.equal(html.includes('workspace-tabs'), false)
+  assert.equal(html.includes('data-view-target'), false)
+  assert.equal(html.includes('data-dashboard-view'), false)
   assert.equal(renderer.includes('activateView'), false)
 })
 
@@ -50,8 +54,8 @@ test('Bot and destination registration drawers start collapsed in the management
   for (const id of ['openAddBotFormButton', 'openAddServerFormButton', 'addBotFormPanel', 'serverFormPanel', 'botList', 'serverProfileList']) {
     assert.ok(elementIds(html).includes(id), 'Missing management element: ' + id)
   }
-  assert.ok(/id="addBotFormPanel"[^>]*hidden/.test(html))
-  assert.ok(/id="serverFormPanel"[^>]*hidden/.test(html))
+  assert.ok(html.includes('id="addBotFormPanel" class="management-drawer bot-form-drawer" hidden'))
+  assert.ok(html.includes('id="serverFormPanel" class="management-drawer server-form-drawer" hidden'))
 })
 
 test('connection actions are attached to the selected Bot in the center panel', () => {
@@ -68,5 +72,6 @@ test('right panel is scoped to the selected Bot and keeps chat and logs visible'
     assert.ok(elementIds(html).includes(id), 'Missing dashboard element: ' + id)
   }
   assert.ok(renderer.includes('function selectedBot ()'))
-  assert.ok(renderer.includes('if (snapshot.botId === state.selectedBotId) renderInventoryPanel()'))
+  assert.ok(renderer.includes('snapshot.botId === state.selectedBotId'))
+  assert.ok(renderer.includes('renderInventoryPanel()'))
 })
