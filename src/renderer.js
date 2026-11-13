@@ -33,7 +33,7 @@ const dropItemCount = document.getElementById('dropItemCount')
 const dropItemForm = document.getElementById('dropItemForm')
 const refreshInventoryButton = document.getElementById('refreshInventoryButton')
 
-const state = { bots: new Map(), servers: [], installedMods: [], modCatalog: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map(), botPage: 0, serverPage: 0, activeDashboardView: 'bots' }
+const state = { bots: new Map(), servers: [], installedMods: [], modCatalog: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map(), botPage: 0, serverPage: 0 }
 const statusLabels = {
   disconnected: '未参加',
   authenticating: '認証処理中',
@@ -99,9 +99,80 @@ function appendLog (entry) {
   const time = new Date(entry.at).toLocaleTimeString('ja-JP', { hour12: false })
   row.append(createElement('span', 'log-time', time), createElement('span', 'log-message', entry.message))
   logList.append(row)
-  while (logList.children.length > 35) logList.firstElementChild.remove()
+  while (logList.children.length > 12) logList.firstElementChild.remove()
 }
 
+function openWorldChoices (bot,choices,description,targetFactory){
+  document.getElementById('worldDialogTitle').textContent=`${bot.label}：参加先を選択`
+  document.getElementById('worldDialogDescription').textContent=description
+  worldChoices.replaceChildren()
+  for(const choice of choices){
+    const button=createElement('button','world-choice-button');button.type='button'
+    button.append(createElement('strong','',choice.title),createElement('span','',choice.details||''))
+    button.addEventListener('click',async()=>{
+      button.disabled=true
+      try{const updated=await api.setBotTarget({botId:bot.id,target:targetFactory(choice)});state.bots.set(bot.id,updated);worldDialog.close();renderBots();showToast('参加先を設定しました。')}
+      catch(error){showToast(error.message||'参加先を設定できませんでした。');button.disabled=false}
+    })
+    worldChoices.append(button)
+  }
+  if(!choices.length)worldChoices.append(createElement('div','server-empty','参加可能な接続先が見つかりませんでした。'))
+  if(!worldDialog.open)worldDialog.showModal()
+}
+async function searchSelectedBotLan(bot,button){
+  button.disabled=true;button.textContent='検索中…'
+  try{const worlds=await api.discoverLanWorlds(bot.id);openWorldChoices(bot,worlds.map(world=>({title:world.worldName,details:`${world.gameVersion||'バージョン不明'} · ${world.playerCount}/${world.maxPlayers??'?'}人`,value:world})),'LAN上で見つかったNetherNetワールドです。',choice=>choice.value)}
+  catch(error){showToast(error.message||'LANワールドを検索できませんでした。')}
+  finally{button.disabled=false;button.textContent='LANワールドを検索'}
+}
+async function searchSelectedBotRealms(bot,button){
+  button.disabled=true;button.textContent='取得中…'
+  try{const realms=await api.getRealms(bot.id);const choices=realms.filter(realm=>!realm.expired).map(realm=>({title:realm.name,details:`ID ${realm.id} · ${realm.state}${realm.owner?' · '+realm.owner:''}${realm.players!=null?' · '+realm.players+'/'+(realm.maxPlayers??'?')+'人':''}`,value:realm}));openWorldChoices(bot,choices,'このアカウントで参加可能なRealmsです。期限切れのRealmは表示しません。',choice=>({type:'realm',realmId:choice.value.id,worldName:choice.value.name}))}
+  catch(error){showToast(error.message||'Realms一覧を取得できませんでした。')}
+  finally{button.disabled=false;button.textContent='Realmsを検索'}
+}
+function renderSelectedConnectionControls(bot){
+  const name=document.getElementById('connectionBotName'),stateLabel=document.getElementById('connectionBotState'),targetSelect=document.getElementById('controlTargetSelect'),actions=document.getElementById('connectionActionButtons'),helpers=document.getElementById('connectionTargetTools')
+  actions.replaceChildren();helpers.replaceChildren();targetSelect.replaceChildren()
+  if(!bot){
+    name.textContent='Botを選択してください';stateLabel.textContent='未選択';targetSelect.append(new Option('Botを追加してください',''));targetSelect.disabled=true
+    actions.append(createElement('span','muted tiny','左の一覧から操作するBotを選択してください。'))
+    document.getElementById('selectedFunctionBotName').textContent='Bot未選択';document.getElementById('selectedFunctionBotState').textContent='Botを選択してください。';return
+  }
+  name.textContent=bot.label;stateLabel.textContent=statusLabels[bot.status]||bot.status;stateLabel.className=`connection-status-label ${bot.status}`
+  const busy=bot.status==='connected'||['connecting','joining','reconnecting'].includes(bot.status)
+  targetSelect.append(new Option('参加先を選択…',''),new Option('フレンドのワールド（参加時に一覧表示）','friend-world'),new Option('LANワールド（検索して選択）','lan-world'),new Option('Realms（一覧から選択）','realm'))
+  for(const server of state.servers)targetSelect.append(new Option(`サーバー：${server.label}`,`server:${server.id}`))
+  targetSelect.value=bot.targetType==='server'?`server:${bot.targetId}`:(bot.targetType||'');targetSelect.disabled=bot.isGuest||busy
+  if(bot.isGuest)helpers.append(createElement('div','connection-help-note','ゲストBotは親Botの参加先・接続状態を共有します。'))
+  else if(bot.targetType==='lan-world'){
+    const scan=createElement('button','secondary-button','LANワールドを検索');scan.type='button';scan.disabled=busy;scan.addEventListener('click',()=>searchSelectedBotLan(bot,scan));helpers.append(scan)
+  }else if(bot.targetType==='realm'){
+    const invite=createElement('input','realm-invite-input');invite.type='text';invite.maxLength=256;invite.placeholder='招待コード / realms.ggリンク';invite.disabled=busy
+    const accept=createElement('button','secondary-button','招待を追加');accept.type='button';accept.disabled=busy
+    accept.addEventListener('click',async()=>{const code=invite.value.trim();if(!code)return showToast('Realmsの招待コードまたはリンクを入力してください。');accept.disabled=true
+      try{const realm=await api.getRealmFromInvite({botId:bot.id,inviteCode:code});if(realm.expired)throw new Error('このRealmは期限切れです。');const updated=await api.setBotTarget({botId:bot.id,target:{type:'realm',realmId:realm.id,worldName:realm.name}});state.bots.set(bot.id,updated);renderBots();showToast(`Realm「${realm.name}」を参加先に設定しました。`)}
+      catch(error){showToast(error.message||'Realms招待コードを追加できませんでした。')}finally{accept.disabled=false}
+    })
+    const search=createElement('button','secondary-button','Realmsを検索');search.type='button';search.disabled=busy;search.addEventListener('click',()=>searchSelectedBotRealms(bot,search));helpers.append(invite,accept,search)
+  }
+  if(!bot.isGuest){
+    const authBusy=bot.accountStatus==='authenticating'
+    const auth=createElement('button','secondary-button account-button',authBusy?'Xbox認証中…':(['authenticated','saved'].includes(bot.accountStatus)?'認証を再確認':'Xbox認証'))
+    auth.type='button';auth.disabled=authBusy||busy;auth.addEventListener('click',()=>api.authenticateBot(bot.id).catch(error=>showToast(error.message||'アカウント認証に失敗しました。')));actions.append(auth)
+  }
+  if(busy){
+    const disconnect=createElement('button','primary-button disconnect-button',bot.isGuest?'ゲスト切断':'ワールド切断');disconnect.type='button';disconnect.addEventListener('click',()=>api.disconnectBot(bot.id).catch(error=>showToast(error.message||'切断できませんでした。')));actions.append(disconnect)
+  }else if(bot.isGuest)actions.append(createElement('span','muted tiny','親Botの接続を待っています。'))
+  else{
+    const hasTarget=bot.targetType==='server'||bot.targetType==='friend-world'||(bot.targetType==='lan-world'&&!!bot.networkId)||(bot.targetType==='realm'&&/^\d+$/.test(String(bot.targetId||'')))
+    const join=createElement('button','primary-button join-button',bot.status==='error'?'再参加':'ワールド参加');join.type='button';join.disabled=bot.accountStatus!=='authenticated'||!hasTarget
+    join.title=!hasTarget?'先に接続先を選択してください。':(bot.accountStatus!=='authenticated'?'先にXbox認証を完了してください。':'選択した接続先に参加します。')
+    join.addEventListener('click',()=>api.connectBot(bot.id).catch(error=>showToast(error.message||'ワールドに参加できませんでした。')));actions.append(join)
+  }
+  document.getElementById('selectedFunctionBotName').textContent=bot.label
+  document.getElementById('selectedFunctionBotState').textContent=bot.isGuest?'ゲストBot':(accountStatusLabels[bot.accountStatus]||statusLabels[bot.status]||bot.status)
+}
 function renderControlPanel () {
   const values = Array.from(state.bots.values())
   if (!values.some(bot => bot.id === state.selectedBotId)) state.selectedBotId = values[0]?.id || ''
@@ -126,6 +197,7 @@ function renderControlPanel () {
 
   const bot = selectedBot()
   const connected = !!bot && bot.status === 'connected'
+  renderSelectedConnectionControls(bot)
   selectedBotInfo.textContent = bot
     ? `${positionText(bot)}${bot.health != null ? `  ·  HP ${bot.health}` : ''}${bot.food != null ? `  ·  満腹度 ${bot.food}` : ''}`
     : 'Botを選択すると位置と状態が表示されます。'
@@ -257,6 +329,18 @@ function renderBotModulesPanel (refreshConfig = false) {
   const itemUseInstalled = state.installedMods.includes('itemUse')
   const containerSupplyInstalled = state.installedMods.includes('containerSupply')
   const anyModInstalled = itemUseInstalled || containerSupplyInstalled
+  const summary = document.getElementById('selectedBotModSummary'), summaryCount = document.getElementById('selectedModCount'), settingsButton = document.getElementById('openSelectedModSettingsButton')
+  if (summary) {
+    summary.replaceChildren()
+    const entries=[]
+    if(itemUseInstalled)entries.push({name:'Item Use',assigned:modules.itemUse?.assigned===true,status:status.itemUse||'未実行',running:status.itemUseRunning===true})
+    if(containerSupplyInstalled)entries.push({name:'Container Supply',assigned:modules.containerSupply?.assigned===true,status:status.containerSupply||'未実行',running:status.containerSupplyRunning===true})
+    if(!bot)summary.append(createElement('div','server-empty','Botを選択してください。'))
+    else if(!entries.length)summary.append(createElement('div','server-empty','利用可能なModはありません。「Mod一覧・追加」から導入できます。'))
+    else for(const entry of entries){const row=createElement('div','selected-mod-row'),info=createElement('div','selected-mod-info');info.append(createElement('strong','',entry.name),createElement('span','',entry.status));row.append(info,createElement('span',entry.running?'mod-state running':(entry.assigned?'mod-state assigned':'mod-state'),entry.running?'実行中':(entry.assigned?'割り当て済み':'未割当')));summary.append(row)}
+    if(summaryCount)summaryCount.textContent=entries.length+'件'
+    if(settingsButton)settingsButton.disabled=!bot||!anyModInstalled
+  }
   document.getElementById('modulePanel').hidden = !anyModInstalled
   document.getElementById('itemUseModuleCard').hidden = !itemUseInstalled
   document.getElementById('containerSupplyModuleCard').hidden = !containerSupplyInstalled
@@ -317,34 +401,32 @@ function renderModStore () {
 }
 
 function initializeDashboardLayout () {
-  const root = document.getElementById('dashboardGrid')
-  const buttons = Array.from(document.querySelectorAll('[data-view-target]'))
-  const allowedViews = new Set(['bots', 'servers', 'operations', 'mods', 'logs'])
-  let savedView = 'bots'
-  try {
-    const candidate = localStorage.getItem('jhonbot-dashboard-view-v1')
-    if (allowedViews.has(candidate)) savedView = candidate
-  } catch {}
-
-  const activateView = (view) => {
-    if (!allowedViews.has(view)) return
-    state.activeDashboardView = view
-    root.dataset.activeView = view
-    for (const panel of root.querySelectorAll('[data-dashboard-view]')) {
-      panel.hidden = panel.dataset.dashboardView !== view
-    }
-    for (const button of buttons) {
-      button.setAttribute('aria-pressed', String(button.dataset.viewTarget === view))
-    }
-    try { localStorage.setItem('jhonbot-dashboard-view-v1', view) } catch {}
-  }
-
-  for (const button of buttons) {
-    button.addEventListener('click', () => activateView(button.dataset.viewTarget))
-  }
-  activateView(savedView)
+  const addBotPanel = document.getElementById('addBotFormPanel')
+  const serverFormPanel = document.getElementById('serverFormPanel')
+  document.getElementById('openAddBotFormButton').addEventListener('click', () => {
+    serverFormPanel.hidden = true; addBotPanel.hidden = !addBotPanel.hidden
+    if (!addBotPanel.hidden) document.getElementById('botLabel').focus()
+  })
+  document.getElementById('openAddServerFormButton').addEventListener('click', () => {
+    addBotPanel.hidden = true; serverFormPanel.hidden = !serverFormPanel.hidden
+    if (!serverFormPanel.hidden) document.getElementById('serverLabel').focus()
+  })
+  document.getElementById('closeAddBotFormButton').addEventListener('click', () => { addBotPanel.hidden = true })
+  document.getElementById('closeServerFormButton').addEventListener('click', () => { serverFormPanel.hidden = true })
+  const settingsDialog = document.getElementById('selectedModSettingsDialog')
+  const catalogDialog = document.getElementById('modCatalogDialog')
+  document.getElementById('openSelectedModSettingsButton').addEventListener('click', () => { if (selectedBot() && state.installedMods.length && !settingsDialog.open) settingsDialog.showModal() })
+  document.getElementById('closeSelectedModSettingsDialogButton').addEventListener('click', () => settingsDialog.close())
+  document.getElementById('openModCatalogDialogButton').addEventListener('click', () => { if (!catalogDialog.open) catalogDialog.showModal() })
+  document.getElementById('closeModCatalogDialogButton').addEventListener('click', () => catalogDialog.close())
+  document.getElementById('controlTargetSelect').addEventListener('change', async (event) => {
+    const bot = selectedBot(); if (!bot || bot.isGuest) return
+    const value = event.target.value
+    const target = value.startsWith('server:') ? { type:'server', serverId:value.slice(7) } : { type:value || 'none' }
+    try { const updated=await api.setBotTarget({botId:bot.id,target}); state.bots.set(bot.id,updated); renderBots(); showToast('接続先を更新しました。') }
+    catch(error){showToast(error.message||'接続先を設定できませんでした。');renderControlPanel()}
+  })
 }
-
 async function saveModulesFromForm () {
   const bot = selectedBot()
   if (!bot) throw new Error('設定するBotを選択してください。')
@@ -381,7 +463,7 @@ function renderChatPanel () {
   if (!entries.length) {
     chatMessages.append(createElement('div', 'chat-empty', bot ? 'チャット履歴はありません。' : 'Botを選択してください。'))
   } else {
-    for (const entry of entries.slice(-10)) {
+    for (const entry of entries.slice(-5)) {
       const row = createElement('div', `chat-message ${entry.direction === 'outgoing' ? 'outgoing' : 'incoming'}`)
       const meta = createElement('div', 'chat-message-meta')
       const time = new Date(entry.at).toLocaleTimeString('ja-JP', { hour12: false })
@@ -416,7 +498,7 @@ function renderInventoryPanel () {
       ? `最終取得：${new Date(updatedAt).toLocaleTimeString('ja-JP', { hour12: false })}`
       : 'インベントリを取得しています…'
     if (!items.length) inventoryList.append(createElement('div', 'inventory-empty', 'アイテムがないか、サーバーからの同期を待っています。'))
-    for (const item of items.slice(0, 24)) {
+    for (const item of items.slice(0, 6)) {
       const row = createElement('div', 'inventory-item-row')
       row.append(
         createElement('span', 'inventory-slot', chatSlotLabel(item.slot)),
@@ -425,8 +507,8 @@ function renderInventoryPanel () {
       )
       inventoryList.append(row)
     }
-    if (items.length > 24) {
-      inventoryList.append(createElement('div', 'inventory-empty', `ほか ${items.length - 24} 種類は下の選択欄から選べます。`))
+    if (items.length > 6) {
+      inventoryList.append(createElement('div', 'inventory-empty', `ほか ${items.length - 6} 種類は下の選択欄から選べます。`))
     }
     if (items.length) {
       for (const item of items) inventorySelect.append(new Option(`${chatSlotLabel(item.slot)} · ${item.displayName || item.name} × ${item.count}`, String(item.slot)))
@@ -507,7 +589,7 @@ function renderServerProfiles () {
     serverProfileList.append(createElement('div', 'server-empty', '接続先はまだ登録されていません。上のフォームまたはThe Hiveプリセットから追加してください。'))
     return
   }
-  const pageSize = 10
+  const pageSize = 3
   const pageCount = Math.max(1, Math.ceil(state.servers.length / pageSize))
   state.serverPage = Math.min(state.serverPage, pageCount - 1)
   const pageServers = state.servers.slice(state.serverPage * pageSize, (state.serverPage + 1) * pageSize)
@@ -564,262 +646,71 @@ function renderServerProfiles () {
   })
 }
 
+function selectBot (botId) {
+  if (!botId || botId === state.selectedBotId) return
+  releaseAllHeldInputs(); state.selectedBotId=botId; renderBots(); renderBotModulesPanel(true); loadSelectedBotData()
+}
 function renderBots () {
   botList.replaceChildren()
-  const values = Array.from(state.bots.values())
-  emptyState.hidden = values.length > 0
-  document.getElementById('botCount').textContent = String(values.length)
-  document.getElementById('onlineCount').textContent = String(values.filter(bot => bot.status === 'connected').length)
-  document.getElementById('botListLabel').textContent = `${values.length} BOTS`
+  const values=Array.from(state.bots.values())
+  if(!values.some(bot=>bot.id===state.selectedBotId)) state.selectedBotId=values[0]?.id||''
+  emptyState.hidden=values.length>0
+  document.getElementById('botCount').textContent=String(values.length)
+  document.getElementById('onlineCount').textContent=String(values.filter(bot=>bot.status==='connected').length)
+  document.getElementById('botListLabel').textContent=`${values.length} BOTS`
   botListFooter.replaceChildren()
-  const pageSize = 4
-  const pageCount = Math.max(1, Math.ceil(values.length / pageSize))
-  state.botPage = Math.min(state.botPage, pageCount - 1)
-  const visibleBots = values.slice(state.botPage * pageSize, (state.botPage + 1) * pageSize)
-
-  for (const bot of visibleBots) {
-    const card = createElement('article', 'bot-card')
-    const main = createElement('div', 'bot-main')
-    const avatar = createElement('div', 'bot-avatar', bot.label.slice(0, 1).toUpperCase())
-    const info = createElement('div')
-    info.append(createElement('div', 'bot-name', bot.label))
-    const parentBot = bot.isGuest ? state.bots.get(bot.parentBotId) : null
-    const accountDescription = bot.isGuest
-      ? `親アカウント共有 · ${parentBot?.label || '親Bot'} / SubClient ${bot.subClientId}`
-      : (bot.playerName
-          ? `Xbox: ${bot.playerName}`
-          : (bot.accountStatus === 'authenticated' ? 'Microsoft / Xboxアカウント認証済み' : (bot.accountStatus === 'saved' ? '保存済み認証情報あり・再確認が必要' : 'Microsoft / Xboxアカウント未確認')))
-    info.append(createElement('div', 'bot-player', accountDescription))
-    main.append(avatar, info)
-
-    const targetArea = createElement('div', 'bot-target-area')
-    const worldBusy = bot.status === 'connected' || ['connecting', 'joining'].includes(bot.status)
-    if (bot.isGuest) {
-      targetArea.append(createElement('div', 'target-current', bot.targetLabel || '親Botの参加先を共有'))
-    } else {
-      const targetLabel = createElement('div', 'target-current', bot.targetLabel || '参加先未設定')
-      const targetSelect = createElement('select', 'bot-target-select')
-      targetSelect.append(new Option('参加先を選択…', ''))
-      targetSelect.append(new Option('フレンドのワールド（参加時に一覧表示）', 'friend-world'))
-      targetSelect.append(new Option('LANワールド（検索して選択）', 'lan-world'))
-      targetSelect.append(new Option('Realms（一覧から選択）', 'realm'))
-      for (const server of state.servers) targetSelect.append(new Option(`サーバー：${server.label}`, `server:${server.id}`))
-      const currentTarget = bot.targetType === 'server' ? `server:${bot.targetId}` : (bot.targetType || '')
-      targetSelect.value = currentTarget
-      targetSelect.disabled = worldBusy
-      targetSelect.addEventListener('change', async () => {
-        let target
-        if (targetSelect.value.startsWith('server:')) target = { type: 'server', serverId: targetSelect.value.slice(7) }
-        else target = { type: targetSelect.value || 'none' }
-        try {
-          const updated = await api.setBotTarget({ botId: bot.id, target })
-          state.bots.set(bot.id, updated)
-          renderBots()
-        } catch (error) { showToast(error.message || '参加先を設定できませんでした。'); renderBots() }
+  const pageSize=3, pageCount=Math.max(1,Math.ceil(values.length/pageSize))
+  state.botPage=Math.min(state.botPage,pageCount-1)
+  const visibleBots=values.slice(state.botPage*pageSize,(state.botPage+1)*pageSize)
+  for(const bot of visibleBots){
+    const card=createElement('article',`bot-card management-bot-card${bot.id===state.selectedBotId?' selected':''}`)
+    card.tabIndex=0; card.setAttribute('role','button'); card.setAttribute('aria-selected',String(bot.id===state.selectedBotId))
+    card.addEventListener('click',event=>{if(!event.target.closest('button'))selectBot(bot.id)})
+    card.addEventListener('keydown',event=>{if((event.key==='Enter'||event.key===' ')&&!event.target.closest('button')){event.preventDefault();selectBot(bot.id)}})
+    const main=createElement('div','bot-main'), avatar=createElement('div','bot-avatar',bot.label.slice(0,1).toUpperCase()), info=createElement('div')
+    info.append(createElement('div','bot-name',bot.label))
+    const parent=bot.isGuest?state.bots.get(bot.parentBotId):null
+    const account=bot.isGuest?`親：${parent?.label||'親Bot'} · Guest ${bot.subClientId}`:(bot.playerName?`Xbox: ${bot.playerName}`:(bot.accountStatus==='authenticated'?'Xbox認証済み':(bot.accountStatus==='saved'?'認証情報保存済み':'Xbox未認証')))
+    info.append(createElement('div','bot-player',account)); main.append(avatar,info)
+    const statuses=createElement('div','bot-status-stack')
+    statuses.append(createElement('span',`status account-status ${bot.isGuest?'shared':(bot.accountStatus||'unverified')}`,bot.isGuest?'ゲスト':(accountStatusLabels[bot.accountStatus]||'Xbox未確認')),createElement('span',`status ${bot.status}`,statusLabels[bot.status]||bot.status))
+    const target=createElement('div','target-current management-bot-target',bot.isGuest?(bot.targetLabel||'親Botの接続先を共有'):(bot.targetLabel||'接続先未設定'))
+    const actions=createElement('div','bot-actions management-bot-actions')
+    if(!bot.isGuest){
+      const guestCount=values.filter(item=>item.parentBotId===bot.id).length
+      const guest=createElement('button','small-button guest-add-button',`＋ ゲスト ${guestCount}/3`)
+      guest.type='button'; guest.disabled=guestCount>=3
+      guest.addEventListener('click',async event=>{
+        event.stopPropagation()
+        const label=window.prompt('追加するゲストBotの表示名を入力してください。',`${bot.label}-Guest${guestCount+1}`.slice(0,32))
+        if(label==null)return
+        try{
+          const added=await api.addGuestBot({parentBotId:bot.id,label})
+          if(added?.id){state.bots.set(added.id,added);state.selectedBotId=added.id;state.botPage=Math.floor(Math.max(0,state.bots.size-1)/pageSize)}
+          renderBots();renderBotModulesPanel(true);loadSelectedBotData();showToast('ゲストBotを追加しました。')
+        }catch(error){showToast(error.message||'ゲストBotを追加できませんでした。')}
       })
-      targetArea.append(targetSelect, targetLabel)
-      if (bot.targetType === 'lan-world') {
-        const scan = createElement('button', 'small-button lan-search-button', 'LAN検索')
-        scan.type = 'button'
-        scan.disabled = worldBusy
-        scan.addEventListener('click', async () => {
-          scan.disabled = true
-          scan.textContent = '検索中…'
-          try {
-            const worlds = await api.discoverLanWorlds(bot.id)
-            if (!worlds.length) throw new Error('LAN上に参加可能なワールドが見つかりませんでした。')
-            document.getElementById('worldDialogTitle').textContent = bot.label + '：参加するLANワールドを選択'
-            document.getElementById('worldDialogDescription').textContent = '検索中に応答したNetherNetワールドです。'
-            worldChoices.replaceChildren()
-            for (const world of worlds) {
-              const button = createElement('button', 'world-choice-button')
-              button.type = 'button'
-              button.append(createElement('strong', '', world.worldName), createElement('span', '', (world.gameVersion || 'バージョン不明') + ' · ' + world.playerCount + '/' + (world.maxPlayers ?? '?') + '人'))
-              button.addEventListener('click', async () => {
-                try {
-                  const updated = await api.setBotTarget({ botId: bot.id, target: world })
-                  state.bots.set(bot.id, updated)
-                  worldDialog.close()
-                  showToast('LANワールド「' + world.worldName + '」を選択しました。')
-                  renderBots()
-                } catch (error) { showToast(error.message || '参加先を設定できませんでした。') }
-              })
-              worldChoices.append(button)
-            }
-            if (!worldDialog.open) worldDialog.showModal()
-          } catch (error) {
-            showToast(error.message || 'LANワールドを検索できませんでした。')
-          } finally {
-            scan.disabled = false
-            scan.textContent = 'LAN再検索'
-          }
-        })
-        targetArea.append(scan)
-      }
-      if (bot.targetType === 'realm') {
-        const inviteInput = document.createElement('input')
-        inviteInput.type = 'text'
-        inviteInput.className = 'realm-invite-input'
-        inviteInput.placeholder = 'Realms招待コード / realms.ggリンク'
-        inviteInput.maxLength = 256
-        inviteInput.disabled = worldBusy || !!bot.isGuest
-        const inviteButton = createElement('button', 'small-button lan-search-button', '招待コードから追加')
-        inviteButton.type = 'button'
-        inviteButton.disabled = worldBusy || !!bot.isGuest
-        inviteButton.addEventListener('click', async () => {
-          const inviteCode = inviteInput.value.trim()
-          if (!inviteCode) return showToast('Realmsの招待コードまたはリンクを入力してください。')
-          inviteButton.disabled = true
-          inviteButton.textContent = '招待を確認中…'
-          try {
-            const realm = await api.getRealmFromInvite({ botId: bot.id, inviteCode })
-            if (realm.expired) throw new Error('このRealmは期限切れです。')
-            const updated = await api.setBotTarget({ botId: bot.id, target: { type: 'realm', realmId: realm.id, worldName: realm.name } })
-            state.bots.set(bot.id, updated)
-            inviteInput.value = ''
-            showToast('招待を受け入れ、Realm「' + realm.name + '」を参加先に設定しました。')
-            renderBots()
-          } catch (error) {
-            showToast(error.message || 'Realms招待コードを追加できませんでした。')
-          } finally {
-            inviteButton.disabled = !!bot.isGuest
-            inviteButton.textContent = '招待コードから追加'
-          }
-        })
-        targetArea.append(inviteInput, inviteButton)
-        const scan = createElement('button', 'small-button lan-search-button', 'Realms検索')
-        scan.type = 'button'
-        scan.disabled = worldBusy
-        scan.addEventListener('click', async () => {
-          scan.disabled = true
-          scan.textContent = '取得中…'
-          try {
-            const realms = await api.getRealms(bot.id)
-            if (!realms.length) throw new Error('このアカウントで参加可能なRealmsが見つかりません。')
-            document.getElementById('worldDialogTitle').textContent = bot.label + '：参加するRealmを選択'
-            document.getElementById('worldDialogDescription').textContent = '認証済みアカウントで参加可能なRealmsです。期限切れのRealmは接続できません。'
-            worldChoices.replaceChildren()
-            for (const realm of realms) {
-              const button = createElement('button', 'world-choice-button')
-              const stateLabel = realm.expired ? '期限切れ' : realm.state
-              button.disabled = realm.expired
-              button.append(createElement('strong', '', realm.name), createElement('span', '', 'ID ' + realm.id + ' · ' + stateLabel + (realm.owner ? ' · ' + realm.owner : '') + (realm.players != null ? ' · ' + realm.players + '/' + (realm.maxPlayers ?? '?') + '人' : '')))
-              button.addEventListener('click', async () => {
-                try {
-                  const updated = await api.setBotTarget({ botId: bot.id, target: { type: 'realm', realmId: realm.id, worldName: realm.name } })
-                  state.bots.set(bot.id, updated)
-                  worldDialog.close()
-                  showToast('Realm「' + realm.name + '」を参加先に設定しました。')
-                  renderBots()
-                } catch (error) { showToast(error.message || 'Realmを選択できませんでした。') }
-              })
-              worldChoices.append(button)
-            }
-            if (!worldDialog.open) worldDialog.showModal()
-          } catch (error) {
-            showToast(error.message || 'Realms一覧を取得できませんでした。')
-          } finally {
-            scan.disabled = false
-            scan.textContent = 'Realms再検索'
-          }
-        })
-        targetArea.append(scan)
-      }
+      actions.append(guest)
     }
-
-    const statuses = createElement('div', 'bot-status-stack')
-    statuses.append(
-      createElement('span', `status account-status ${bot.isGuest ? 'shared' : (bot.accountStatus || 'unverified')}`, bot.isGuest ? '親アカウント共有' : (accountStatusLabels[bot.accountStatus] || 'Xbox未確認')),
-      createElement('span', `status ${bot.status}`, statusLabels[bot.status] || bot.status)
-    )
-
-    const actions = createElement('div', 'bot-actions')
-    if (bot.isGuest) {
-      if (worldBusy) {
-        const disconnect = createElement('button', 'small-button join-button', 'ゲスト切断')
-        disconnect.type = 'button'
-        disconnect.addEventListener('click', () => api.disconnectBot(bot.id).catch(error => showToast(error.message)))
-        actions.append(disconnect)
-      } else {
-        const waiting = createElement('button', 'small-button join-button', '親Bot接続待ち')
-        waiting.type = 'button'
-        waiting.disabled = true
-        waiting.title = '親Botがワールドに参加すると、このゲストBotも自動で参加します。'
-        actions.append(waiting)
-      }
-    } else {
-      const authBusy = bot.accountStatus === 'authenticating'
-      const authButton = createElement('button', 'small-button account-button', authBusy ? '認証中…' : (['authenticated', 'saved'].includes(bot.accountStatus) ? '認証を再確認' : 'アカウント認証'))
-      authButton.type = 'button'
-      authButton.disabled = authBusy || worldBusy
-      authButton.addEventListener('click', () => api.authenticateBot(bot.id).catch(error => showToast(error.message || 'アカウント認証に失敗しました。')))
-      actions.append(authButton)
-
-      if (worldBusy) {
-        const disconnect = createElement('button', 'small-button join-button', 'ワールド切断')
-        disconnect.type = 'button'
-        disconnect.addEventListener('click', () => api.disconnectBot(bot.id).catch(error => showToast(error.message)))
-        actions.append(disconnect)
-      } else {
-        const join = createElement('button', 'small-button join-button', bot.status === 'error' ? '再参加' : 'ワールド参加')
-        const hasTarget = bot.targetType === 'server' || bot.targetType === 'friend-world' || (bot.targetType === 'lan-world' && !!bot.networkId) || (bot.targetType === 'realm' && /^\d+$/.test(String(bot.targetId || '')))
-        join.type = 'button'
-        join.disabled = bot.accountStatus !== 'authenticated' || !hasTarget
-        join.title = !hasTarget ? '先に参加先を選択してください。' : (bot.accountStatus !== 'authenticated' ? '先にMicrosoft / Xbox認証を完了してください。' : '選択したサーバーまたはワールドに参加します。')
-        join.addEventListener('click', () => api.connectBot(bot.id).catch(error => showToast(error.message || 'ワールドに参加できませんでした。')))
-        actions.append(join)
-      }
-
-      const guestCount = values.filter(item => item.parentBotId === bot.id).length
-      const addGuest = createElement('button', 'small-button guest-add-button', `＋ ゲスト追加 ${guestCount}/3`)
-      addGuest.type = 'button'
-      addGuest.disabled = guestCount >= 3
-      addGuest.title = worldBusy
-        ? 'このアカウントの接続にゲストBotを追加します。'
-        : 'ゲストBotを登録します。親Botがワールドに参加すると自動で接続します。'
-      addGuest.addEventListener('click', async () => {
-        const suggested = `${bot.label}-Guest${guestCount + 1}`.slice(0, 32)
-        const label = window.prompt('追加するゲストBotの表示名を入力してください。', suggested)
-        if (label == null) return
-        try {
-          const guest = await api.addGuestBot({ parentBotId: bot.id, label })
-          if (guest?.id) state.bots.set(guest.id, guest)
-          state.botPage = Math.floor(Math.max(0, state.bots.size - 1) / 4)
-          renderBots()
-          showToast('ゲストBotを追加しました。')
-        } catch (error) {
-          showToast(error.message || 'ゲストBotを追加できませんでした。')
-        }
-      })
-      actions.append(addGuest)
-    }
-
-    const remove = createElement('button', 'icon-button danger', '削除')
-    remove.type = 'button'
-    remove.disabled = !bot.isGuest && (bot.accountStatus === 'authenticating' || worldBusy)
-    remove.addEventListener('click', async () => {
-      const message = bot.isGuest
-        ? `${bot.label}を削除しますか？`
-        : `${bot.label}と、このアカウントに追加したゲストBotを削除しますか？`
-      if (!window.confirm(message)) return
-      if (state.selectedBotId === bot.id) releaseAllHeldInputs()
-      try { await api.removeBot(bot.id) } catch (error) { showToast(error.message) }
+    const busy=bot.status==='connected'||['connecting','joining','reconnecting'].includes(bot.status)
+    const remove=createElement('button','icon-button danger','削除'); remove.type='button'; remove.disabled=!bot.isGuest&&(bot.accountStatus==='authenticating'||busy)
+    remove.addEventListener('click',async event=>{
+      event.stopPropagation()
+      const message=bot.isGuest?`${bot.label}を削除しますか？`:`${bot.label}と、このアカウントに追加したゲストBotを削除しますか？`
+      if(!window.confirm(message))return
+      if(state.selectedBotId===bot.id)releaseAllHeldInputs()
+      try{await api.removeBot(bot.id)}catch(error){showToast(error.message)}
     })
     actions.append(remove)
-
-    const serverInfo = createElement('div', 'bot-server-info')
-    serverInfo.append(createElement('div', 'bot-position', positionText(bot)))
-    card.append(main, targetArea, statuses, actions, serverInfo)
-    if (bot.accountError || bot.lastError) card.title = [bot.accountError, bot.lastError].filter(Boolean).join('\n')
+    const top=createElement('div','management-bot-mainline');top.append(main,statuses)
+    const bottom=createElement('div','management-bot-bottomline');bottom.append(target,actions)
+    card.append(top,bottom)
+    if(bot.accountError||bot.lastError)card.title=[bot.accountError,bot.lastError].filter(Boolean).join('\n')
     botList.append(card)
   }
-  renderPanelPager(botListFooter, state.botPage, pageCount, (page) => {
-    state.botPage = page
-    renderBots()
-  })
+  renderPanelPager(botListFooter,state.botPage,pageCount,page=>{state.botPage=page;renderBots()})
   renderControlPanel()
 }
-
 async function startControl (source, botId, control) {
   if (state.heldInputs.has(source)) return
   if (!botId) return showToast('操作するBotを選択してください。')
@@ -852,11 +743,14 @@ form.addEventListener('submit', async (event) => {
   try {
     const bot = await api.addBot({ label: document.getElementById('botLabel').value })
     state.bots.set(bot.id, bot)
-    if (!state.selectedBotId) state.selectedBotId = bot.id
-    state.botPage = Math.floor(Math.max(0, state.bots.size - 1) / 4)
+    state.selectedBotId = bot.id
+    state.botPage = Math.floor(Math.max(0, state.bots.size - 1) / 3)
     renderBots()
     renderBotModulesPanel(true)
     document.getElementById('botLabel').value = ''
+    document.getElementById('addBotFormPanel').hidden = true
+    renderBotModulesPanel(true)
+    loadSelectedBotData()
     showToast('Botを追加しました。次にアカウント認証を行い、参加先を選択してください。')
   } catch (error) {
     showToast(error.message || 'Botを追加できませんでした。')
@@ -877,12 +771,13 @@ serverForm.addEventListener('submit', async (event) => {
       mode: document.getElementById('serverMode').value
     })
     if (!state.servers.some(item => item.id === profile.id)) state.servers.push(profile)
-    state.serverPage = Math.max(0, Math.ceil(state.servers.length / 10) - 1)
+    state.serverPage = Math.max(0, Math.ceil(state.servers.length / 3) - 1)
     renderServerProfiles()
     renderBots()
     document.getElementById('serverLabel').value = ''
     document.getElementById('serverHost').value = ''
     document.getElementById('serverPort').value = '19132'
+    document.getElementById('serverFormPanel').hidden = true
     showToast(`接続先「${profile.label}」を登録しました。各Botの参加先から選べます。`)
   } catch (error) {
     showToast(error.message || '接続先を登録できませんでした。')
@@ -903,10 +798,7 @@ document.getElementById('addHivePresetButton').addEventListener('click', async (
 
 controlBotSelect.addEventListener('change', () => {
   releaseAllHeldInputs()
-  state.selectedBotId = controlBotSelect.value
-  renderControlPanel()
-  renderBotModulesPanel(true)
-  loadSelectedBotData()
+  selectBot(controlBotSelect.value)
 })
 
 for (const button of document.querySelectorAll('.move-key[data-control], .action-key[data-control]')) {

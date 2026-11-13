@@ -19,29 +19,9 @@
       <div class="version-chip">BEDROCK <span id="versionText">1.26.60</span></div>
     </header>
 
-    <nav class="workspace-tabs" aria-label="作業画面">
-      <button type="button" class="workspace-tab" data-view-target="bots" aria-pressed="true">Bot管理</button>
-      <button type="button" class="workspace-tab" data-view-target="servers" aria-pressed="false">接続先</button>
-      <button type="button" class="workspace-tab" data-view-target="operations" aria-pressed="false">Bot操作</button>
-      <button type="button" class="workspace-tab" data-view-target="mods" aria-pressed="false">Mod管理</button>
-      <button type="button" class="workspace-tab" data-view-target="logs" aria-pressed="false">接続ログ</button>
-      <span class="workspace-note">画面を切り替えて操作します。各画面はスクロールせずに表示します。</span>
-    </nav>
+    <nav 
 
-    <main id="dashboardGrid" class="dashboard-grid" data-active-view="bots">
-      <section class="intro-row" data-panel-id="overview" data-dashboard-view="bots">
-        <div>
-          <div class="eyebrow">CONTROL CENTER</div>
-          <h1>Bot管理</h1>
-          <p class="muted">Botを先に認証し、参加させるサーバーやワールドはBotごとに後から選択できます。</p>
-        </div>
-        <div class="summary-cards">
-          <div class="summary-card"><span>登録Bot</span><strong id="botCount">0</strong></div>
-          <div class="summary-card"><span>ワールド参加中</span><strong id="onlineCount">0</strong></div>
-        </div>
-      </section>
-
-      <section class="panel add-panel" data-panel-id="add-bot" data-dashboard-view="bots">
+    <main <main id="dashboardGrid" class="dashboard-grid"><div class="dashboard-overview"><div class="dashboard-overview-title"><div class="eyebrow">CONTROL CENTER</div><h1>Bot Dashboard</h1></div><div class="summary-cards"><div class="summary-card"><span>登録Bot</span><strong id="botCount">0</strong></div><div class="summary-card"><span>ワールド参加中</span><strong id="onlineCount">0</strong></div></div></div><section class="panel management-panel" data-panel-id="management"><div class="panel-heading"><div><h2>Bot・接続先管理</h2><p class="muted small">Botと参加先を登録し、一覧から操作対象を選択します。</p></div><span class="step-chip">MANAGEMENT</span></div><div class="management-toolbar"><button id="openAddBotFormButton" type="button" class="primary-button">＋ Bot追加</button><button id="openAddServerFormButton" type="button" class="secondary-button">＋ 接続先追加</button></div><div id="addBotFormPanel" class="management-drawer bot-form-drawer" hidden><div class="management-drawer-bar"><strong>Botを登録</strong><button id="closeAddBotFormButton" type="button" class="icon-button">閉じる</button></div>
         <div class="panel-heading">
           <div>
             <h2>Botを追加</h2>
@@ -57,9 +37,7 @@
           <button class="primary-button" type="submit"><span>＋</span> Botを追加</button>
         </form>
         <div class="notice-line"><span class="notice-dot"></span>通常Botを認証してワールド参加。1アカウントにつきゲストBotを最大3体追加できます。</div>
-      </section>
-
-      <section class="panel server-panel" data-panel-id="servers" data-dashboard-view="servers">
+      </div><div id="serverFormPanel" class="management-drawer server-form-drawer" hidden><div class="management-drawer-bar"><strong>接続先を登録</strong><button id="closeServerFormButton" type="button" class="icon-button">閉じる</button></div>
         <div class="panel-heading">
           <div>
             <h2>接続先を登録</h2>
@@ -84,18 +62,8 @@
           <button id="addHivePresetButton" type="button" class="secondary-button">＋ The Hive（アジア）を追加</button>
           <span class="muted tiny">ゲーム接続先：as.nethernet.playhive.com:19132 · シグナリング：HTTPS</span>
         </div>
-        <div id="serverProfileList" class="server-profile-list"></div>
-        <div id="serverProfileFooter" class="panel-pager" aria-label="接続先ページ"></div>
-      </section>
-
-      <section class="panel bots-panel" data-panel-id="bots" data-dashboard-view="bots">
-        <div class="panel-heading">
-          <div>
-            <h2>Bot一覧</h2>
-            <p class="muted small">通常Botは個別認証、ゲストBotは親アカウントの接続を共有します。</p>
-          </div>
-          <span class="count-label" id="botListLabel">0 BOTS</span>
-        </div>
+        </div><div class="management-list-group management-bot-group"><div class="management-section-heading"><strong>Bot一覧</strong><span class="count-label" id="botListLabel">0 BOTS</span></div>
+        <div 
         <div id="emptyState" class="empty-state">
           <div class="empty-icon">◇</div>
           <strong>Botはまだ登録されていません</strong>
@@ -103,16 +71,16 @@
         </div>
         <div id="botList" class="bot-list"></div>
         <div id="botListFooter" class="panel-pager" aria-label="Bot一覧ページ"></div>
-      </section>
-
-      <section class="panel control-panel" data-panel-id="control" data-dashboard-view="operations">
+      </div><div class="management-list-group management-server-group"><div class="management-section-heading"><strong>登録済み接続先</strong><span class="muted tiny">サーバー・プロファイル</span></div><div id="serverProfileList" class="server-profile-list"></div>
+        <div id="serverProfileFooter" class="panel-pager" aria-label="接続先ページ"></div>
+      </div></section><section class="panel control-panel" data-panel-id="control">
         <div class="panel-heading">
           <div>
             <h2>Bot操作</h2>
             <p class="muted small">Botを選択して、手動移動・ジャンプ・座標移動を行います。キーボードのWASD・Spaceにも対応します。</p>
           </div>
           <span class="step-chip">02 / CONTROL</span>
-        </div>
+        </div><div class="selected-connection-card"><div class="connection-summary"><div class="connection-identity"><strong id="connectionBotName">Botを選択してください</strong><span id="connectionBotState">未選択</span></div><div id="connectionActionButtons" class="connection-action-buttons"></div></div><div class="connection-target-row"><label class="field connection-target-field"><span>このBotの接続先</span><select id="controlTargetSelect" disabled><option value="">Botを選択してください</option></select></label><div id="connectionTargetTools" class="connection-target-tools"></div></div></div><div class="control-select-row" hidden><label class="field control-select-field"><span>操作するBot</span><select id="controlBotSelect" disabled><option value="">Botを追加してください</option></select></label><div class="selected-bot-info" id="selectedBotInfo">Botを選択すると位置と状態が表示されます。</div><div class="auto-reconnect-status" id="autoReconnectStatus">Botを選択してください。</div></div>
         <div class="control-select-row">
           <label class="field control-select-field">
             <span>操作するBot</span>
@@ -167,29 +135,7 @@
           </div>
           <p class="diagnostic-hint" id="diagnosticHint">Botがワールドに参加すると、1.26.60の移動・地形データの受信状況を表示します。</p>
         </div>
-      </section>
-
-      <section class="panel interaction-panel" data-panel-id="interaction" data-dashboard-view="operations">
-        <div class="panel-heading">
-          <div>
-            <h2>ワールドチャット・インベントリ</h2>
-            <p class="muted small">選択中のBotにチャットを送り、所持アイテムを確認して投げられます。</p>
-          </div>
-          <span class="step-chip">03 / INTERACTION</span>
-        </div>
-        <div class="interaction-grid">
-          <section class="chat-card">
-            <div class="subheading">ワールドチャット <span>Enterで送信 / Shift+Enterで改行</span></div>
-            <div id="chatMessages" class="chat-messages" aria-live="polite">
-              <div class="chat-empty">Botを選択してください。</div>
-            </div>
-            <form id="chatForm" class="chat-form">
-              <textarea id="chatInput" maxlength="256" rows="2" placeholder="ワールドに送信するメッセージ（/コマンドにも対応）" disabled></textarea>
-              <button id="sendChatButton" class="primary-button" type="submit" disabled>送信</button>
-            </form>
-            <p class="goto-note">先頭に / を付けると、サーバーが許可しているコマンドを送信できます。</p>
-          </section>
-          <section class="inventory-card">
+      </section><section class="panel selected-bot-panel" data-panel-id="selected-bot"><div class="panel-heading"><div><h2>選択Botの機能</h2><p class="muted small">選択中のBotに関係する機能だけを表示します。</p></div><span class="step-chip">BOT MODULES</span></div><div class="selected-bot-context"><strong id="selectedFunctionBotName">Bot未選択</strong><span id="selectedFunctionBotState">Botを選択してください。</span></div><div class="selected-inventory-block">
             <div class="subheading">インベントリ <button id="refreshInventoryButton" type="button" class="secondary-button" disabled>再取得</button></div>
             <div id="inventoryStatus" class="inventory-status">Botを選択してください。</div>
             <div id="inventoryList" class="inventory-list">
@@ -206,19 +152,29 @@
               </label>
               <button id="dropItemButton" class="primary-button" type="submit" disabled>アイテムを投げる</button>
             </form>
-          </section>
+          </div><div class="selected-mod-block"><div class="management-section-heading"><strong>割り当て済みMod</strong><span id="selectedModCount" class="muted tiny">0件</span></div><div id="selectedBotModSummary" class="selected-mod-summary"><div class="server-empty">Botを選択してください。</div></div><div class="selected-mod-actions"><button id="openSelectedModSettingsButton" type="button" class="secondary-button" disabled>Mod設定</button><button id="openModCatalogDialogButton" type="button" class="primary-button">Mod一覧・追加</button></div></div></section><section class="panel chat-panel" data-panel-id="chat"><div class="panel-heading"><div><h2>ワールドチャット</h2><p class="muted small">選択中Botのメッセージ履歴と送信欄</p></div><span class="step-chip">CHAT</span></div><div class="chat-card dashboard-chat-card">
+            <div class="subheading">ワールドチャット <span>Enterで送信 / Shift+Enterで改行</span></div>
+            <div id="chatMessages" class="chat-messages" aria-live="polite">
+              <div class="chat-empty">Botを選択してください。</div>
+            </div>
+            <form id="chatForm" class="chat-form">
+              <textarea id="chatInput" maxlength="256" rows="2" placeholder="ワールドに送信するメッセージ（/コマンドにも対応）" disabled></textarea>
+              <button id="sendChatButton" class="primary-button" type="submit" disabled>送信</button>
+            </form>
+            <p class="goto-note">先頭に / を付けると、サーバーが許可しているコマンドを送信できます。</p>
+          </div></section><section class="panel log-panel" data-panel-id="logs">
+        <div class="panel-heading log-heading">
+          <div>
+            <h2>接続ログ</h2>
+            <p class="muted small">サーバー探索・鍵確認・認証・ログイン・スポーンまでの段階を記録します。</p>
+          </div>
+          <span class="live-indicator"><i></i> LIVE</span>
         </div>
-      </section>
+        <div id="logList" class="log-list" aria-live="polite"></div>
+      </section></main>
+  </div>
 
-      <section class="panel mod-store-panel" data-panel-id="mod-store" data-dashboard-view="mods">
-        <div class="panel-heading">
-          <div><h2>Mod管理</h2><p class="muted small">必要なModを導入すると、Bot操作パネルにその機能が追加されます。導入後はBotごとに割り当ててください。</p></div>
-          <span class="step-chip">MOD CATALOG</span>
-        </div>
-        <div id="modCatalogList" class="mod-catalog-list"></div>
-      </section>
-
-      <section class="panel module-panel" id="modulePanel" data-panel-id="module-operations" data-dashboard-view="mods" hidden>
+  <dialog id="selectedModSettingsDialog" class="panel-dialog"><div class="dialog-header"><div><div class="dialog-kicker">BOT MODULE SETTINGS</div><h2>選択BotのMod設定</h2></div><button id="closeSelectedModSettingsDialogButton" type="button" class="icon-button">閉じる</button></div><section class="panel module-panel" id="modulePanel">
         <div class="panel-heading">
           <div>
             <h2>導入済みModの操作</h2>
@@ -268,22 +224,13 @@
         </div>
         <div class="module-actions module-save-row"><button id="moduleSaveButton" type="button" class="primary-button">Mod設定を保存</button></div>
         <p class="module-footnote">同じBotのインベントリ操作は同時実行しません。Container Supplyは補充先への移動中、手動移動を開始できない設計です。</p>
-      </section>
-
-      <section class="panel log-panel" data-panel-id="logs" data-dashboard-view="logs">
-        <div class="panel-heading log-heading">
-          <div>
-            <h2>接続ログ</h2>
-            <p class="muted small">サーバー探索・鍵確認・認証・ログイン・スポーンまでの段階を記録します。</p>
-          </div>
-          <span class="live-indicator"><i></i> LIVE</span>
+      </section></dialog><dialog id="modCatalogDialog" class="panel-dialog mod-catalog-dialog"><div class="dialog-header"><div><div class="dialog-kicker">MOD CATALOG</div><h2>Mod一覧・追加</h2></div><button id="closeModCatalogDialogButton" type="button" class="icon-button">閉じる</button></div><section class="panel mod-store-panel">
+        <div class="panel-heading">
+          <div><h2>Mod管理</h2><p class="muted small">必要なModを導入すると、Bot操作パネルにその機能が追加されます。導入後はBotごとに割り当ててください。</p></div>
+          <span class="step-chip">MOD CATALOG</span>
         </div>
-        <div id="logList" class="log-list" aria-live="polite"></div>
-      </section>
-    </main>
-  </div>
-
-  <dialog id="authDialog" class="auth-dialog">
+        <div id="modCatalogList" class="mod-catalog-list"></div>
+      </section></dialog><dialog id="authDialog" class="auth-dialog">
     <div class="dialog-glow"></div>
     <div class="dialog-kicker">MICROSOFT / XBOX ACCOUNT</div>
     <h2>Microsoft / Xboxアカウント認証</h2>

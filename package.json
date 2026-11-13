@@ -1,8 +1,8 @@
 {
   "name": "bedrock-bot-console",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "private": true,
-  "description": "Modular Minecraft Bedrock 1.26.60 bot console with Mod catalog and dashboard layout",
+  "description": "Minecraft Bedrock 1.26.60 bot console with master-detail dashboard layout",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
