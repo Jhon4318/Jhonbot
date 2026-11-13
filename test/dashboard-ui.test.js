@@ -75,3 +75,23 @@ test('right panel is scoped to the selected Bot and keeps chat and logs visible'
   assert.ok(renderer.includes('snapshot.botId === state.selectedBotId'))
   assert.ok(renderer.includes('renderInventoryPanel()'))
 })
+
+test('registered Bots hide the empty-state message even though empty-state has a flex display rule', () => {
+  const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
+  assert.match(renderer, /emptyState\.hidden\s*=\s*values\.length\s*>\s*0/)
+  assert.match(styles, /\.empty-state\[hidden\]\s*\{\s*display:\s*none\s*!important;/)
+})
+
+test('Bot cards use shrink-safe rows and wrap their actions in narrow management panels', () => {
+  const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
+  assert.match(styles, /\.management-bot-mainline\s*\{\s*display:\s*grid;/)
+  assert.match(styles, /\.management-bot-bottomline\s*\{\s*display:\s*grid;/)
+  assert.match(styles, /\.management-panel \.bot-main > div:last-child\s*\{\s*min-width:\s*0;/)
+  assert.match(styles, /@container bot-management \(max-width:\s*235px\)/)
+})
+
+test('compact control panels scroll to diagnostics instead of clipping them', () => {
+  const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
+  assert.match(styles, /\.control-panel\s*\{[^}]*overflow-y:\s*auto;/s)
+  assert.match(styles, /\.control-panel > \.diagnostic-card\s*\{\s*flex:\s*0 0 auto;/)
+})

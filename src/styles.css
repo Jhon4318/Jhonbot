@@ -1031,3 +1031,102 @@ main#dashboardGrid{flex:1 1 auto;width:100%;min-height:0;max-height:none;margin:
 .chat-panel .chat-form .primary-button { font-size: 9px; }
 .log-panel .log-entry { font-size: 8px; }
 .log-panel .log-time { flex-basis: 46px; }
+
+/* 0.8.3 screenshot fixes: remove stale empty states and keep compact panels usable */
+.empty-state[hidden] {
+  display: none !important;
+}
+
+.management-panel {
+  container-name: bot-management;
+  container-type: inline-size;
+}
+
+.management-panel .bot-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.management-bot-mainline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.management-panel .bot-main {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.management-panel .bot-main > div:last-child {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.management-panel .bot-status-stack {
+  min-width: 0;
+  max-width: 54%;
+  flex: 0 1 auto;
+  justify-content: flex-end;
+}
+
+.management-bot-bottomline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.management-panel .management-bot-target {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.management-panel .management-bot-actions {
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.management-panel .management-bot-actions button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* Narrow management columns stack their secondary information instead of overlapping. */
+@container bot-management (max-width: 235px) {
+  .management-bot-mainline,
+  .management-bot-bottomline {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .management-panel .bot-status-stack {
+    max-width: none;
+    justify-content: flex-start;
+  }
+
+  .management-panel .management-bot-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* Keep diagnostics reachable when the window is at its minimum height. */
+.control-panel {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.control-panel > .diagnostic-card {
+  flex: 0 0 auto;
+}
