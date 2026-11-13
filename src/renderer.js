@@ -169,7 +169,8 @@ function renderSelectedConnectionControls(bot){
   }else if(bot.isGuest)actions.append(createElement('span','muted tiny','親Botの接続を待っています。'))
   else{
     const hasTarget=bot.targetType==='server'||bot.targetType==='friend-world'||(bot.targetType==='lan-world'&&!!bot.networkId)||(bot.targetType==='realm'&&/^\d+$/.test(String(bot.targetId||'')))
-    const join=createElement('button','primary-button join-button',bot.status==='error'?'再参加':'ワールド参加');join.type='button';join.disabled=bot.accountStatus!=='authenticated'||!hasTarget
+    const join=createElement('button','primary-button join-button',bot.status==='error'?'再参加':'ワールド参加');join.type = 'button'
+    join.disabled = bot.accountStatus !== 'authenticated' || !hasTarget
     join.title=!hasTarget?'先に接続先を選択してください。':(bot.accountStatus!=='authenticated'?'先にXbox認証を完了してください。':'選択した接続先に参加します。')
     join.addEventListener('click',()=>api.connectBot(bot.id).catch(error=>showToast(error.message||'ワールドに参加できませんでした。')));actions.append(join)
   }
