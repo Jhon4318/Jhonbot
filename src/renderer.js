@@ -137,9 +137,12 @@ function renderSelectedConnectionControls(bot){
   if(!bot){
     name.textContent='Botを選択してください';stateLabel.textContent='未選択';targetSelect.append(new Option('Botを追加してください',''));targetSelect.disabled=true
     actions.append(createElement('span','muted tiny','左の一覧から操作するBotを選択してください。'))
+    document.getElementById('connectionAutoReconnect').textContent = ''
     document.getElementById('selectedFunctionBotName').textContent='Bot未選択';document.getElementById('selectedFunctionBotState').textContent='Botを選択してください。';return
   }
   name.textContent=bot.label;stateLabel.textContent=statusLabels[bot.status]||bot.status;stateLabel.className=`connection-status-label ${bot.status}`
+  const reconnectIndicator = document.getElementById('connectionAutoReconnect')
+  reconnectIndicator.textContent = bot.isGuest ? '親Botと接続連動' : (bot.autoReconnect?.status || '自動再接続：有効') + (bot.autoReconnect?.attempts ? ` · 再試行 ${bot.autoReconnect.attempts}回` : '')
   const busy=bot.status==='connected'||['connecting','joining','reconnecting'].includes(bot.status)
   targetSelect.append(new Option('参加先を選択…',''),new Option('フレンドのワールド（参加時に一覧表示）','friend-world'),new Option('LANワールド（検索して選択）','lan-world'),new Option('Realms（一覧から選択）','realm'))
   for(const server of state.servers)targetSelect.append(new Option(`サーバー：${server.label}`,`server:${server.id}`))
