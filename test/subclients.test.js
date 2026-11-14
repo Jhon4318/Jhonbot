@@ -134,10 +134,11 @@ test('SubClient login cannot be sent twice for the same view', () => {
 })
 
 
-test('scheduled SubClientLogin retains credentials outside the caller scope', async () => {
+test('scheduled SubClientLogin retains credentials outside the caller scope', () => {
   const tokens = { identity: 'identity-jwt', client: 'client-jwt' }
   const sent = []
   const errors = []
+  const scheduled = []
   const view = {
     closed: false,
     login (receivedTokens) {
@@ -145,32 +146,46 @@ test('scheduled SubClientLogin retains credentials outside the caller scope', as
       return { subClientId: 1, byteLength: 48 }
     }
   }
-  const dispatch = createSubClientLoginDispatcher(tokens)
+  const dispatch = createSubClientLoginDispatcher(tokens, (callback, delay) => {
+    assert.equal(delay, 0)
+    scheduled.push(callback)
+    return scheduled.length
+  })
   dispatch(view, {
     isCurrent: () => true,
     onSent: result => sent.push(result),
     onError: error => errors.push(error)
   })
 
-  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(sent.length, 0)
+  assert.equal(scheduled.length, 1)
+  scheduled[0]()
   assert.deepEqual(sent, [{ subClientId: 1, byteLength: 48 }])
   assert.equal(errors.length, 0)
 })
 
-test('scheduled SubClientLogin skips closed or stale guest sessions', async () => {
+test('scheduled SubClientLogin skips closed or stale guest sessions', () => {
   let loginCalls = 0
-  const dispatch = createSubClientLoginDispatcher({ identity: 'identity-jwt', client: 'client-jwt' })
+  const scheduled = []
+  const dispatch = createSubClientLoginDispatcher(
+    { identity: 'identity-jwt', client: 'client-jwt' },
+    callback => { scheduled.push(callback); return scheduled.length }
+  )
   dispatch({ closed: true, login: () => { loginCalls++ } }, { isCurrent: () => true })
   dispatch({ closed: false, login: () => { loginCalls++ } }, { isCurrent: () => false })
 
-  await new Promise(resolve => setImmediate(resolve))
+  for (const callback of scheduled) callback()
   assert.equal(loginCalls, 0)
 })
 
-test('scheduled SubClientLogin reports packet-send failures through its callback', async () => {
+test('scheduled SubClientLogin reports packet-send failures through its callback', () => {
   const expectedError = new Error('mock send failure')
   const errors = []
-  const dispatch = createSubClientLoginDispatcher({ identity: 'identity-jwt', client: 'client-jwt' })
+  const scheduled = []
+  const dispatch = createSubClientLoginDispatcher(
+    { identity: 'identity-jwt', client: 'client-jwt' },
+    callback => { scheduled.push(callback); return scheduled.length }
+  )
   dispatch({
     closed: false,
     login: () => { throw expectedError }
@@ -179,7 +194,7 @@ test('scheduled SubClientLogin reports packet-send failures through its callback
     onError: error => errors.push(error)
   })
 
-  await new Promise(resolve => setImmediate(resolve))
+  scheduled[0]()
   assert.deepEqual(errors, [expectedError])
 })
 
