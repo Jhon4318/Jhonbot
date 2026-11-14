@@ -24,6 +24,7 @@ const worldChoices = document.getElementById('worldChoices')
 const guestNameDialog = document.getElementById('guestNameDialog')
 const guestNameForm = document.getElementById('guestNameForm')
 const guestBotNameInput = document.getElementById('guestBotNameInput')
+const guestNameHint = document.getElementById('guestNameHint')
 const guestNameError = document.getElementById('guestNameError')
 const guestNameSubmitButton = document.getElementById('submitGuestNameButton')
 const serverKeyDialog = document.getElementById('serverKeyDialog')
@@ -89,16 +90,27 @@ function createElement (tag, className, text) {
 
 let pendingGuestParentBotId = ''
 
-function openGuestNameDialog (parentBot, guestCount) {
+function nextGuestSlotForParent (parentBotId) {
+  const used = new Set(Array.from(state.bots.values())
+    .filter(bot => bot.parentBotId === parentBotId)
+    .map(bot => Number(bot.subClientId)))
+  return [1, 2, 3].find(slot => !used.has(slot)) || null
+}
+
+function openGuestNameDialog (parentBot) {
   if (!parentBot?.id || guestNameDialog.open) return
+  const slot = nextGuestSlotForParent(parentBot.id)
+  if (slot == null) return showToast('この親Botには空いているゲスト枠がありません。')
+
   pendingGuestParentBotId = parentBot.id
-  guestBotNameInput.value = `${parentBot.label}-Guest${guestCount + 1}`.slice(0, 32)
+  guestBotNameInput.value = ''
+  guestBotNameInput.placeholder = `${parentBot.label} (${slot})`
+  guestNameHint.textContent = `空欄なら「${parentBot.label} (${slot})」、名前を入力するとその名前になります。`
   guestNameError.textContent = ''
   guestNameError.hidden = true
   guestNameSubmitButton.disabled = false
   guestNameDialog.showModal()
   guestBotNameInput.focus()
-  guestBotNameInput.select()
 }
 
 function selectedBot () {
@@ -439,8 +451,8 @@ function initializeDashboardLayout () {
       guestNameError.hidden = false
       return
     }
-    if (!label || label.length > 32) {
-      guestNameError.textContent = '表示名は1〜32文字で入力してください。'
+    if (label.length > 32) {
+      guestNameError.textContent = '表示名は32文字以内で入力してください。'
       guestNameError.hidden = false
       guestBotNameInput.focus()
       return
@@ -753,7 +765,7 @@ function renderBots () {
       guest.type='button'; guest.disabled=guestCount>=3
       guest.addEventListener('click', event => {
         event.stopPropagation()
-        openGuestNameDialog(bot, guestCount)
+        openGuestNameDialog(bot)
       })
       actions.append(guest)
     }
