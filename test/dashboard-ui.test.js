@@ -95,3 +95,14 @@ test('compact control panels scroll to diagnostics instead of clipping them', ()
   assert.match(styles, /\.control-panel\s*\{[^}]*overflow-y:\s*auto;/s)
   assert.match(styles, /\.control-panel > \.diagnostic-card\s*\{\s*flex:\s*0 0 auto;/)
 })
+
+
+test('guest Bot naming uses an in-app dialog and never calls unsupported window.prompt', () => {
+  for (const id of ['guestNameDialog', 'guestNameForm', 'guestBotNameInput', 'guestNameError', 'cancelGuestNameButton', 'submitGuestNameButton']) {
+    assert.ok(elementIds(html).includes(id), 'Missing guest-name dialog element: ' + id)
+  }
+  assert.match(renderer, /function openGuestNameDialog \(/)
+  assert.match(renderer, /guestNameForm\.addEventListener\('submit'/)
+  assert.match(renderer, /api\.addGuestBot\(\{ parentBotId, label \}\)/)
+  assert.doesNotMatch(renderer, /window\.prompt\s*\(/)
+})
