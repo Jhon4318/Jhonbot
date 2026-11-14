@@ -114,9 +114,9 @@ test('portal move_player reset arriving after the server ACK replaces a provisio
   assert.equal(bot._jhonResetInputTick, true)
 })
 
-test('dimension ACKs for another runtime entity are ignored', () => {
+test('dimension ACKs for another runtime entity are ignored', async () => {
   const { bot, client } = createBot()
-  installBedrockDimensionSync(bot)
+  installBedrockDimensionSync(bot, { positionGraceMs: 1 })
   client.emit('change_dimension', {
     dimension: 1,
     position: { x: 0.5, y: 70, z: 0.5 },
@@ -126,6 +126,8 @@ test('dimension ACKs for another runtime entity are ignored', () => {
   assert.equal(bot._jhonDimensionTransition, true)
   assert.equal(client.sent.filter(item => item.name === 'serverbound_loading_screen').length, 0)
   client.emit('player_action', { runtime_entity_id: 91n, action: 'dimension_change_ack' })
+  assert.equal(bot._jhonDimensionTransition, true, 'resume is delayed until the portal reset settle window expires')
+  await new Promise(resolve => setTimeout(resolve, 5))
   assert.equal(bot._jhonDimensionTransition, false)
 })
 
