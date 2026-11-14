@@ -168,15 +168,6 @@ function installBedrockDimensionSync (bot, options = {}) {
     return true
   }
 
-  function onShowCredits (packet) {
-    if (packet?.status !== 0) return
-    if (!sameRuntimeId(packet.runtime_entity_id, ownRuntimeId())) return
-    writePacket(client, 'show_credits', {
-      runtime_entity_id: ownRuntimeId(),
-      status: 1
-    })
-  }
-
   function dispose () {
     if (state.disposed) return
     state.disposed = true
@@ -185,7 +176,6 @@ function installBedrockDimensionSync (bot, options = {}) {
     bot._jhonResetInputTick = false
     client.removeListener('change_dimension', beginDimensionChange)
     client.removeListener('player_action', onServerDimensionAck)
-    client.removeListener('show_credits', onShowCredits)
     bot.removeListener('move', observeAuthoritativePosition)
     bot.removeListener('forcedMove', observeAuthoritativePosition)
     client.removeListener('close', dispose)
@@ -196,7 +186,6 @@ function installBedrockDimensionSync (bot, options = {}) {
   bot._jhonDimensionSync = api
   client.on('change_dimension', beginDimensionChange)
   client.on('player_action', onServerDimensionAck)
-  client.on('show_credits', onShowCredits)
   bot.on('move', observeAuthoritativePosition)
   bot.on('forcedMove', observeAuthoritativePosition)
   client.once('close', dispose)

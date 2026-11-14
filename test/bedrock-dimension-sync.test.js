@@ -101,18 +101,13 @@ test('dimension ACKs for another runtime entity are ignored', () => {
   assert.equal(bot._jhonDimensionTransition, false)
 })
 
-test('End exit credits are acknowledged for this Bot only', () => {
+test('dimension sync leaves End credits to Mineflayer game plugin without sending a duplicate', () => {
   const { bot, client } = createBot()
   installBedrockDimensionSync(bot)
-  client.emit('show_credits', { runtime_entity_id: 777n, status: 0 })
-  assert.equal(client.sent.length, 0)
+  assert.equal(client.listenerCount('show_credits'), 0)
   client.emit('show_credits', { runtime_entity_id: 91n, status: 0 })
-  assert.deepEqual(client.sent, [{
-    name: 'show_credits',
-    params: { runtime_entity_id: 91n, status: 1 }
-  }])
+  assert.equal(client.sent.some(item => item.name === 'show_credits'), false)
 })
-
 test('disposing dimension synchronization clears the input gate and listeners', () => {
   const { bot, client } = createBot()
   const sync = installBedrockDimensionSync(bot)
