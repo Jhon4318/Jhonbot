@@ -237,6 +237,23 @@
     <button id="cancelWorldSelectionButton" type="button" class="text-button">キャンセル</button>
   </dialog>
 
+  <dialog id="guestNameDialog" class="auth-dialog selection-dialog">
+    <div class="dialog-kicker">GUEST BOT</div>
+    <h2>ゲストBotを追加</h2>
+    <p class="muted">親BotのXboxアカウントを共有します。親Botがワールド参加中の場合、追加後にゲストも自動的に参加します。</p>
+    <form id="guestNameForm" autocomplete="off">
+      <label class="field">
+        <span>ゲストBotの表示名</span>
+        <input id="guestBotNameInput" type="text" maxlength="32" required placeholder="例：Bot-Guest1">
+      </label>
+      <p id="guestNameError" class="muted tiny" hidden></p>
+      <div class="dialog-actions">
+        <button id="cancelGuestNameButton" type="button" class="secondary-button">キャンセル</button>
+        <button id="submitGuestNameButton" type="submit" class="primary-button">ゲストを追加</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="serverKeyDialog" class="auth-dialog selection-dialog">
     <div class="dialog-kicker">NETHERNET SERVER IDENTITY</div>
     <h2>サーバーの本人確認</h2>
