@@ -97,12 +97,16 @@ test('compact control panels scroll to diagnostics instead of clipping them', ()
 })
 
 
-test('guest Bot naming uses an in-app dialog and never calls unsupported window.prompt', () => {
-  for (const id of ['guestNameDialog', 'guestNameForm', 'guestBotNameInput', 'guestNameError', 'cancelGuestNameButton', 'submitGuestNameButton']) {
+test('guest Bot naming dialog makes the name optional and previews the Tsukuyomi slot name', () => {
+  for (const id of ['guestNameDialog', 'guestNameForm', 'guestBotNameInput', 'guestNameHint', 'guestNameError', 'cancelGuestNameButton', 'submitGuestNameButton']) {
     assert.ok(elementIds(html).includes(id), 'Missing guest-name dialog element: ' + id)
   }
-  assert.match(renderer, /function openGuestNameDialog \(/)
+  assert.match(html, /id="guestBotNameInput" type="text" maxlength="32" placeholder=""/)
+  assert.doesNotMatch(html.match(/<input id="guestBotNameInput"[^>]*>/)?.[0] || '', /required/)
+  assert.match(renderer, /function nextGuestSlotForParent \(/)
+  assert.match(renderer, /guestBotNameInput\.placeholder = `\$\{parentBot\.label\} \(\$\{slot\}\)`/)
   assert.match(renderer, /guestNameForm\.addEventListener\('submit'/)
   assert.match(renderer, /api\.addGuestBot\(\{ parentBotId, label \}\)/)
+  assert.match(renderer, /if \(label\.length > 32\)/)
   assert.doesNotMatch(renderer, /window\.prompt\s*\(/)
 })
