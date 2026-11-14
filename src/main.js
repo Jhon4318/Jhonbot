@@ -23,6 +23,7 @@ const { assertCanAuthenticate, assertCanJoinWorld } = require('./account-state')
 const { createEncryptedAuthCacheFactory, hasEncryptedAuthCache } = require('./auth-cache')
 const { normalizeChatMessage, normalizeDropRequest, createInventorySnapshot } = require('./bot-actions')
 const { installSubClientSupport, createGuestLoginTokens, MAX_SUB_CLIENTS } = require('./subclients')
+const { nextGuestSubClientId, resolveGuestLabel } = require('./guest-naming')
 const { installBedrockDimensionSync } = require('./bedrock-dimension-sync')
 const { normalizeBotModules, moduleConfigComplete, isModuleAssigned } = require('./modules')
 const { reconnectDelay, isRetryableDisconnect } = require('./connection-manager')
@@ -1169,15 +1170,13 @@ async function addGuestBot (parentBotId, input) {
   const parent = bots.get(parentBotId)
   if (!parent) throw new Error('親Botが見つかりません。')
   if (parent.parentBotId) throw new Error('ゲストBotに別のゲストBotを追加することはできません。')
-  const guests = Array.from(bots.values()).filter(item => item.parentBotId === parent.id)
-  if (guests.length >= MAX_SUB_CLIENTS) throw new Error('1アカウントに追加できるゲストBotは最大3体です。')
-  const usedSlots = new Set(guests.map(item => Number(item.subClientId)))
-  let subClientId = 1
-  while (usedSlots.has(subClientId) && subClientId <= MAX_SUB_CLIENTS) subClientId++
-  if (subClientId > MAX_SUB_CLIENTS) throw new Error('空いているSubClient枠がありません。')
+  const allBots = Array.from(bots.values())
+  const subClientId = nextGuestSubClientId(allBots, parent.id, MAX_SUB_CLIENTS)
+  if (subClientId == null) throw new Error('1アカウントに追加できるゲストBotは最大3体です。')
 
-  const label = cleanLabel(input?.label)
-  if (!label) throw new Error('ゲストBot名は1〜32文字で入力してください。')
+  // Tsukuyomi's guestKey convention: <parent name> (1), (2), or (3).
+  // An explicitly entered name overrides the generated seat name.
+  const label = resolveGuestLabel(parent.label, subClientId, input?.label)
   const guest = createBotRecord({
     id: randomUUID(),
     label,
