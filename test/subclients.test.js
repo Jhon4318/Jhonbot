@@ -36,7 +36,7 @@ test('invalid subclient headers are rejected', () => {
 
 
 const { EventEmitter } = require('node:events')
-const { installSubClientSupport } = require('../src/subclients')
+const { installSubClientSupport, createSubClientLoginDispatcher } = require('../src/subclients')
 
 function makeParentClient (initialized = false) {
   const parent = new EventEmitter()
@@ -133,6 +133,55 @@ test('SubClient login cannot be sent twice for the same view', () => {
   assert.throws(() => view.login(tokens), /送信済み/)
 })
 
+
+test('scheduled SubClientLogin retains credentials outside the caller scope', async () => {
+  const tokens = { identity: 'identity-jwt', client: 'client-jwt' }
+  const sent = []
+  const errors = []
+  const view = {
+    closed: false,
+    login (receivedTokens) {
+      assert.strictEqual(receivedTokens, tokens)
+      return { subClientId: 1, byteLength: 48 }
+    }
+  }
+  const dispatch = createSubClientLoginDispatcher(tokens)
+  dispatch(view, {
+    isCurrent: () => true,
+    onSent: result => sent.push(result),
+    onError: error => errors.push(error)
+  })
+
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(sent, [{ subClientId: 1, byteLength: 48 }])
+  assert.equal(errors.length, 0)
+})
+
+test('scheduled SubClientLogin skips closed or stale guest sessions', async () => {
+  let loginCalls = 0
+  const dispatch = createSubClientLoginDispatcher({ identity: 'identity-jwt', client: 'client-jwt' })
+  dispatch({ closed: true, login: () => { loginCalls++ } }, { isCurrent: () => true })
+  dispatch({ closed: false, login: () => { loginCalls++ } }, { isCurrent: () => false })
+
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(loginCalls, 0)
+})
+
+test('scheduled SubClientLogin reports packet-send failures through its callback', async () => {
+  const expectedError = new Error('mock send failure')
+  const errors = []
+  const dispatch = createSubClientLoginDispatcher({ identity: 'identity-jwt', client: 'client-jwt' })
+  dispatch({
+    closed: false,
+    login: () => { throw expectedError }
+  }, {
+    isCurrent: () => true,
+    onError: error => errors.push(error)
+  })
+
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(errors, [expectedError])
+})
 
 test('the pinned Bedrock 1.26.60 schema can encode SubClientLogin tokens', () => {
   const path = require('node:path')
