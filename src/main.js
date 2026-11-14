@@ -22,7 +22,7 @@ const { safeErrorMessage, isAllowedAuthUrl } = require('./runtime-guards')
 const { assertCanAuthenticate, assertCanJoinWorld } = require('./account-state')
 const { createEncryptedAuthCacheFactory, hasEncryptedAuthCache } = require('./auth-cache')
 const { normalizeChatMessage, normalizeDropRequest, createInventorySnapshot } = require('./bot-actions')
-const { installSubClientSupport, createGuestLoginTokens, MAX_SUB_CLIENTS } = require('./subclients')
+const { installSubClientSupport, createGuestLoginTokens, createSubClientLoginDispatcher, MAX_SUB_CLIENTS } = require('./subclients')
 const { nextGuestSubClientId, resolveGuestLabel } = require('./guest-naming')
 const { installBedrockDimensionSync } = require('./bedrock-dimension-sync')
 const { normalizeBotModules, moduleConfigComplete, isModuleAssigned } = require('./modules')
@@ -1227,8 +1227,10 @@ async function joinGuestBot (parent, guest) {
   guest.connectionStarting = true
   let view = null
   let agent
+  let dispatchSubClientLogin
   try {
     const tokens = createGuestLoginTokens(parent.client)
+    dispatchSubClientLogin = createSubClientLoginDispatcher(tokens)
     view = parent.client.createSubClient(subClientId, guest.label)
     agent = mineflayer.createBot({
       edition: 'bedrock',
@@ -1292,10 +1294,14 @@ async function joinGuestBot (parent, guest) {
   try {
     agent.loadPlugin(pathfinder)
   } catch (error) {
-    view.close('Plugin initialization failed')
+    try { view.close('Plugin initialization failed') } catch {}
     guest.agent = null
     guest.client = null
     guest.connectionStarting = false
+    guest.hadError = true
+    guest.lastError = safeErrorMessage(error)
+    setBotStatus(guest, 'error', { lastError: guest.lastError })
+    pushLog(`${guest.label}: 経路探索プラグインの初期化に失敗しました: ${describeFailure(error)}`, 'error', guest.id)
     throw error
   }
 
@@ -1382,21 +1388,22 @@ async function joinGuestBot (parent, guest) {
   })
 
   // createBot schedules plugin injection on the next event-loop turn. Send SubClientLogin
-  // after its per-session listeners have been registered.
-  setTimeout(() => {
-    if (guest.agent !== agent || view.closed) return
-    try {
-      const sent = view.login(tokens)
+  // after its per-session listeners have been registered. The dispatcher owns the
+  // credential closure, avoiding caller-scope leaks in this delayed callback.
+  dispatchSubClientLogin(view, {
+    isCurrent: () => guest.agent === agent,
+    onSent: (sent) => {
       pushLog(`${guest.label}: SubClientLoginパケットを送信しました (SubClient ${sent.subClientId}, ${sent.byteLength} bytes)。`, 'info', guest.id)
-    } catch (error) {
+    },
+    onError: (error) => {
       guest.hadError = true
       guest.lastError = safeErrorMessage(error)
       setBotStatus(guest, 'error', { lastError: guest.lastError })
       writeDiagnosticLog(`[subclient-login-failure] bot=${guest.id} subClientId=${subClientId} error=${error?.stack || error}`)
       pushLog(`${guest.label}: SubClientLogin送信に失敗しました: ${guest.lastError}`, 'error', guest.id)
-      view.close(`SubClientLogin送信失敗: ${guest.lastError}`)
+      try { view.close(`SubClientLogin送信失敗: ${guest.lastError}`) } catch {}
     }
-  }, 0)
+  })
   publishBot(guest)
   return publicBot(guest)
 }
