@@ -240,12 +240,13 @@
   <dialog id="guestNameDialog" class="auth-dialog selection-dialog">
     <div class="dialog-kicker">GUEST BOT</div>
     <h2>ゲストBotを追加</h2>
-    <p class="muted">親BotのXboxアカウントを共有します。親Botがワールド参加中の場合、追加後にゲストも自動的に参加します。</p>
+    <p class="muted">親BotのXboxアカウントを共有します。名前を空欄にするとTsukuyomiと同じ形式で「親Bot名 (1)」のように自動命名します。名前を入力した場合は、その名前を使用します。</p>
     <form id="guestNameForm" autocomplete="off">
       <label class="field">
-        <span>ゲストBotの表示名</span>
-        <input id="guestBotNameInput" type="text" maxlength="32" required placeholder="例：Bot-Guest1">
+        <span>ゲストBotの表示名（任意）</span>
+        <input id="guestBotNameInput" type="text" maxlength="32" placeholder="">
       </label>
+      <p id="guestNameHint" class="muted tiny"></p>
       <p id="guestNameError" class="muted tiny" hidden></p>
       <div class="dialog-actions">
         <button id="cancelGuestNameButton" type="button" class="secondary-button">キャンセル</button>
