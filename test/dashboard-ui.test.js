@@ -110,3 +110,31 @@ test('guest Bot naming dialog makes the name optional and previews the Tsukuyomi
   assert.match(renderer, /if \(label\.length > 32\)/)
   assert.doesNotMatch(renderer, /window\.prompt\s*\(/)
 })
+
+
+test('Bot operation panel exposes parent and guest selection plus guest connection actions', () => {
+  assert.match(html, /<div class="control-select-row">/)
+  assert.match(html, /操作するBot（親Bot \/ ゲスト切替）/)
+  assert.match(html, /id="controlBotSelect"/)
+
+  const selectControlsStart = renderer.indexOf('function renderSelectedConnectionControls')
+  const selectControlsEnd = renderer.indexOf('function renderControlPanel', selectControlsStart)
+  const selectedControls = renderer.slice(selectControlsStart, selectControlsEnd)
+  assert.match(selectedControls, /openGuestNameDialog\(bot\)/)
+  assert.match(selectedControls, /ゲスト接続/)
+  assert.match(selectedControls, /api\.connectBot\(bot\.id\)/)
+  assert.match(selectedControls, /api\.disconnectBot\(bot\.id\)/)
+
+  const botListStart = renderer.indexOf('function renderBots ()')
+  const botListEnd = renderer.indexOf('async function startControl', botListStart)
+  const botListRenderer = renderer.slice(botListStart, botListEnd)
+  assert.doesNotMatch(botListRenderer, /ゲスト追加/)
+  assert.match(botListRenderer, /compact-bot-row/)
+})
+
+test('registered Bot list uses compact single-row cards', () => {
+  const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
+  assert.match(styles, /\.management-panel \.compact-bot-row\s*\{\s*display:\s*flex;/)
+  assert.match(styles, /\.management-panel \.bot-card\s*\{\s*min-height:\s*34px;/)
+  assert.match(styles, /\.control-panel \.control-select-row\s*\{\s*display:\s*grid;/)
+})
