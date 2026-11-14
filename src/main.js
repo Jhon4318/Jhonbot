@@ -1194,9 +1194,8 @@ async function addGuestBot (parentBotId, input) {
   publishBot(guest)
   publishBot(parent)
 
-  if (parent.status === 'connected' && parent.client && parent.agent) {
-    await joinGuestBot(parent, guest)
-  }
+  // Registration is separate from joining. The selected guest exposes its own
+  // connect button in the Bot operation panel so the user controls when it enters.
   return publicBot(guest)
 }
 
@@ -1387,12 +1386,15 @@ async function joinGuestBot (parent, guest) {
   setTimeout(() => {
     if (guest.agent !== agent || view.closed) return
     try {
-      view.login(tokens)
+      const sent = view.login(tokens)
+      pushLog(`${guest.label}: SubClientLoginパケットを送信しました (SubClient ${sent.subClientId}, ${sent.byteLength} bytes)。`, 'info', guest.id)
     } catch (error) {
       guest.hadError = true
       guest.lastError = safeErrorMessage(error)
       setBotStatus(guest, 'error', { lastError: guest.lastError })
-      view.close('SubClientLogin failed')
+      writeDiagnosticLog(`[subclient-login-failure] bot=${guest.id} subClientId=${subClientId} error=${error?.stack || error}`)
+      pushLog(`${guest.label}: SubClientLogin送信に失敗しました: ${guest.lastError}`, 'error', guest.id)
+      view.close(`SubClientLogin送信失敗: ${guest.lastError}`)
     }
   }, 0)
   publishBot(guest)
