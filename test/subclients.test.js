@@ -103,7 +103,7 @@ test('SubClient login sends a validated packet 0x5e with recipient 0 and the gue
   const result = view.login({ identity: '{"AuthenticationType":1}', client: 'signed-client-jwt' })
 
   assert.equal(result.subClientId, 2)
-  assert.equal(result.byteLength, 3)
+  assert.equal(result.byteLength, 4)
   assert.equal(sent.length, 1)
   assert.equal(sent[0].immediate, true)
   const header = decodeSubClientHeader(sent[0].packet)
