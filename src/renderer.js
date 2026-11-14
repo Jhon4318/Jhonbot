@@ -230,12 +230,19 @@ function renderControlPanel () {
     if (!values.length) {
       controlBotSelect.append(new Option('Botを追加してください', ''))
     } else {
-      for (const bot of values) controlBotSelect.append(new Option(`${bot.label} (${statusLabels[bot.status] || bot.status})`, bot.id))
+      for (const bot of values) {
+        const label = bot.isGuest
+          ? '　↳ Guest ' + bot.subClientId + ' · ' + bot.label + ' [' + (statusLabels[bot.status] || bot.status) + ']'
+          : bot.label + ' [' + (statusLabels[bot.status] || bot.status) + ']'
+        controlBotSelect.append(new Option(label, bot.id))
+      }
     }
   } else {
     for (const option of controlBotSelect.options) {
       const bot = state.bots.get(option.value)
-      if (bot) option.textContent = `${bot.label} (${statusLabels[bot.status] || bot.status})`
+      if (bot) option.textContent = bot.isGuest
+        ? '　↳ Guest ' + bot.subClientId + ' · ' + bot.label + ' [' + (statusLabels[bot.status] || bot.status) + ']'
+        : bot.label + ' [' + (statusLabels[bot.status] || bot.status + ']')
     }
   }
   controlBotSelect.value = state.selectedBotId
