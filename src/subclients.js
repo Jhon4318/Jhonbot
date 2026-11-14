@@ -124,6 +124,7 @@ class SubClientView extends EventEmitter {
     this.startGameData = {}
     this.closed = false
     this._initSent = false
+    this._loginSent = false
   }
 
   get entityId () { return this.startGameData.runtime_entity_id }
@@ -145,13 +146,29 @@ class SubClientView extends EventEmitter {
 
   login (tokens) {
     if (this.closed) throw new Error('SubClientはすでに切断されています。')
+    if (this._loginSent) throw new Error(`SubClient ${this.subClientId} のログイン要求は送信済みです。`)
+    if (!tokens || typeof tokens.identity !== 'string' || !tokens.identity || typeof tokens.client !== 'string' || !tokens.client) {
+      throw new Error('SubClientLoginの認証データ（identity / client）が不完全です。')
+    }
+    if (!this.parent.serializer?.createPacketBuffer || typeof this.parent.sendBuffer !== 'function') {
+      throw new Error('親Bedrockクライアントのパケット送信機能が初期化されていません。')
+    }
+
     const packet = this.parent.serializer.createPacketBuffer({
       name: 'sub_client_login',
       params: { tokens }
     })
+    const packetHeader = decodeSubClientHeader(packet)
+    if (!packetHeader || packetHeader.packetId !== 0x5e) {
+      throw new Error('SubClientLoginパケットを正しく生成できませんでした。')
+    }
     const framed = rewriteSubClientHeader(packet, 0, this.subClientId)
-    // Login is sent immediately so the server can establish this logical player session.
+
+    // Match Tsukuyomi: packet 0x5e, recipient 0, sender = seat number.
+    // Send immediately on the already-encrypted parent connection.
     this.parent.sendBuffer(framed, true)
+    this._loginSent = true
+    return { byteLength: framed.length, subClientId: this.subClientId }
   }
 
   readPacket (packet) {
