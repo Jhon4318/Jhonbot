@@ -1098,6 +1098,7 @@ async function connectBot (botId, options = {}) {
     recordBotChatMessage(bot, 'incoming', sender, message)
   })
   agent.on('kicked', (reason) => {
+    if (bot.agent !== agent) return
     bot.kicked = true
     bot.hadError = true
     bot.lastError = String(reason || 'サーバーから切断されました。')
@@ -1132,6 +1133,7 @@ async function connectBot (botId, options = {}) {
     scheduleBotReconnect(bot, reason || bot.lastError, wasConnected)
   })
   agent.on('move', () => {
+    if (bot.agent !== agent) return
     const now = Date.now()
     if (now - bot.lastUiPositionUpdate >= 500) {
       bot.lastUiPositionUpdate = now
@@ -1143,8 +1145,8 @@ async function connectBot (botId, options = {}) {
     bot.worldColumnsLoaded++
     publishBot(bot)
   })
-  agent.on('health', publishBot.bind(null, bot))
-  agent.on('food', publishBot.bind(null, bot))
+  agent.on('health', () => { if (bot.agent === agent) publishBot(bot) })
+  agent.on('food', () => { if (bot.agent === agent) publishBot(bot) })
   agent.on('goal_reached', () => {
     if (bot.agent !== agent) return
     bot.movementStatus = '目的地に到着しました'
@@ -1160,6 +1162,7 @@ async function connectBot (botId, options = {}) {
     }
   })
   agent.on('blockUpdateError', (_pos, runtimeId) => {
+    if (bot.agent !== agent) return
     pushLog(`${bot.label}: 未知のブロックID ${runtimeId} を受信しました。地形データに影響する可能性があります。`, 'warning', bot.id)
   })
   publishBot(bot)
