@@ -33,3 +33,55 @@ test('invalid subclient headers are rejected', () => {
   assert.equal(decodeSubClientHeader(Buffer.alloc(0)), null)
   assert.equal(decodeSubClientHeader(Buffer.from([0x80])), null)
 })
+
+
+const { EventEmitter } = require('node:events')
+const { installSubClientSupport } = require('../src/subclients')
+
+function makeParentClient (initialized = false) {
+  const parent = new EventEmitter()
+  parent.sendBuffer = () => {}
+  parent.readPacket = () => {}
+  parent.updateItemPalette = () => {}
+  if (initialized) {
+    parent.serializer = { createPacketBuffer: () => Buffer.from([0x01]) }
+    parent.deserializer = { parsePacketBuffer: () => ({ data: { name: 'play_status', params: { status: 0 } } }) }
+  }
+  return parent
+}
+
+test('SubClient support installs immediately when the Bedrock client is initialized', () => {
+  const parent = makeParentClient(true)
+  installSubClientSupport(parent)
+  assert.equal(parent.__jhonSubClientSupport, true)
+  assert.equal(typeof parent.createSubClient, 'function')
+})
+
+test('SubClient support waits for connect_allowed when world discovery delays client initialization', () => {
+  const parent = makeParentClient(false)
+  installSubClientSupport(parent)
+  assert.equal(parent.__jhonSubClientSupport, undefined)
+  assert.equal(parent.__jhonSubClientSupportPending, true)
+  assert.equal(parent.createSubClient, undefined)
+
+  parent.serializer = { createPacketBuffer: () => Buffer.from([0x01]) }
+  parent.deserializer = { parsePacketBuffer: () => ({ data: { name: 'play_status', params: { status: 0 } } }) }
+  parent.emit('connect_allowed')
+
+  assert.equal(parent.__jhonSubClientSupportPending, false)
+  assert.equal(parent.__jhonSubClientSupport, true)
+  assert.equal(typeof parent.createSubClient, 'function')
+})
+
+test('repeated SubClient setup requests do not register duplicate initialization listeners', () => {
+  const parent = makeParentClient(false)
+  installSubClientSupport(parent)
+  installSubClientSupport(parent)
+  assert.equal(parent.listenerCount('connect_allowed'), 1)
+
+  parent.serializer = { createPacketBuffer: () => Buffer.from([0x01]) }
+  parent.deserializer = { parsePacketBuffer: () => ({ data: { name: 'play_status', params: { status: 0 } } }) }
+  parent.emit('connect_allowed')
+  assert.equal(parent.__jhonSubClientSupport, true)
+  assert.equal(parent.listenerCount('close'), 1)
+})
