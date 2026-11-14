@@ -1132,6 +1132,7 @@ async function connectBot (botId, options = {}) {
     scheduleBotReconnect(bot, reason || bot.lastError, wasConnected)
   })
   agent.on('move', () => {
+    if (guest.agent !== agent) return
     const now = Date.now()
     if (now - bot.lastUiPositionUpdate >= 500) {
       bot.lastUiPositionUpdate = now
@@ -1327,6 +1328,7 @@ async function joinGuestBot (parent, guest) {
     recordBotChatMessage(guest, 'incoming', sender, message)
   })
   agent.on('kicked', (reason) => {
+    if (guest.agent !== agent) return
     guest.hadError = true
     guest.lastError = String(reason || 'サーバーから切断されました。')
     pushLog(`${guest.label}: ゲスト接続が拒否されました: ${guest.lastError}`, 'warning', guest.id)
@@ -1367,8 +1369,8 @@ async function joinGuestBot (parent, guest) {
     guest.worldColumnsLoaded++
     publishBot(guest)
   })
-  agent.on('health', publishBot.bind(null, guest))
-  agent.on('food', publishBot.bind(null, guest))
+  agent.on('health', () => { if (guest.agent === agent) publishBot(guest) })
+  agent.on('food', () => { if (guest.agent === agent) publishBot(guest) })
   agent.on('goal_reached', () => {
     if (guest.agent !== agent) return
     guest.movementStatus = '目的地に到着しました'
@@ -1384,6 +1386,7 @@ async function joinGuestBot (parent, guest) {
     }
   })
   agent.on('blockUpdateError', (_pos, runtimeId) => {
+    if (guest.agent !== agent) return
     pushLog(`${guest.label}: 未知のブロックID ${runtimeId} を受信しました。地形データに影響する可能性があります。`, 'warning', guest.id)
   })
 
