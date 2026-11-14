@@ -85,3 +85,50 @@ test('repeated SubClient setup requests do not register duplicate initialization
   assert.equal(parent.__jhonSubClientSupport, true)
   assert.equal(parent.listenerCount('connect_allowed'), 0)
 })
+
+
+test('SubClient login sends a validated packet 0x5e with recipient 0 and the guest sender ID', () => {
+  const sent = []
+  const parent = makeParentClient(true)
+  parent.sendBuffer = (packet, immediate) => sent.push({ packet, immediate })
+  parent.serializer.createPacketBuffer = ({ name, params }) => {
+    assert.equal(name, 'sub_client_login')
+    assert.equal(typeof params.tokens.identity, 'string')
+    assert.equal(typeof params.tokens.client, 'string')
+    return Buffer.from([0x5e, 0x01, 0x02])
+  }
+
+  installSubClientSupport(parent)
+  const view = parent.createSubClient(2, 'Guest (2)')
+  const result = view.login({ identity: '{"AuthenticationType":1}', client: 'signed-client-jwt' })
+
+  assert.equal(result.subClientId, 2)
+  assert.equal(result.byteLength, 3)
+  assert.equal(sent.length, 1)
+  assert.equal(sent[0].immediate, true)
+  const header = decodeSubClientHeader(sent[0].packet)
+  assert.equal(header.packetId, 0x5e)
+  assert.equal(header.recipient, 0)
+  assert.equal(header.sender, 2)
+})
+
+test('SubClient login rejects incomplete credentials before sending', () => {
+  const sent = []
+  const parent = makeParentClient(true)
+  parent.sendBuffer = packet => sent.push(packet)
+  installSubClientSupport(parent)
+  const view = parent.createSubClient(1, 'Guest (1)')
+  assert.throws(() => view.login({ identity: '{}', client: '' }), /identity \/ client/)
+  assert.equal(sent.length, 0)
+})
+
+test('SubClient login cannot be sent twice for the same view', () => {
+  const parent = makeParentClient(true)
+  parent.sendBuffer = () => {}
+  parent.serializer.createPacketBuffer = () => Buffer.from([0x5e, 0x00])
+  installSubClientSupport(parent)
+  const view = parent.createSubClient(1, 'Guest (1)')
+  const tokens = { identity: '{}', client: 'signed-client-jwt' }
+  view.login(tokens)
+  assert.throws(() => view.login(tokens), /送信済み/)
+})
