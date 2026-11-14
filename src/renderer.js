@@ -21,6 +21,11 @@ const pathfinderNote = document.getElementById('pathfinderNote')
 const gotoForm = document.getElementById('gotoForm')
 const worldDialog = document.getElementById('worldDialog')
 const worldChoices = document.getElementById('worldChoices')
+const guestNameDialog = document.getElementById('guestNameDialog')
+const guestNameForm = document.getElementById('guestNameForm')
+const guestBotNameInput = document.getElementById('guestBotNameInput')
+const guestNameError = document.getElementById('guestNameError')
+const guestNameSubmitButton = document.getElementById('submitGuestNameButton')
 const serverKeyDialog = document.getElementById('serverKeyDialog')
 const chatMessages = document.getElementById('chatMessages')
 const chatForm = document.getElementById('chatForm')
@@ -80,6 +85,20 @@ function createElement (tag, className, text) {
   if (className) node.className = className
   if (text !== undefined) node.textContent = text
   return node
+}
+
+let pendingGuestParentBotId = ''
+
+function openGuestNameDialog (parentBot, guestCount) {
+  if (!parentBot?.id || guestNameDialog.open) return
+  pendingGuestParentBotId = parentBot.id
+  guestBotNameInput.value = `${parentBot.label}-Guest${guestCount + 1}`.slice(0, 32)
+  guestNameError.textContent = ''
+  guestNameError.hidden = true
+  guestNameSubmitButton.disabled = false
+  guestNameDialog.showModal()
+  guestBotNameInput.focus()
+  guestBotNameInput.select()
 }
 
 function selectedBot () {
@@ -411,6 +430,48 @@ function renderModStore () {
 }
 
 function initializeDashboardLayout () {
+  guestNameForm.addEventListener('submit', async event => {
+    event.preventDefault()
+    const parentBotId = pendingGuestParentBotId
+    const label = guestBotNameInput.value.trim()
+    if (!parentBotId) {
+      guestNameError.textContent = '親Botを特定できません。Bot一覧からやり直してください。'
+      guestNameError.hidden = false
+      return
+    }
+    if (!label || label.length > 32) {
+      guestNameError.textContent = '表示名は1〜32文字で入力してください。'
+      guestNameError.hidden = false
+      guestBotNameInput.focus()
+      return
+    }
+
+    guestNameSubmitButton.disabled = true
+    guestBotNameInput.disabled = true
+    guestNameError.textContent = ''
+    guestNameError.hidden = true
+    try {
+      const added = await api.addGuestBot({ parentBotId, label })
+      if (!added?.id) throw new Error('ゲストBotの追加結果を確認できませんでした。')
+      state.bots.set(added.id, added)
+      state.selectedBotId = added.id
+      state.botPage = Math.floor(Math.max(0, state.bots.size - 1) / 3)
+      guestNameDialog.close()
+      renderBots()
+      renderBotModulesPanel(true)
+      loadSelectedBotData()
+      showToast('ゲストBotを追加しました。')
+    } catch (error) {
+      guestNameError.textContent = error.message || 'ゲストBotを追加できませんでした。'
+      guestNameError.hidden = false
+    } finally {
+      guestNameSubmitButton.disabled = false
+      guestBotNameInput.disabled = false
+    }
+  })
+  document.getElementById('cancelGuestNameButton').addEventListener('click', () => guestNameDialog.close())
+  guestNameDialog.addEventListener('close', () => { pendingGuestParentBotId = '' })
+
   const addBotPanel = document.getElementById('addBotFormPanel')
   const serverFormPanel = document.getElementById('serverFormPanel')
   document.getElementById('openAddBotFormButton').addEventListener('click', () => {
@@ -690,15 +751,9 @@ function renderBots () {
       const guestCount=values.filter(item=>item.parentBotId===bot.id).length
       const guest=createElement('button','small-button guest-add-button',`＋ ゲスト ${guestCount}/3`)
       guest.type='button'; guest.disabled=guestCount>=3
-      guest.addEventListener('click',async event=>{
+      guest.addEventListener('click', event => {
         event.stopPropagation()
-        const label=window.prompt('追加するゲストBotの表示名を入力してください。',`${bot.label}-Guest${guestCount+1}`.slice(0,32))
-        if(label==null)return
-        try{
-          const added=await api.addGuestBot({parentBotId:bot.id,label})
-          if(added?.id){state.bots.set(added.id,added);state.selectedBotId=added.id;state.botPage=Math.floor(Math.max(0,state.bots.size-1)/pageSize)}
-          renderBots();renderBotModulesPanel(true);loadSelectedBotData();showToast('ゲストBotを追加しました。')
-        }catch(error){showToast(error.message||'ゲストBotを追加できませんでした。')}
+        openGuestNameDialog(bot, guestCount)
       })
       actions.append(guest)
     }
