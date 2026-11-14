@@ -32,10 +32,11 @@ function createBot () {
   return { bot, client }
 }
 
-test('BDS dimension changes stop movement and acknowledge the clientbound transfer', () => {
+test('BDS dimension changes stop movement and acknowledge the clientbound transfer', async () => {
   const { bot, client } = createBot()
   const events = []
   installBedrockDimensionSync(bot, {
+    positionGraceMs: 1,
     onStart: value => events.push(['start', value.dimension]),
     onComplete: value => events.push(['complete', value.dimension])
   })
@@ -57,6 +58,8 @@ test('BDS dimension changes stop movement and acknowledge the clientbound transf
   assert.equal(client.sent[0].params.runtime_entity_id, 91n)
 
   client.emit('player_action', { runtime_entity_id: 91n, action: 'dimension_change_ack' })
+  assert.equal(bot._jhonDimensionTransition, true, 'keep movement stopped during the portal-position settle window')
+  await new Promise(resolve => setTimeout(resolve, 5))
   assert.equal(bot._jhonDimensionTransition, false)
   assert.deepEqual(client.sent.slice(1).map(item => item.name), ['serverbound_loading_screen', 'serverbound_loading_screen'])
   assert.deepEqual(client.sent.slice(1).map(item => item.params.type), [1, 2])
@@ -64,9 +67,9 @@ test('BDS dimension changes stop movement and acknowledge the clientbound transf
   assert.deepEqual(events, [['start', 1], ['complete', 1]])
 })
 
-test('portal spawn-search coordinates are not applied and input stays suspended until the real position arrives', () => {
+test('portal spawn-search coordinates are not applied and input stays suspended until the real position arrives', async () => {
   const { bot, client } = createBot()
-  installBedrockDimensionSync(bot)
+  installBedrockDimensionSync(bot, { positionGraceMs: 1 })
   client.emit('change_dimension', {
     dimension: 0,
     position: { x: 0.5, y: SPAWN_SEARCH_Y + 1, z: 0.5 },
@@ -81,9 +84,34 @@ test('portal spawn-search coordinates are not applied and input stays suspended 
 
   bot.entity.position.set(10.5, 72, -8.5)
   bot.emit('move', bot.entity.position)
+  assert.equal(bot._jhonDimensionTransition, true)
+  await new Promise(resolve => setTimeout(resolve, 5))
   assert.equal(bot._jhonDimensionTransition, false)
   assert.equal(bot._jhonResetInputTick, true)
   assert.deepEqual(client.sent.filter(item => item.name === 'serverbound_loading_screen').map(item => item.params.type), [1, 2])
+})
+
+test('portal move_player reset arriving after the server ACK replaces a provisional dimension position', async () => {
+  const { bot, client } = createBot()
+  installBedrockDimensionSync(bot, { positionGraceMs: 40 })
+  client.emit('change_dimension', {
+    dimension: 1,
+    position: { x: 0.5, y: 70, z: 0.5 },
+    respawn: false,
+    loading_screen_id: 8
+  })
+  client.emit('player_action', { runtime_entity_id: 91n, action: 'dimension_change_ack' })
+  assert.equal(bot._jhonDimensionTransition, true)
+
+  // BDS sends a final move_player mode=reset after its ACK on portal transfers.
+  bot.entity.position.set(120.5, 31, -24.5)
+  bot.emit('forcedMove', bot.entity.position)
+  assert.equal(bot._jhonDimensionTransition, true, 'still inside the short settle window')
+  await new Promise(resolve => setTimeout(resolve, 60))
+
+  assert.equal(bot._jhonDimensionTransition, false)
+  assert.deepEqual([bot.entity.position.x, bot.entity.position.y, bot.entity.position.z], [120.5, 31, -24.5])
+  assert.equal(bot._jhonResetInputTick, true)
 })
 
 test('dimension ACKs for another runtime entity are ignored', () => {

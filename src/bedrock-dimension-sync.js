@@ -72,6 +72,8 @@ function installBedrockDimensionSync (bot, options = {}) {
     loadingScreenId: undefined,
     serverAcknowledged: false,
     positionResolved: false,
+    settleTimer: null,
+    graceElapsed: false,
     disposed: false,
     transitions: 0
   }
@@ -89,6 +91,9 @@ function installBedrockDimensionSync (bot, options = {}) {
     state.active = true
     state.dimension = packet.dimension
     state.loadingScreenId = packet.loading_screen_id
+    clearTimeout(state.settleTimer)
+    state.settleTimer = null
+    state.graceElapsed = false
     state.serverAcknowledged = false
     state.positionResolved = !isSpawnSearchPosition(packet.position)
     state.transitions++
@@ -137,6 +142,22 @@ function installBedrockDimensionSync (bot, options = {}) {
   function tryCompleteDimensionChange () {
     if (!state.active || !state.serverAcknowledged || !state.positionResolved) return false
 
+    // BDS portals may send a provisional change_dimension position followed by
+    // move_player mode=reset. Keep input suspended briefly after the server ACK
+    // so that the reset packet can replace the provisional coordinates first.
+    if (!state.graceElapsed) {
+      if (state.settleTimer === null) {
+        const graceMs = Math.max(0, Number(options.positionGraceMs ?? 250) || 0)
+        state.settleTimer = setTimeout(() => {
+          state.settleTimer = null
+          state.graceElapsed = true
+          tryCompleteDimensionChange()
+        }, graceMs)
+        state.settleTimer.unref?.()
+      }
+      return false
+    }
+
     const completed = {
       dimension: state.dimension,
       loadingScreenId: state.loadingScreenId,
@@ -158,6 +179,7 @@ function installBedrockDimensionSync (bot, options = {}) {
     state.loadingScreenId = undefined
     state.serverAcknowledged = false
     state.positionResolved = false
+    state.graceElapsed = false
     bot._jhonDimensionTransition = false
     // The input plugin uses the previous emitted tick to calculate physics steps.
     // A dimension teleport invalidates that local frame; restart from the latest
@@ -172,6 +194,8 @@ function installBedrockDimensionSync (bot, options = {}) {
     if (state.disposed) return
     state.disposed = true
     state.active = false
+    clearTimeout(state.settleTimer)
+    state.settleTimer = null
     bot._jhonDimensionTransition = false
     bot._jhonResetInputTick = false
     client.removeListener('change_dimension', beginDimensionChange)
