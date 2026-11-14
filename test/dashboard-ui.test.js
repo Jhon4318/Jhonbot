@@ -124,6 +124,8 @@ test('Bot operation panel exposes parent and guest selection plus guest connecti
   assert.match(selectedControls, /ゲスト接続/)
   assert.match(selectedControls, /api\.connectBot\(bot\.id\)/)
   assert.match(selectedControls, /api\.disconnectBot\(bot\.id\)/)
+  assert.match(renderer, /function botSelectorLabel \(bot\)/)
+  assert.match(renderer, /Guest ' \+ bot\.subClientId/)
 
   const botListStart = renderer.indexOf('function renderBots ()')
   const botListEnd = renderer.indexOf('async function startControl', botListStart)
