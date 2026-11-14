@@ -254,6 +254,29 @@ class SubClientView extends EventEmitter {
   }
 }
 
+function createSubClientLoginDispatcher (tokens, schedule = setTimeout) {
+  if (!tokens || typeof tokens.identity !== 'string' || !tokens.identity ||
+      typeof tokens.client !== 'string' || !tokens.client) {
+    throw new Error('SubClientLoginの認証データ（identity / client）が不完全です。')
+  }
+  if (typeof schedule !== 'function') throw new Error('SubClientLoginの予約関数が不正です。')
+
+  // Keep the immutable credentials inside this closure so the delayed callback
+  // never depends on a block-scoped variable from its caller.
+  return (view, callbacks = {}) => schedule(() => {
+    if (!view || view.closed || (typeof callbacks.isCurrent === 'function' && !callbacks.isCurrent())) return
+    let result
+    try {
+      result = view.login(tokens)
+    } catch (error) {
+      if (typeof callbacks.onError === 'function') callbacks.onError(error)
+      else throw error
+      return
+    }
+    if (typeof callbacks.onSent === 'function') callbacks.onSent(result)
+  }, 0)
+}
+
 function installSubClientSupport (parent) {
   if (parent.__jhonSubClientSupport || parent.__jhonSubClientSupportPending) return parent
   if (typeof parent.sendBuffer !== 'function' || typeof parent.readPacket !== 'function') {
@@ -328,5 +351,6 @@ module.exports = {
   decodeSubClientHeader,
   rewriteSubClientHeader,
   createGuestLoginTokens,
+  createSubClientLoginDispatcher,
   installSubClientSupport
 }
