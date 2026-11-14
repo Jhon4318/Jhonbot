@@ -238,9 +238,28 @@ class SubClientView extends EventEmitter {
 }
 
 function installSubClientSupport (parent) {
-  if (parent.__jhonSubClientSupport) return parent
-  if (!parent.serializer || !parent.deserializer || typeof parent.sendBuffer !== 'function') {
-    throw new Error('Bedrock通信クライアントがSubClient対応状態ではありません。')
+  if (parent.__jhonSubClientSupport || parent.__jhonSubClientSupportPending) return parent
+  if (typeof parent.sendBuffer !== 'function' || typeof parent.readPacket !== 'function') {
+    throw new Error('Bedrock通信クライアントにSubClient用の送受信機能がありません。')
+  }
+
+  // bedrock-protocol creates world/friend clients with delayedInit. In that path,
+  // createBot() returns before Client.init() has created its serializer and
+  // deserializer. Wait for connect_allowed, which is emitted after init has
+  // completed them, instead of aborting the primary Bot connection.
+  if (!parent.serializer || !parent.deserializer) {
+    if (typeof parent.once !== 'function') {
+      throw new Error('Bedrock通信クライアントの初期化完了イベントを待機できません。')
+    }
+    parent.__jhonSubClientSupportPending = true
+    parent.once('connect_allowed', () => {
+      parent.__jhonSubClientSupportPending = false
+      installSubClientSupport(parent)
+    })
+    parent.once('close', () => {
+      parent.__jhonSubClientSupportPending = false
+    })
+    return parent
   }
 
   const originalReadPacket = parent.readPacket.bind(parent)
