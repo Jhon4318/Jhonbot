@@ -1132,7 +1132,6 @@ async function connectBot (botId, options = {}) {
     scheduleBotReconnect(bot, reason || bot.lastError, wasConnected)
   })
   agent.on('move', () => {
-    if (guest.agent !== agent) return
     const now = Date.now()
     if (now - bot.lastUiPositionUpdate >= 500) {
       bot.lastUiPositionUpdate = now
@@ -1358,6 +1357,7 @@ async function joinGuestBot (parent, guest) {
     if (!guest.manualDisconnect) pushLog(`${guest.label}: ゲスト接続が終了しました。${reason ? ` (${String(reason)})` : ''}`, guest.hadError ? 'warning' : 'info', guest.id)
   })
   agent.on('move', () => {
+    if (guest.agent !== agent) return
     const now = Date.now()
     if (now - guest.lastUiPositionUpdate >= 500) {
       guest.lastUiPositionUpdate = now
