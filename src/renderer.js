@@ -191,6 +191,11 @@ function renderSelectedConnectionControls(bot){
     const search=createElement('button','secondary-button','Realmsを検索');search.type='button';search.disabled=busy;search.addEventListener('click',()=>searchSelectedBotRealms(bot,search));helpers.append(invite,accept,search)
   }
   if(!bot.isGuest){
+    const guestCount=Array.from(state.bots.values()).filter(item=>item.parentBotId===bot.id).length
+    const addGuest=createElement('button','secondary-button guest-add-button','＋ ゲスト追加 '+guestCount+'/3')
+    addGuest.type='button';addGuest.disabled=guestCount>=3
+    addGuest.addEventListener('click',()=>openGuestNameDialog(bot))
+    actions.append(addGuest)
     const authBusy=bot.accountStatus==='authenticating'
     const auth=createElement('button','secondary-button account-button',authBusy?'Xbox認証中…':(['authenticated','saved'].includes(bot.accountStatus)?'認証を再確認':'Xbox認証'))
     auth.type='button';auth.disabled=authBusy||busy;auth.addEventListener('click',()=>api.authenticateBot(bot.id).catch(error=>showToast(error.message||'アカウント認証に失敗しました。')));actions.append(auth)
@@ -745,44 +750,56 @@ function renderBots () {
   const pageSize=3, pageCount=Math.max(1,Math.ceil(values.length/pageSize))
   state.botPage=Math.min(state.botPage,pageCount-1)
   const visibleBots=values.slice(state.botPage*pageSize,(state.botPage+1)*pageSize)
-  for(const bot of visibleBots){
-    const card=createElement('article',`bot-card management-bot-card${bot.id===state.selectedBotId?' selected':''}`)
-    card.tabIndex=0; card.setAttribute('role','button'); card.setAttribute('aria-selected',String(bot.id===state.selectedBotId))
-    card.addEventListener('click',event=>{if(!event.target.closest('button'))selectBot(bot.id)})
-    card.addEventListener('keydown',event=>{if((event.key==='Enter'||event.key===' ')&&!event.target.closest('button')){event.preventDefault();selectBot(bot.id)}})
-    const main=createElement('div','bot-main'), avatar=createElement('div','bot-avatar',bot.label.slice(0,1).toUpperCase()), info=createElement('div')
-    info.append(createElement('div','bot-name',bot.label))
-    const parent=bot.isGuest?state.bots.get(bot.parentBotId):null
-    const account=bot.isGuest?`親：${parent?.label||'親Bot'} · Guest ${bot.subClientId}`:(bot.playerName?`Xbox: ${bot.playerName}`:(bot.accountStatus==='authenticated'?'Xbox認証済み':(bot.accountStatus==='saved'?'認証情報保存済み':'Xbox未認証')))
-    info.append(createElement('div','bot-player',account)); main.append(avatar,info)
-    const statuses=createElement('div','bot-status-stack')
-    statuses.append(createElement('span',`status account-status ${bot.isGuest?'shared':(bot.accountStatus||'unverified')}`,bot.isGuest?'ゲスト':(accountStatusLabels[bot.accountStatus]||'Xbox未確認')),createElement('span',`status ${bot.status}`,statusLabels[bot.status]||bot.status))
-    const target=createElement('div','target-current management-bot-target',bot.isGuest?(bot.targetLabel||'親Botの接続先を共有'):(bot.targetLabel||'接続先未設定'))
-    const actions=createElement('div','bot-actions management-bot-actions')
-    if(!bot.isGuest){
-      const guestCount=values.filter(item=>item.parentBotId===bot.id).length
-      const guest=createElement('button','small-button guest-add-button',`＋ ゲスト ${guestCount}/3`)
-      guest.type='button'; guest.disabled=guestCount>=3
-      guest.addEventListener('click', event => {
-        event.stopPropagation()
-        openGuestNameDialog(bot)
-      })
-      actions.append(guest)
+  for (const bot of visibleBots) {
+    const card = createElement('article', 'bot-card management-bot-card' + (bot.id === state.selectedBotId ? ' selected' : ''))
+    card.tabIndex = 0
+    card.setAttribute('role', 'button')
+    card.setAttribute('aria-selected', String(bot.id === state.selectedBotId))
+    card.addEventListener('click', event => { if (!event.target.closest('button')) selectBot(bot.id) })
+    card.addEventListener('keydown', event => {
+      if ((event.key === 'Enter' || event.key === ' ') && !event.target.closest('button')) {
+        event.preventDefault()
+        selectBot(bot.id)
+      }
+    })
+
+    const main = createElement('div', 'bot-main')
+    const avatar = createElement('div', 'bot-avatar', bot.label.slice(0, 1).toUpperCase())
+    const info = createElement('div')
+    info.append(createElement('div', 'bot-name', bot.label))
+    if (bot.isGuest) {
+      const parent = state.bots.get(bot.parentBotId)
+      info.append(createElement('div', 'bot-player', '親：' + (parent?.label || '親Bot') + ' · Guest ' + bot.subClientId))
     }
-    const busy=bot.connectionActive||bot.status==='connected'||['connecting','joining','reconnecting'].includes(bot.status)
-    const remove=createElement('button','icon-button danger','削除'); remove.type='button'; remove.disabled=!bot.isGuest&&(bot.accountStatus==='authenticating'||busy)
-    remove.addEventListener('click',async event=>{
+    main.append(avatar, info)
+
+    const statuses = createElement('div', 'bot-status-stack')
+    statuses.append(
+      createElement('span', 'status account-status ' + (bot.isGuest ? 'shared' : (bot.accountStatus || 'unverified')),
+        bot.isGuest ? 'Guest ' + bot.subClientId : (accountStatusLabels[bot.accountStatus] || 'Xbox未確認')),
+      createElement('span', 'status ' + bot.status, statusLabels[bot.status] || bot.status)
+    )
+
+    const actions = createElement('div', 'bot-actions management-bot-actions')
+    const busy = bot.connectionActive || bot.status === 'connected' || ['connecting', 'joining', 'reconnecting'].includes(bot.status)
+    const remove = createElement('button', 'icon-button danger', '削除')
+    remove.type = 'button'
+    remove.disabled = !bot.isGuest && (bot.accountStatus === 'authenticating' || busy)
+    remove.addEventListener('click', async event => {
       event.stopPropagation()
-      const message=bot.isGuest?`${bot.label}を削除しますか？`:`${bot.label}と、このアカウントに追加したゲストBotを削除しますか？`
-      if(!window.confirm(message))return
-      if(state.selectedBotId===bot.id)releaseAllHeldInputs()
-      try{await api.removeBot(bot.id)}catch(error){showToast(error.message)}
+      const message = bot.isGuest
+        ? bot.label + 'を削除しますか？'
+        : bot.label + 'と、このアカウントに追加したゲストBotを削除しますか？'
+      if (!window.confirm(message)) return
+      if (state.selectedBotId === bot.id) releaseAllHeldInputs()
+      try { await api.removeBot(bot.id) } catch (error) { showToast(error.message) }
     })
     actions.append(remove)
-    const top=createElement('div','management-bot-mainline');top.append(main,statuses)
-    const bottom=createElement('div','management-bot-bottomline');bottom.append(target,actions)
-    card.append(top,bottom)
-    if(bot.accountError||bot.lastError)card.title=[bot.accountError,bot.lastError].filter(Boolean).join('\n')
+
+    const line = createElement('div', 'management-bot-mainline compact-bot-row')
+    line.append(main, statuses, actions)
+    card.append(line)
+    if (bot.accountError || bot.lastError) card.title = [bot.accountError, bot.lastError].filter(Boolean).join('\\n')
     botList.append(card)
   }
   renderPanelPager(botListFooter,state.botPage,pageCount,page=>{state.botPage=page;renderBots()})
