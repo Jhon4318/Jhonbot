@@ -242,7 +242,7 @@ function renderControlPanel () {
       const bot = state.bots.get(option.value)
       if (bot) option.textContent = bot.isGuest
         ? '　↳ Guest ' + bot.subClientId + ' · ' + bot.label + ' [' + (statusLabels[bot.status] || bot.status) + ']'
-        : bot.label + ' [' + (statusLabels[bot.status] || bot.status + ']')
+        : bot.label + ' [' + (statusLabels[bot.status] || bot.status) + ']'
     }
   }
   controlBotSelect.value = state.selectedBotId
