@@ -83,5 +83,5 @@ test('repeated SubClient setup requests do not register duplicate initialization
   parent.deserializer = { parsePacketBuffer: () => ({ data: { name: 'play_status', params: { status: 0 } } }) }
   parent.emit('connect_allowed')
   assert.equal(parent.__jhonSubClientSupport, true)
-  assert.equal(parent.listenerCount('close'), 1)
+  assert.equal(parent.listenerCount('connect_allowed'), 0)
 })
