@@ -219,30 +219,31 @@ function renderSelectedConnectionControls(bot){
   document.getElementById('selectedFunctionBotName').textContent=bot.label
   document.getElementById('selectedFunctionBotState').textContent=bot.isGuest?'ゲストBot':(accountStatusLabels[bot.accountStatus]||statusLabels[bot.status]||bot.status)
 }
+function botSelectorLabel (bot) {
+  const status = statusLabels[bot.status] || bot.status
+  return bot.isGuest
+    ? '　↳ Guest ' + bot.subClientId + ' · ' + bot.label + ' [' + status + ']'
+    : bot.label + ' [' + status + ']'
+}
+
 function renderControlPanel () {
   const values = Array.from(state.bots.values())
   if (!values.some(bot => bot.id === state.selectedBotId)) state.selectedBotId = values[0]?.id || ''
 
   const previous = controlBotSelect.value
-  const optionsChanged = controlBotSelect.options.length !== values.length + (values.length ? 0 : 1)
+  const currentOptionIds = Array.from(controlBotSelect.options).map(option => option.value).filter(Boolean)
+  const optionsChanged = currentOptionIds.length !== values.length || values.some((bot, index) => currentOptionIds[index] !== bot.id)
   if (optionsChanged || previous !== state.selectedBotId) {
     controlBotSelect.replaceChildren()
     if (!values.length) {
       controlBotSelect.append(new Option('Botを追加してください', ''))
     } else {
-      for (const bot of values) {
-        const label = bot.isGuest
-          ? '　↳ Guest ' + bot.subClientId + ' · ' + bot.label + ' [' + (statusLabels[bot.status] || bot.status) + ']'
-          : bot.label + ' [' + (statusLabels[bot.status] || bot.status) + ']'
-        controlBotSelect.append(new Option(label, bot.id))
-      }
+      for (const bot of values) controlBotSelect.append(new Option(botSelectorLabel(bot), bot.id))
     }
   } else {
     for (const option of controlBotSelect.options) {
       const bot = state.bots.get(option.value)
-      if (bot) option.textContent = bot.isGuest
-        ? '　↳ Guest ' + bot.subClientId + ' · ' + bot.label + ' [' + (statusLabels[bot.status] || bot.status) + ']'
-        : bot.label + ' [' + (statusLabels[bot.status] || bot.status) + ']'
+      if (bot) option.textContent = botSelectorLabel(bot)
     }
   }
   controlBotSelect.value = state.selectedBotId
