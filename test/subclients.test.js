@@ -132,3 +132,28 @@ test('SubClient login cannot be sent twice for the same view', () => {
   view.login(tokens)
   assert.throws(() => view.login(tokens), /送信済み/)
 })
+
+
+test('the pinned Bedrock 1.26.60 schema can encode SubClientLogin tokens', () => {
+  const path = require('node:path')
+  const bedrockEntry = require.resolve('bedrock-protocol')
+  const { createSerializer } = require(path.join(path.dirname(bedrockEntry), 'src', 'transforms', 'serializer.js'))
+  const serializer = createSerializer('1.26.60')
+  const packet = serializer.createPacketBuffer({
+    name: 'sub_client_login',
+    params: {
+      tokens: {
+        identity: JSON.stringify({
+          Certificate: JSON.stringify({ chain: ['identity-chain-jwt'] }),
+          AuthenticationType: 1,
+          Token: 'multiplayer-token-jwt'
+        }),
+        client: 'signed-client-data-jwt'
+      }
+    }
+  })
+
+  const header = decodeSubClientHeader(packet)
+  assert.equal(header.packetId, 0x5e)
+  assert.ok(packet.length > 10)
+})
