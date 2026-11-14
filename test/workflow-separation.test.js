@@ -106,3 +106,23 @@ test('cancelling a pending destination, world choice, or server-key prompt inval
   assert.match(main, /pending\.resolve\(false\)/)
   assert.match(main, /abortController\.signal\.aborted/)
 })
+
+test('guest Bots can be connected from the selected-Bot operations panel', () => {
+  assert.match(main, /if \(bot\.parentBotId\) \{[\s\S]*?return joinGuestBot\(parent, bot\)/)
+  assert.match(main, /先に親Botをワールドへ参加させてください/)
+  assert.match(main, /connectionActive: !!\(bot\.agent \|\| bot\.client \|\| bot\.connectionStarting\)/)
+  assert.match(renderer, /ゲスト接続/)
+  assert.match(renderer, /api\.connectBot\(bot\.id\)/)
+  assert.match(renderer, /api\.disconnectBot\(bot\.id\)/)
+  assert.match(renderer, /api\.controlBot\(\{ botId, control, active: true \}\)/)
+})
+
+test('a manually disconnected guest is not silently rejoined with its parent', () => {
+  assert.match(main, /filter\(item => item\.parentBotId === parent\.id && !item\.agent && !item\.manualDisconnect\)/)
+})
+
+test('both primary Bots and guest SubClients install BDS dimension synchronization', () => {
+  assert.match(main, /installBotDimensionSync\(bot, agent\)/)
+  assert.match(main, /installBotDimensionSync\(guest, agent\)/)
+  assert.match(main, /ディメンション移動中/)
+})

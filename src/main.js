@@ -23,6 +23,7 @@ const { assertCanAuthenticate, assertCanJoinWorld } = require('./account-state')
 const { createEncryptedAuthCacheFactory, hasEncryptedAuthCache } = require('./auth-cache')
 const { normalizeChatMessage, normalizeDropRequest, createInventorySnapshot } = require('./bot-actions')
 const { installSubClientSupport, createGuestLoginTokens, MAX_SUB_CLIENTS } = require('./subclients')
+const { installBedrockDimensionSync } = require('./bedrock-dimension-sync')
 const { normalizeBotModules, moduleConfigComplete, isModuleAssigned } = require('./modules')
 const { reconnectDelay, isRetryableDisconnect } = require('./connection-manager')
 const { MOD_CATALOG, normalizeInstalledMods, addInstalledMod, removeInstalledMod } = require('./mod-registry')
@@ -186,6 +187,7 @@ function publicBot (bot) {
     },
     targetLabel: describeBotTarget(bot),
     status: bot.status,
+    connectionActive: !!(bot.agent || bot.client || bot.connectionStarting),
     accountStatus: bot.accountStatus || 'unverified',
     accountError: bot.accountError || '',
     playerName: bot.playerName || '',
@@ -385,6 +387,32 @@ function preparePathfinder (bot) {
     pushLog(`${bot.label}: 経路探索を初期化できませんでした: ${error.message}`, 'warning', bot.id)
   }
   publishBot(bot)
+}
+
+function installBotDimensionSync (bot, agent) {
+  return installBedrockDimensionSync(agent, {
+    onStart: ({ dimension, positionPending }) => {
+      bot.movementRequestId++
+      bot.movementStatus = 'ディメンション移動中'
+      bot.pathfinderReady = false
+      bot.worldColumnsLoaded = 0
+      bot.levelChunkPackets = 0
+      bot.subchunkPackets = 0
+      if (bot.containerSupplyRunning || bot.containerSupplyBusy) stopContainerSupply(bot, 'ディメンション移動中')
+      publishBot(bot)
+      pushLog(`${bot.label}: ディメンション切替を検出しました (dimension=${dimension}${positionPending ? " / 到着座標待ち" : ""}). 移動入力を一時停止します。`, 'info', bot.id)
+    },
+    onComplete: ({ dimension }) => {
+      bot.movementStatus = '停止中'
+      bot.pathfinderReady = false
+      preparePathfinder(bot)
+      publishBot(bot)
+      pushLog(`${bot.label}: ディメンション切替後の座標・移動tickを再同期しました (dimension=${dimension}).`, 'success', bot.id)
+    },
+    onError: (error) => {
+      pushLog(`${bot.label}: ディメンション同期エラー: ${safeErrorMessage(error)}`, 'warning', bot.id)
+    }
+  })
 }
 
 function publishAccountStatus (bot, status, error = '') {
@@ -775,7 +803,16 @@ async function authenticateBot (botId) {
 
 async function connectBot (botId, options = {}) {
   const bot = bots.get(botId)
-  if (bot?.parentBotId) throw new Error('ゲストBotは個別接続できません。親Botをワールドに参加させてください。')
+  if (!bot) throw new Error('Botが見つかりません。')
+  if (bot.parentBotId) {
+    if (bot.agent || bot.client || bot.connectionStarting) return publicBot(bot)
+    const parent = bots.get(bot.parentBotId)
+    if (!parent || parent.status !== 'connected' || !parent.client || !parent.agent) {
+      throw new Error('ゲスト接続には先に親Botをワールドへ参加させてください。')
+    }
+    bot.manualDisconnect = false
+    return joinGuestBot(parent, bot)
+  }
   assertCanJoinWorld(bot)
   const attemptId = ++bot.connectionAttempt
   const abortController = new AbortController()
@@ -893,6 +930,19 @@ async function connectBot (botId, options = {}) {
   bot.client = agent._client
   try { installSubClientSupport(bot.client) } catch (error) {
     try { bot.client?.disconnect('SubClient initialization failed') } catch { try { bot.client?.close() } catch {} }
+    bot.agent = null
+    bot.client = null
+    bot.connectionStarting = false
+    bot.connectionAbortController = null
+    bot.hadError = true
+    bot.lastError = safeErrorMessage(error)
+    setBotStatus(bot, 'error', { lastError: bot.lastError })
+    throw error
+  }
+  try {
+    installBotDimensionSync(bot, agent)
+  } catch (error) {
+    try { bot.client?.disconnect('Dimension synchronization initialization failed') } catch { try { bot.client?.close() } catch {} }
     bot.agent = null
     bot.client = null
     bot.connectionStarting = false
@@ -1154,7 +1204,7 @@ async function addGuestBot (parentBotId, input) {
 async function reconnectGuestBots (parent) {
   if (!parent || parent.parentBotId || parent.status !== 'connected' || !parent.client) return
   const guests = Array.from(bots.values())
-    .filter(item => item.parentBotId === parent.id && !item.agent)
+    .filter(item => item.parentBotId === parent.id && !item.agent && !item.manualDisconnect)
     .sort((a, b) => Number(a.subClientId) - Number(b.subClientId))
   for (const guest of guests) {
     try {
@@ -1173,13 +1223,15 @@ async function joinGuestBot (parent, guest) {
   if (!parent || parent.parentBotId || parent.status !== 'connected' || !parent.client || !parent.agent) {
     throw new Error('先に親Botをワールドに参加させてください。')
   }
-  if (guest.agent || guest.client) return publicBot(guest)
-  if (guest.parentBotId !== parent.id) throw new Error('親BotとゲストBotの組み合わせが正しくありません。')
+  if (!guest || guest.parentBotId !== parent.id) throw new Error('親BotとゲストBotの組み合わせが正しくありません。')
+  if (guest.agent || guest.client || guest.connectionStarting) return publicBot(guest)
   const subClientId = Number(guest.subClientId)
-  const tokens = createGuestLoginTokens(parent.client)
-  const view = parent.client.createSubClient(subClientId, guest.label)
+  guest.connectionStarting = true
+  let view = null
   let agent
   try {
+    const tokens = createGuestLoginTokens(parent.client)
+    view = parent.client.createSubClient(subClientId, guest.label)
     agent = mineflayer.createBot({
       edition: 'bedrock',
       version: parent.client.options?.version || MC_VERSION,
@@ -1190,13 +1242,28 @@ async function joinGuestBot (parent, guest) {
       respawn: true
     })
   } catch (error) {
-    view.close('Guest bot creation failed')
+    try { view?.close('Guest bot creation failed') } catch {}
+    guest.connectionStarting = false
+    guest.hadError = true
+    guest.lastError = safeErrorMessage(error)
+    setBotStatus(guest, 'error', { lastError: guest.lastError })
     throw error
   }
 
   guest.agent = agent
   guest.client = view
-  guest.connectionStarting = true
+  try {
+    installBotDimensionSync(guest, agent)
+  } catch (error) {
+    try { view.close('Dimension synchronization initialization failed') } catch {}
+    guest.agent = null
+    guest.client = null
+    guest.connectionStarting = false
+    guest.hadError = true
+    guest.lastError = safeErrorMessage(error)
+    setBotStatus(guest, 'error', { lastError: guest.lastError })
+    throw error
+  }
   guest.manualDisconnect = false
   guest.hadError = false
   guest.lastError = ''

@@ -142,12 +142,12 @@ function renderSelectedConnectionControls(bot){
   }
   name.textContent=bot.label;stateLabel.textContent=statusLabels[bot.status]||bot.status;stateLabel.className=`connection-status-label ${bot.status}`
   const reconnectIndicator = document.getElementById('connectionAutoReconnect')
-  reconnectIndicator.textContent = bot.isGuest ? '親Botと接続連動' : (bot.autoReconnect?.status || '自動再接続：有効') + (bot.autoReconnect?.attempts ? ` · 再試行 ${bot.autoReconnect.attempts}回` : '')
-  const busy=bot.status==='connected'||['connecting','joining','reconnecting'].includes(bot.status)
+  reconnectIndicator.textContent = bot.isGuest ? `親Bot「${bot.parentBotLabel || '未登録'}」と接続連動` : (bot.autoReconnect?.status || '自動再接続：有効') + (bot.autoReconnect?.attempts ? ` · 再試行 ${bot.autoReconnect.attempts}回` : '')
+  const busy=bot.connectionActive||bot.status==='connected'||['connecting','joining','reconnecting'].includes(bot.status)
   targetSelect.append(new Option('参加先を選択…',''),new Option('フレンドのワールド（参加時に一覧表示）','friend-world'),new Option('LANワールド（検索して選択）','lan-world'),new Option('Realms（一覧から選択）','realm'))
   for(const server of state.servers)targetSelect.append(new Option(`サーバー：${server.label}`,`server:${server.id}`))
   targetSelect.value=bot.targetType==='server'?`server:${bot.targetId}`:(bot.targetType||'');targetSelect.disabled=bot.isGuest||busy
-  if(bot.isGuest)helpers.append(createElement('div','connection-help-note','ゲストBotは親Botの参加先・接続状態を共有します。'))
+  if(bot.isGuest){const parent=state.bots.get(bot.parentBotId);helpers.append(createElement('div','connection-help-note',`親Bot「${bot.parentBotLabel || '親Bot'}」の参加先を共有 · ${parent?.status==='connected'?'親Bot接続済み':'親Bot未接続'}`))}
   else if(bot.targetType==='lan-world'){
     const scan=createElement('button','secondary-button','LANワールドを検索');scan.type='button';scan.disabled=busy;scan.addEventListener('click',()=>searchSelectedBotLan(bot,scan));helpers.append(scan)
   }else if(bot.targetType==='realm'){
@@ -166,8 +166,14 @@ function renderSelectedConnectionControls(bot){
   }
   if(busy){
     const disconnect=createElement('button','primary-button disconnect-button',bot.isGuest?'ゲスト切断':'ワールド切断');disconnect.type='button';disconnect.addEventListener('click',()=>api.disconnectBot(bot.id).catch(error=>showToast(error.message||'切断できませんでした。')));actions.append(disconnect)
-  }else if(bot.isGuest)actions.append(createElement('span','muted tiny','親Botの接続を待っています。'))
-  else{
+  }else if(bot.isGuest){
+    const parent=state.bots.get(bot.parentBotId)
+    const canJoin=parent?.status==='connected'&&!!parent.connectionActive
+    const join=createElement('button','primary-button join-button',bot.status==='error'?'ゲスト再参加':'ゲスト接続');join.type='button'
+    join.disabled=!canJoin
+    join.title=canJoin?'親Botの接続を共有して、このゲストを参加させます。':'先に親Botをワールドへ参加させてください。'
+    join.addEventListener('click',()=>api.connectBot(bot.id).then(updated=>{state.bots.set(updated.id,updated);renderBots()}).catch(error=>showToast(error.message||'ゲスト接続に失敗しました。')));actions.append(join)
+  }else{
     const hasTarget=bot.targetType==='server'||bot.targetType==='friend-world'||(bot.targetType==='lan-world'&&!!bot.networkId)||(bot.targetType==='realm'&&/^\d+$/.test(String(bot.targetId||'')))
     const join=createElement('button','primary-button join-button',bot.status==='error'?'再参加':'ワールド参加');join.type = 'button'
     join.disabled = bot.accountStatus !== 'authenticated' || !hasTarget
@@ -696,7 +702,7 @@ function renderBots () {
       })
       actions.append(guest)
     }
-    const busy=bot.status==='connected'||['connecting','joining','reconnecting'].includes(bot.status)
+    const busy=bot.connectionActive||bot.status==='connected'||['connecting','joining','reconnecting'].includes(bot.status)
     const remove=createElement('button','icon-button danger','削除'); remove.type='button'; remove.disabled=!bot.isGuest&&(bot.accountStatus==='authenticating'||busy)
     remove.addEventListener('click',async event=>{
       event.stopPropagation()

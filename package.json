@@ -1,15 +1,15 @@
 {
   "name": "bedrock-bot-console",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "private": true,
   "description": "Minecraft Bedrock 1.26.60 bot console with master-detail dashboard layout",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
     "dist:win": "electron-builder --win nsis --x64 --publish never",
-    "check": "node --check test/dashboard-ui.test.js && node --check src/main.js && node --check src/preload.js && node --check src/bot-actions.js && node --check src/modules.js && node --check src/connection-manager.js && node --check src/mod-registry.js && node --check src/dashboard-layout.js && node --check src/realms.js && node --check src/lan-discovery.js && node --check src/subclients.js && node --check test/snappy-compression.test.js && node --check test/bedrock-compression-header.test.js && node --check src/renderer.js && node --check src/runtime-guards.js && node --check src/auth-cache.js && node --check src/account-state.js && node --check src/destinations.js && node --check scripts/patch-bedrock-protocol.js && node --check scripts/patch-nethernet-sdp.js && node --check scripts/validate-build-config.js && node --check test/subclients.test.js && node --check test/destinations.test.js && node --check test/modules.test.js && node --check test/connection-manager.test.js && node --check test/mod-registry.test.js && node --check test/dashboard-layout.test.js && node --check test/realms.test.js && node --check test/lan-discovery.test.js && node scripts/validate-build-config.js && node --test && node --check scripts/patch-mineflayer-bedrock-containers.js",
-    "postinstall": "node scripts/patch-bedrock-protocol.js && node scripts/patch-mineflayer-bedrock-containers.js",
-    "prestart": "node scripts/patch-bedrock-protocol.js && node scripts/patch-mineflayer-bedrock-containers.js"
+    "check": "node --check test/dashboard-ui.test.js && node --check test/bedrock-dimension-sync.test.js && node --check test/patch-mineflayer-dimensions.test.js && node --check src/main.js && node --check src/bedrock-dimension-sync.js && node --check src/preload.js && node --check src/bot-actions.js && node --check src/modules.js && node --check src/connection-manager.js && node --check src/mod-registry.js && node --check src/dashboard-layout.js && node --check src/realms.js && node --check src/lan-discovery.js && node --check src/subclients.js && node --check test/snappy-compression.test.js && node --check test/bedrock-compression-header.test.js && node --check src/renderer.js && node --check src/runtime-guards.js && node --check src/auth-cache.js && node --check src/account-state.js && node --check src/destinations.js && node --check scripts/patch-bedrock-protocol.js && node --check scripts/patch-mineflayer-bedrock-dimensions.js && node --check scripts/patch-nethernet-sdp.js && node --check scripts/validate-build-config.js && node --check test/subclients.test.js && node --check test/destinations.test.js && node --check test/modules.test.js && node --check test/connection-manager.test.js && node --check test/mod-registry.test.js && node --check test/dashboard-layout.test.js && node --check test/realms.test.js && node --check test/lan-discovery.test.js && node scripts/validate-build-config.js && node --test && node --check scripts/patch-mineflayer-bedrock-containers.js",
+    "postinstall": "node scripts/patch-bedrock-protocol.js && node scripts/patch-mineflayer-bedrock-containers.js && node scripts/patch-mineflayer-bedrock-dimensions.js",
+    "prestart": "node scripts/patch-bedrock-protocol.js && node scripts/patch-mineflayer-bedrock-containers.js && node scripts/patch-mineflayer-bedrock-dimensions.js"
   },
   "engines": {
     "node": ">=24"
