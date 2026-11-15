@@ -208,7 +208,22 @@ function renderSelectedConnectionControls(bot){
     })
     const search=createElement('button','secondary-button','Realmsを検索');search.type='button';search.disabled=busy;search.addEventListener('click',()=>searchSelectedBotRealms(bot,search));helpers.append(invite,accept,search)
   }
-  if(!bot.isGuest){
+  if (bot.isGuest) {
+    const removeGuest = createElement('button', 'secondary-button danger-button', 'ゲスト削除')
+    removeGuest.type = 'button'
+    removeGuest.addEventListener('click', async () => {
+      if (!window.confirm(`「${bot.label}」を親Bot「${bot.parentBotLabel || '親Bot'}」から削除しますか？`)) return
+      removeGuest.disabled = true
+      try {
+        await api.removeBot(bot.id)
+        showToast('ゲストBotを削除しました。')
+      } catch (error) {
+        showToast(error.message || 'ゲストBotを削除できませんでした。')
+        removeGuest.disabled = false
+      }
+    })
+    actions.append(removeGuest)
+  } else {
     const guestCount=Array.from(state.bots.values()).filter(item=>item.parentBotId===bot.id).length
     const addGuest=createElement('button','secondary-button guest-add-button','＋ ゲスト追加 '+guestCount+'/3')
     addGuest.type='button';addGuest.disabled=guestCount>=3
