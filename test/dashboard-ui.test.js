@@ -134,6 +134,20 @@ test('Bot operation panel exposes parent and guest selection plus guest connecti
   assert.match(botListRenderer, /compact-bot-row/)
 })
 
+test('Bot list shows parent Bots only and the operation selector is scoped to the selected parent family', () => {
+  assert.match(renderer, /function rootBots \(\) \{[\s\S]*filter\(bot => !bot\.parentBotId\)/)
+  assert.match(renderer, /function currentBotFamily \(\) \{[\s\S]*filter\(bot => bot\.parentBotId === parent\.id\)/)
+  assert.match(renderer, /const values = currentBotFamily\(\)/)
+  assert.match(renderer, /const selectedParentId = parentBotFor\(selectedBot\(\)\)\?\.id/)
+
+  const listStart = renderer.indexOf('function renderBots ()')
+  const listEnd = renderer.indexOf('async function startControl', listStart)
+  const listRenderer = renderer.slice(listStart, listEnd)
+  assert.match(listRenderer, /const values = rootBots\(\)/)
+  assert.doesNotMatch(listRenderer, /bot\.isGuest|Guest ' \+ bot\.subClientId/)
+  assert.match(listRenderer, /selectedParentId/)
+})
+
 test('registered Bot list uses compact single-row cards', () => {
   const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
   assert.match(styles, /\.management-panel \.compact-bot-row\s*\{\s*display:\s*flex;/)
