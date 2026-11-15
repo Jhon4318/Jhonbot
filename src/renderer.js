@@ -117,6 +117,24 @@ function selectedBot () {
   return state.bots.get(state.selectedBotId) || null
 }
 
+function parentBotFor (bot) {
+  if (!bot) return null
+  return bot.parentBotId ? (state.bots.get(bot.parentBotId) || null) : bot
+}
+
+function rootBots () {
+  return Array.from(state.bots.values()).filter(bot => !bot.parentBotId)
+}
+
+function currentBotFamily () {
+  const parent = parentBotFor(selectedBot())
+  if (!parent) return []
+  const guests = Array.from(state.bots.values())
+    .filter(bot => bot.parentBotId === parent.id)
+    .sort((a, b) => (Number(a.subClientId) || 0) - (Number(b.subClientId) || 0))
+  return [parent, ...guests]
+}
+
 function positionText (bot) {
   if (!bot?.position) return '位置情報待ち'
   const p = bot.position
@@ -227,8 +245,12 @@ function botSelectorLabel (bot) {
 }
 
 function renderControlPanel () {
-  const values = Array.from(state.bots.values())
-  if (!values.some(bot => bot.id === state.selectedBotId)) state.selectedBotId = values[0]?.id || ''
+  const parents = rootBots()
+  const currentParent = parentBotFor(selectedBot())
+  if (!currentParent || !parents.some(bot => bot.id === currentParent.id)) {
+    state.selectedBotId = parents[0]?.id || ''
+  }
+  const values = currentBotFamily()
 
   const previous = controlBotSelect.value
   const currentOptionIds = Array.from(controlBotSelect.options).map(option => option.value).filter(Boolean)
@@ -480,7 +502,8 @@ function initializeDashboardLayout () {
       if (!added?.id) throw new Error('ゲストBotの追加結果を確認できませんでした。')
       state.bots.set(added.id, added)
       state.selectedBotId = added.id
-      state.botPage = Math.floor(Math.max(0, state.bots.size - 1) / 3)
+      const parentIndex = rootBots().findIndex(bot => bot.id === parentBotId)
+      state.botPage = Math.floor(Math.max(0, parentIndex) / 3)
       guestNameDialog.close()
       renderBots()
       renderBotModulesPanel(true)
@@ -748,8 +771,12 @@ function selectBot (botId) {
 }
 function renderBots () {
   botList.replaceChildren()
-  const values=Array.from(state.bots.values())
-  if(!values.some(bot=>bot.id===state.selectedBotId)) state.selectedBotId=values[0]?.id||''
+  const values = rootBots()
+  const currentParent = parentBotFor(selectedBot())
+  if (!currentParent || !values.some(bot => bot.id === currentParent.id)) {
+    state.selectedBotId = values[0]?.id || ''
+  }
+  const selectedParentId = parentBotFor(selectedBot())?.id || ''
   emptyState.hidden=values.length>0
   document.getElementById('botCount').textContent=String(values.length)
   document.getElementById('onlineCount').textContent=String(values.filter(bot=>bot.status==='connected').length)
@@ -759,10 +786,10 @@ function renderBots () {
   state.botPage=Math.min(state.botPage,pageCount-1)
   const visibleBots=values.slice(state.botPage*pageSize,(state.botPage+1)*pageSize)
   for (const bot of visibleBots) {
-    const card = createElement('article', 'bot-card management-bot-card' + (bot.id === state.selectedBotId ? ' selected' : ''))
+    const card = createElement('article', 'bot-card management-bot-card' + (bot.id === selectedParentId ? ' selected' : ''))
     card.tabIndex = 0
     card.setAttribute('role', 'button')
-    card.setAttribute('aria-selected', String(bot.id === state.selectedBotId))
+    card.setAttribute('aria-selected', String(bot.id === selectedParentId))
     card.addEventListener('click', event => { if (!event.target.closest('button')) selectBot(bot.id) })
     card.addEventListener('keydown', event => {
       if ((event.key === 'Enter' || event.key === ' ') && !event.target.closest('button')) {
@@ -775,16 +802,12 @@ function renderBots () {
     const avatar = createElement('div', 'bot-avatar', bot.label.slice(0, 1).toUpperCase())
     const info = createElement('div')
     info.append(createElement('div', 'bot-name', bot.label))
-    if (bot.isGuest) {
-      const parent = state.bots.get(bot.parentBotId)
-      info.append(createElement('div', 'bot-player', '親：' + (parent?.label || '親Bot') + ' · Guest ' + bot.subClientId))
-    }
     main.append(avatar, info)
 
     const statuses = createElement('div', 'bot-status-stack')
     statuses.append(
-      createElement('span', 'status account-status ' + (bot.isGuest ? 'shared' : (bot.accountStatus || 'unverified')),
-        bot.isGuest ? 'Guest ' + bot.subClientId : (accountStatusLabels[bot.accountStatus] || 'Xbox未確認')),
+      createElement('span', 'status account-status ' + (bot.accountStatus || 'unverified'),
+        accountStatusLabels[bot.accountStatus] || 'Xbox未確認'),
       createElement('span', 'status ' + bot.status, statusLabels[bot.status] || bot.status)
     )
 
@@ -792,12 +815,10 @@ function renderBots () {
     const busy = bot.connectionActive || bot.status === 'connected' || ['connecting', 'joining', 'reconnecting'].includes(bot.status)
     const remove = createElement('button', 'icon-button danger', '削除')
     remove.type = 'button'
-    remove.disabled = !bot.isGuest && (bot.accountStatus === 'authenticating' || busy)
+    remove.disabled = bot.accountStatus === 'authenticating' || busy
     remove.addEventListener('click', async event => {
       event.stopPropagation()
-      const message = bot.isGuest
-        ? bot.label + 'を削除しますか？'
-        : bot.label + 'と、このアカウントに追加したゲストBotを削除しますか？'
+      const message = bot.label + 'と、このアカウントに追加したゲストBotを削除しますか？'
       if (!window.confirm(message)) return
       if (state.selectedBotId === bot.id) releaseAllHeldInputs()
       try { await api.removeBot(bot.id) } catch (error) { showToast(error.message) }
@@ -846,7 +867,7 @@ form.addEventListener('submit', async (event) => {
     const bot = await api.addBot({ label: document.getElementById('botLabel').value })
     state.bots.set(bot.id, bot)
     state.selectedBotId = bot.id
-    state.botPage = Math.floor(Math.max(0, state.bots.size - 1) / 3)
+    state.botPage = Math.floor(Math.max(0, rootBots().length - 1) / 3)
     renderBots()
     renderBotModulesPanel(true)
     document.getElementById('botLabel').value = ''
@@ -1182,11 +1203,16 @@ api.onBotUpdated((bot) => {
   }
 })
 api.onBotRemoved((botId) => {
+  const removedBot = state.bots.get(botId)
   state.bots.delete(botId)
   state.chatMessagesByBot.delete(botId)
   state.inventoryByBot.delete(botId)
   state.inventoryUpdatedAtByBot.delete(botId)
-  if (state.selectedBotId === botId) state.selectedBotId = ''
+  if (state.selectedBotId === botId) {
+    state.selectedBotId = removedBot?.parentBotId && state.bots.has(removedBot.parentBotId)
+      ? removedBot.parentBotId
+      : ''
+  }
   renderBots()
   renderBotModulesPanel(true)
   loadSelectedBotData()
