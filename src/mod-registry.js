@@ -11,9 +11,16 @@ const MOD_CATALOG = Object.freeze([
   Object.freeze({
     id: 'containerSupply',
     name: 'Container Supply',
+    version: '1.1.0',
+    category: '自動化',
+    description: '指定したコンテナに複数種類のアイテムを、それぞれ設定した目標数まで補充します。'
+  }),
+  Object.freeze({
+    id: 'autoFishing',
+    name: 'AutoFishing',
     version: '1.0.0',
     category: '自動化',
-    description: '指定したコンテナの中身を確認し、Botの所持品から目標数まで補充します。'
+    description: 'Bedrockの釣り針イベントでアタリを検出し、釣竿の回収と再キャストを自動で繰り返します。'
   })
 ])
 
@@ -26,7 +33,7 @@ function normalizeInstalledMods (input, legacyBots = []) {
   // Before the Mod catalog existed, these built-in features were part of the
   // normal UI. Preserve their availability when upgrading an older settings file.
   return Array.isArray(legacyBots) && legacyBots.length > 0
-    ? MOD_CATALOG.map(mod => mod.id)
+    ? ['itemUse', 'containerSupply']
     : []
 }
 
