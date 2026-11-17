@@ -32,7 +32,7 @@ function normalizeContainerItems (containerSupply) {
   const normalized = []
   const names = new Set()
 
-  for (const entry of source.slice(0, 32)) {
+  for (const entry of source.slice(0, 256)) {
     const itemName = String(entry?.itemName ?? entry?.name ?? '').trim().slice(0, 100)
     if (!itemName || names.has(itemName)) continue
     names.add(itemName)
@@ -40,6 +40,7 @@ function normalizeContainerItems (containerSupply) {
       itemName,
       targetCount: boundedInteger(entry?.targetCount, 64, 1, 100000)
     })
+    if (normalized.length >= 32) break
   }
   return normalized
 }
