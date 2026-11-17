@@ -1525,7 +1525,7 @@ function queueBotInventoryPublish (bot, agent) {
 
 async function tossBotItem (botId, input) {
   const { bot, agent } = getConnectedAgent(botId)
-  if (bot.itemUseBusy || bot.itemUseRunning || bot.containerSupplyBusy || bot.containerSupplyRunning) throw new Error('別のモジュールがインベントリを操作中です。')
+  if (bot.itemUseBusy || bot.itemUseRunning || bot.containerSupplyBusy || bot.containerSupplyRunning || bot.autoFishingBusy || bot.autoFishingRunning) throw new Error('別のモジュールがインベントリを操作中です。')
   const request = normalizeDropRequest(input, agent.inventory)
   if (typeof agent.tossStack !== 'function') throw new Error('Bedrock用のアイテム投棄APIが利用できません。')
   await agent.tossStack(request.item, request.count)
@@ -1636,7 +1636,7 @@ async function useBotItemOnce (botId, slot, options = {}) {
   const { bot, agent } = getConnectedAgent(botId)
   if (!(settings.installedMods || []).includes('itemUse')) throw new Error('Item Use が導入されていません。')
   if (!isModuleAssigned(bot.modules, 'itemUse')) throw new Error('このBotにItem Useモジュールが割り当てられていません。')
-  if (bot.containerSupplyRunning || bot.containerSupplyBusy) throw new Error('Container Supplyの実行中はインベントリ操作できません。')
+  if (bot.containerSupplyRunning || bot.containerSupplyBusy || bot.autoFishingRunning || bot.autoFishingBusy) throw new Error('Container SupplyまたはAutoFishingの実行中はインベントリ操作できません。')
   if ((bot.itemUseBusy || bot.itemUseRunning) && !options.fromCycle) throw new Error('このBotはすでにアイテム操作を実行中です。')
   if (!options.fromCycle) bot.itemUseBusy = true
   const generation = bot.itemUseGeneration
@@ -1708,7 +1708,7 @@ function startBotItemUse (botId, slot) {
   if (!(settings.installedMods || []).includes('itemUse')) throw new Error('Item Use が導入されていません。')
   if (!isModuleAssigned(bot.modules, 'itemUse')) throw new Error('先にItem Useモジュールを割り当ててください。')
   const { agent } = getConnectedAgent(botId)
-  if (bot.containerSupplyRunning || bot.containerSupplyBusy) throw new Error('Container Supplyの実行中はアイテムを使用できません。')
+  if (bot.containerSupplyRunning || bot.containerSupplyBusy || bot.autoFishingRunning || bot.autoFishingBusy) throw new Error('Container SupplyまたはAutoFishingの実行中はアイテムを使用できません。')
   if (bot.itemUseBusy || bot.itemUseRunning) throw new Error('このBotはすでにアイテム操作を実行中です。')
   const index = Number(slot)
   if (!Number.isInteger(index) || index < 9 || index > 44 || !agent.inventory?.slots?.[index]) {
@@ -1758,7 +1758,7 @@ async function supplyContainerOnce (bot) {
   const config = bot.modules.containerSupply
   if (!moduleConfigComplete(config)) throw new Error('Container Supplyの座標・アイテム・目標数を設定してください。')
   const { agent } = getConnectedAgent(bot.id)
-  if (bot.itemUseBusy || bot.itemUseRunning) throw new Error('Item Useの実行中はコンテナ補充を開始できません。')
+  if (bot.itemUseBusy || bot.itemUseRunning || bot.autoFishingBusy || bot.autoFishingRunning) throw new Error('Item UseまたはAutoFishingの実行中はコンテナ補充を開始できません。')
   if (!bot.pathfinderReady || typeof agent.pathfinder?.goto !== 'function') throw new Error('経路探索が利用できません。')
   if (bot.movementStatus.startsWith('手動操作中')) throw new Error('手動移動を停止してからContainer Supplyを開始してください。')
   const coordinates = new Vec3(config.x, config.y, config.z)
@@ -1847,7 +1847,7 @@ function startContainerSupply (botId) {
   if (!moduleConfigComplete(bot.modules.containerSupply)) throw new Error('補充先のX/Y/Z、アイテム名、目標個数を設定してください。')
   getConnectedAgent(botId)
   if (bot.containerSupplyBusy) throw new Error('現在のコンテナ処理が終わるまで待ってください。')
-  if (bot.itemUseBusy || bot.itemUseRunning) throw new Error('Item Useの実行中はコンテナ補充を開始できません。')
+  if (bot.itemUseBusy || bot.itemUseRunning || bot.autoFishingBusy || bot.autoFishingRunning) throw new Error('Item UseまたはAutoFishingの実行中はコンテナ補充を開始できません。')
   if (bot.movementStatus.startsWith('手動操作中')) throw new Error('手動移動を停止してからContainer Supplyを開始してください。')
   stopContainerSupply(bot, '再設定')
   bot.containerSupplyRunning = true
@@ -1918,7 +1918,10 @@ function waitForAutoFishingBite (bot, agent) {
     client.on('add_entity', onEntitySpawn)
     client.on('entity_event', onEntityEvent)
     agent.once('end', onEnd)
-    try { agent.activateItem() } catch (error) { finish(error) }
+    try {
+      agent.activateItem()
+      setTimeout(() => { if (bot.agent === agent) { try { agent.deactivateItem() } catch {} } }, 150)
+    } catch (error) { finish(error) }
   })
 }
 
@@ -1949,7 +1952,9 @@ async function runAutoFishingCycle (bot) {
     bot.autoFishingStatus = '魚を回収中'
     publishModuleStatus(bot)
     agent.activateItem()
-    await new Promise(resolve => setTimeout(resolve, 500))
+    await new Promise(resolve => setTimeout(resolve, 150))
+    try { agent.deactivateItem() } catch {}
+    await new Promise(resolve => setTimeout(resolve, 350))
     if (!bot.autoFishingRunning || generation !== bot.autoFishingGeneration || bot.agent !== agent) return
     publishBotInventory(bot)
     bot.autoFishingStatus = '回収完了・次のキャスト待ち'
