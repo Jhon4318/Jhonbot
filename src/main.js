@@ -28,6 +28,7 @@ const { installSubClientSupport, createGuestLoginTokens, createSubClientLoginDis
 const { nextGuestSubClientId, resolveGuestLabel } = require('./guest-naming')
 const { installBedrockDimensionSync } = require('./bedrock-dimension-sync')
 const { normalizeBotModules, moduleConfigComplete, isModuleAssigned } = require('./modules')
+const { normalizeLookDirection, applyLookDirection } = require('./look-direction')
 const { reconnectDelay, isRetryableDisconnect } = require('./connection-manager')
 const { MOD_CATALOG, normalizeInstalledMods, addInstalledMod, removeInstalledMod } = require('./mod-registry')
 const { listRealms, getRealmFromInvite } = require('./realms')
@@ -182,7 +183,8 @@ function publicBot (bot) {
       itemUseRunning: bot.itemUseRunning === true,
       containerSupplyRunning: bot.containerSupplyRunning === true,
       autoFishing: bot.autoFishingStatus || '未実行',
-      autoFishingRunning: bot.autoFishingRunning === true
+      autoFishingRunning: bot.autoFishingRunning === true,
+      lookDirection: bot.lookDirectionStatus || '未実行'
     },
     autoReconnect: {
       enabled: !bot.parentBotId,
@@ -275,6 +277,7 @@ function createBotRecord (saved) {
     autoFishingBusy: false,
     autoFishingGeneration: 0,
     autoFishingStatus: '未実行',
+    lookDirectionStatus: '未実行',
     autoFishingCancelWait: null,
     autoFishingHookId: null,
     containerSupplyTimer: null,
@@ -1604,6 +1607,9 @@ async function setModInstallation (modId, installed) {
       } else if (mod.id === 'autoFishing') {
         stopAutoFishing(bot, 'Modアンインストール')
         bot.modules.autoFishing.assigned = false
+      } else if (mod.id === 'lookDirection') {
+        bot.modules.lookDirection.assigned = false
+        bot.lookDirectionStatus = 'Modアンインストール'
       }
       publishBot(bot)
     }
@@ -1622,6 +1628,7 @@ async function updateBotModules (botId, input) {
   if (next.itemUse.assigned && !(settings.installedMods || []).includes('itemUse')) throw new Error('先にMod管理から Item Use を導入してください。')
   if (next.containerSupply.assigned && !(settings.installedMods || []).includes('containerSupply')) throw new Error('先にMod管理から Container Supply を導入してください。')
   if (next.autoFishing.assigned && !(settings.installedMods || []).includes('autoFishing')) throw new Error('先にMod管理から AutoFishing を導入してください。')
+  if (next.lookDirection.assigned && !(settings.installedMods || []).includes('lookDirection')) throw new Error('先にMod管理から Look Direction を導入してください。')
   if (JSON.stringify(bot.modules.itemUse) !== JSON.stringify(next.itemUse)) stopBotItemUse(bot, next.itemUse.assigned ? '設定変更・停止' : 'モジュール未割り当て')
   if (JSON.stringify(bot.modules.containerSupply) !== JSON.stringify(next.containerSupply)) stopContainerSupply(bot, next.containerSupply.assigned ? '設定変更・停止' : 'モジュール未割り当て')
   if (JSON.stringify(bot.modules.autoFishing) !== JSON.stringify(next.autoFishing)) stopAutoFishing(bot, next.autoFishing.assigned ? '設定変更・停止' : 'モジュール未割り当て')
@@ -1629,6 +1636,21 @@ async function updateBotModules (botId, input) {
   await saveSettings()
   publishBot(bot)
   pushLog(bot.label + ': Botモジュール設定を保存しました。', 'success', bot.id)
+  return publicBot(bot)
+}
+
+async function setBotLookDirection (botId, input) {
+  const { bot, agent } = getConnectedAgent(botId)
+  if (!(settings.installedMods || []).includes('lookDirection')) throw new Error('Look Direction が導入されていません。')
+  if (!isModuleAssigned(bot.modules, 'lookDirection')) throw new Error('このBotにLook Directionモジュールが割り当てられていません。')
+  const direction = normalizeLookDirection(input)
+  await applyLookDirection(agent, direction)
+  if (bot.agent !== agent) throw new Error('視点変更中にBotが切断されました。')
+  bot.modules.lookDirection = { ...bot.modules.lookDirection, ...direction }
+  bot.lookDirectionStatus = `適用済み · Yaw ${direction.yawDeg}° / Pitch ${direction.pitchDeg}°`
+  await saveSettings()
+  pushLog(`${bot.label}: 視点を Yaw ${direction.yawDeg}° / Pitch ${direction.pitchDeg}° に変更しました。`, 'success', bot.id)
+  publishBot(bot)
   return publicBot(bot)
 }
 
@@ -2236,6 +2258,7 @@ ipcMain.handle('bot:stop-item-use', (_event, botId) => { const bot = bots.get(bo
 ipcMain.handle('bot:start-container-supply', (_event, botId) => startContainerSupply(botId))
 ipcMain.handle('bot:stop-container-supply', (_event, botId) => { const bot = bots.get(botId); if (!bot) throw new Error('Botが見つかりません。'); stopContainerSupply(bot, '手動停止'); return publicBot(bot) })
 ipcMain.handle('bot:start-auto-fishing', (_event, botId) => startAutoFishing(botId))
+ipcMain.handle('bot:look-direction', (_event, args) => setBotLookDirection(args?.botId, args))
 ipcMain.handle('bot:stop-auto-fishing', (_event, botId) => { const bot = bots.get(botId); if (!bot) throw new Error('Botが見つかりません。'); stopAutoFishing(bot, '手動停止'); return publicBot(bot) })
 ipcMain.handle('world:select-session', (_event, args) => {
   const requestId = String(args?.requestId || '')
