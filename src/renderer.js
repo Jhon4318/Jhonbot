@@ -39,7 +39,7 @@ const dropItemCount = document.getElementById('dropItemCount')
 const dropItemForm = document.getElementById('dropItemForm')
 const refreshInventoryButton = document.getElementById('refreshInventoryButton')
 
-const state = { bots: new Map(), servers: [], installedMods: [], modCatalog: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map(), botPage: 0, serverPage: 0 }
+const state = { bots: new Map(), servers: [], installedMods: [], modCatalog: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map(), modAssignmentDrafts: new Map(), botPage: 0, serverPage: 0 }
 const statusLabels = {
   disconnected: '未参加',
   authenticating: '認証処理中',
@@ -490,6 +490,7 @@ function renderBotModulesPanel (refreshConfig = false) {
   document.getElementById('lookDirectionPitch').disabled = noBot || !lookDirectionAssigned
   document.getElementById('lookDirectionApplyButton').disabled = !connected || !lookDirectionAssigned
   document.getElementById('moduleSaveButton').disabled = noBot || !anyAssignedMod
+  if (document.getElementById('modAssignmentDialog')?.open) renderModAssignmentDialog()
 }
 
 function renderModAssignmentDialog () {
@@ -509,6 +510,11 @@ function renderModAssignmentDialog () {
 
   botLabel.textContent = bot.label + ' · ' + (bot.status === 'connected' ? 'ワールド参加中' : (statusLabels[bot.status] || bot.status))
   const installable = state.modCatalog.filter(mod => state.installedMods.includes(mod.id))
+  let draft = state.modAssignmentDrafts.get(bot.id)
+  if (!draft) {
+    draft = Object.fromEntries(state.modCatalog.map(mod => [mod.id, bot.modules?.[mod.id]?.assigned === true]))
+    state.modAssignmentDrafts.set(bot.id, draft)
+  }
   if (!installable.length) {
     target.append(createElement('div', 'server-empty', '導入済みModがありません。「Mod一覧・追加」から先に導入してください。'))
     saveButton.disabled = true
@@ -520,7 +526,8 @@ function renderModAssignmentDialog () {
     const checkbox = document.createElement('input')
     checkbox.type = 'checkbox'
     checkbox.dataset.modAssignment = mod.id
-    checkbox.checked = bot.modules?.[mod.id]?.assigned === true
+    checkbox.checked = draft[mod.id] === true
+    checkbox.addEventListener('change', () => { draft[mod.id] = checkbox.checked })
     const details = createElement('span', 'mod-assignment-details')
     details.append(createElement('strong', '', mod.name), createElement('span', '', mod.description))
     row.append(checkbox, details)
@@ -655,6 +662,7 @@ function initializeDashboardLayout () {
     if (!assignmentDialog.open) assignmentDialog.showModal()
   })
   document.getElementById('closeModAssignmentDialogButton').addEventListener('click', () => assignmentDialog.close())
+  assignmentDialog.addEventListener('close', () => { if (state.selectedBotId) state.modAssignmentDrafts.delete(state.selectedBotId) })
   document.getElementById('saveModAssignmentsButton').addEventListener('click', async () => {
     try { await saveModAssignments() } catch (error) { showToast(error.message || 'Modの割り当てを保存できませんでした。') }
   })
@@ -714,12 +722,14 @@ async function saveModAssignments () {
   const bot = selectedBot()
   if (!bot) throw new Error('割り当て先のBotを選択してください。')
   const modules = { ...(bot.modules || {}) }
-  for (const checkbox of document.querySelectorAll('[data-mod-assignment]')) {
-    const modId = checkbox.dataset.modAssignment
-    modules[modId] = { ...(modules[modId] || {}), assigned: checkbox.checked }
+  const draft = state.modAssignmentDrafts.get(bot.id) || {}
+  for (const mod of state.modCatalog) {
+    if (!state.installedMods.includes(mod.id)) continue
+    modules[mod.id] = { ...(modules[mod.id] || {}), assigned: draft[mod.id] === true }
   }
   const updated = await api.updateModules({ botId: bot.id, modules })
   state.bots.set(updated.id, updated)
+  state.modAssignmentDrafts.delete(bot.id)
   renderBotModulesPanel(true)
   document.getElementById('modAssignmentDialog').close()
   showToast('Modの割り当てを保存しました。')
