@@ -1359,6 +1359,14 @@ async function initialise () {
   state.modCatalog = initial.modCatalog || []
   for (const bot of initial.bots) state.bots.set(bot.id, bot)
   for (const entry of initial.logs) appendLog(entry)
+  const pendingAuth = (initial.pendingAuthCodes || [])[0]
+  if (pendingAuth) {
+    state.authUrl = pendingAuth.verificationUri
+    authCode.textContent = pendingAuth.userCode || 'コードを確認してください'
+    authBotLabel.textContent = `${pendingAuth.botLabel} の認証`
+    document.getElementById('authDescription').textContent = pendingAuth.message || '表示されたコードをMicrosoftの認証ページに入力してください。'
+    if (!authDialog.open) authDialog.showModal()
+  }
   if (!initial.logs.length) logList.append(createElement('div', 'log-empty', 'ログはまだありません。Botを認証・参加させるとここに表示されます。'))
   renderServerProfiles()
   renderBots()
