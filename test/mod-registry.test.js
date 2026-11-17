@@ -4,7 +4,7 @@ const assert = require('node:assert/strict')
 const { MOD_CATALOG, normalizeInstalledMods, addInstalledMod, removeInstalledMod } = require('../src/mod-registry')
 
 test('catalog exposes the initial built-in Mod set', () => {
-  assert.deepEqual(MOD_CATALOG.map(mod => mod.id), ['itemUse', 'containerSupply'])
+  assert.deepEqual(MOD_CATALOG.map(mod => mod.id), ['itemUse', 'containerSupply', 'autoFishing'])
 })
 
 test('new settings start with no installed mods', () => {
