@@ -1244,3 +1244,25 @@ main#dashboardGrid{flex:1 1 auto;width:100%;min-height:0;max-height:none;margin:
   .management-panel .compact-bot-row .bot-status-stack { max-width: 48%; }
   .management-panel .compact-bot-row .status { padding: 2px 3px; font-size: 6px; }
 }
+
+
+/* 0.8.12: separate per-Bot Mod assignment from Mod operation controls */
+.selected-mod-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.selected-mod-actions #openSelectedModSettingsButton { grid-column: auto; }
+.selected-mod-actions #openModCatalogDialogButton { grid-column: 1 / -1; }
+.selected-mod-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 7px; }
+.selected-mod-open-button { min-height: 24px; padding: 0 8px; font-size: 8px; }
+.mod-assignment-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.mod-assignment-row { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 11px 12px; border: 1px solid #303b50; border-radius: 9px; background: rgba(13,19,30,.55); cursor: pointer; }
+.mod-assignment-row input { flex: 0 0 auto; width: 17px; height: 17px; margin: 0; accent-color: #9188ff; }
+.mod-assignment-details { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.mod-assignment-details strong { color: #e4ebf9; font-size: 11px; }
+.mod-assignment-details span { color: #96a5bd; font-size: 9px; line-height: 1.45; }
+.mod-assignment-dialog { width: min(680px, calc(100vw - 36px)); }
+.mod-assignment-dialog .module-panel { padding: 4px; }
+.mod-assignment-dialog .module-save-row { justify-content: space-between; }
+@media (max-width: 600px) {
+  .mod-assignment-list { grid-template-columns: 1fr; }
+  .selected-mod-row { grid-template-columns: minmax(0,1fr) auto; }
+  .selected-mod-open-button { grid-column: 1 / -1; }
+}
