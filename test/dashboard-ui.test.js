@@ -68,7 +68,7 @@ test('connection actions are attached to the selected Bot in the center panel', 
 })
 
 test('right panel is scoped to the selected Bot and keeps chat and logs visible', () => {
-  for (const id of ['selectedFunctionBotName', 'inventoryList', 'inventorySelect', 'selectedBotModSummary', 'openSelectedModSettingsButton', 'openModCatalogDialogButton', 'chatMessages', 'chatInput', 'logList']) {
+  for (const id of ['selectedFunctionBotName', 'inventoryList', 'inventorySelect', 'selectedBotModSummary', 'openModAssignmentDialogButton', 'openSelectedModSettingsButton', 'openModCatalogDialogButton', 'chatMessages', 'chatInput', 'logList']) {
     assert.ok(elementIds(html).includes(id), 'Missing dashboard element: ' + id)
   }
   assert.ok(renderer.includes('function selectedBot ()'))
@@ -155,4 +155,18 @@ test('registered Bot list uses compact single-row cards', () => {
   assert.match(styles, /\.management-panel \.compact-bot-row\s*\{\s*display:\s*flex;/)
   assert.match(styles, /\.management-panel \.bot-card\s*\{\s*min-height:\s*34px;/)
   assert.match(styles, /\.control-panel \.control-select-row\s*\{\s*display:\s*grid;/)
+})
+
+test('Mod assignment is separated from operations and operation cards have no assignment checkboxes', () => {
+  for (const id of ['modAssignmentDialog', 'modAssignmentList', 'saveModAssignmentsButton', 'lookDirectionModuleCard', 'lookDirectionYaw', 'lookDirectionPitch', 'lookDirectionApplyButton']) {
+    assert.ok(elementIds(html).includes(id), 'Missing Mod UI element: ' + id)
+  }
+  for (const id of ['itemUseAssigned', 'containerSupplyAssigned', 'autoFishingAssigned']) {
+    assert.equal(elementIds(html).includes(id), false, 'Operation UI should not contain assignment checkbox: ' + id)
+  }
+  assert.match(renderer, /function renderModAssignmentDialog \(\)/)
+  assert.match(renderer, /function saveModAssignments \(\)/)
+  assert.match(renderer, /const entries = descriptors\.filter\(entry => assigned\(entry\.id\)\)/)
+  assert.match(renderer, /api\.setLookDirection\(\{ botId: bot\.id, yawDeg, pitchDeg \}\)/)
+  assert.doesNotMatch(renderer, /getElementById\('(?:itemUseAssigned|containerSupplyAssigned|autoFishingAssigned)'\)/)
 })
