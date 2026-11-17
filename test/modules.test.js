@@ -39,3 +39,35 @@ test('recognizes assigned modules explicitly', () => {
   assert.equal(isModuleAssigned(modules, 'itemUse'), true)
   assert.equal(isModuleAssigned(modules, 'containerSupply'), false)
 })
+
+test('migrates the old single Container Supply item into the new item list', () => {
+  const modules = normalizeBotModules({
+    containerSupply: { assigned: true, x: 10, y: 64, z: -5, itemName: 'minecraft:stone', targetCount: 128 }
+  })
+  assert.deepEqual(modules.containerSupply.items, [{ itemName: 'minecraft:stone', targetCount: 128 }])
+  assert.equal(moduleConfigComplete(modules.containerSupply), true)
+})
+
+test('normalizes multiple Container Supply items and drops duplicates or invalid entries', () => {
+  const modules = normalizeBotModules({
+    containerSupply: {
+      x: 1, y: 2, z: 3,
+      items: [
+        { itemName: 'minecraft:stone', targetCount: 128 },
+        { itemName: 'minecraft:stone', targetCount: 4 },
+        { itemName: ' minecraft:dirt ', targetCount: 32 },
+        { itemName: '', targetCount: 64 }
+      ]
+    }
+  })
+  assert.deepEqual(modules.containerSupply.items, [
+    { itemName: 'minecraft:stone', targetCount: 128 },
+    { itemName: 'minecraft:dirt', targetCount: 32 }
+  ])
+  assert.equal(moduleConfigComplete(modules.containerSupply), true)
+})
+
+test('normalizes AutoFishing settings', () => {
+  const modules = normalizeBotModules({ autoFishing: { assigned: true, biteTimeoutMs: 1, recastDelayMs: 999999 } })
+  assert.deepEqual(modules.autoFishing, { assigned: true, biteTimeoutMs: 15000, recastDelayMs: 10000 })
+})
