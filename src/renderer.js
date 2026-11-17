@@ -371,8 +371,7 @@ function renderBotModulesPanel (refreshConfig = false) {
   const supplyX = document.getElementById('supplyX')
   const supplyY = document.getElementById('supplyY')
   const supplyZ = document.getElementById('supplyZ')
-  const supplyItemName = document.getElementById('supplyItemName')
-  const supplyTargetCount = document.getElementById('supplyTargetCount')
+  const supplyItemsList = document.getElementById('supplyItemsList')
   const supplyInterval = document.getElementById('supplyInterval')
   const moduleItemUseSelect = document.getElementById('moduleItemUseSelect')
 
@@ -393,17 +392,18 @@ function renderBotModulesPanel (refreshConfig = false) {
     ? selectedUseSlot
     : (items[0] ? String(items[0].slot) : '')
 
-  const previousSupplyName = supplyItemName.value
-  const desiredSupplyName = refreshConfig ? (modules.containerSupply?.itemName || '') : previousSupplyName
   const uniqueItems = new Map()
   for (const item of items) {
     if (!uniqueItems.has(item.name)) uniqueItems.set(item.name, item.displayName || item.name)
   }
-  if (desiredSupplyName && !uniqueItems.has(desiredSupplyName)) uniqueItems.set(desiredSupplyName, desiredSupplyName)
   const supplyItemOptions = document.getElementById('supplyItemOptions')
   supplyItemOptions.replaceChildren()
   for (const [name, label] of uniqueItems) supplyItemOptions.append(new Option(label, name))
-  supplyItemName.value = desiredSupplyName
+  if (refreshConfig) {
+    const configured = modules.containerSupply?.items || (modules.containerSupply?.itemName ? [{ itemName: modules.containerSupply.itemName, targetCount: modules.containerSupply.targetCount || 64 }] : [])
+    supplyItemsList.replaceChildren()
+    for (const entry of configured.length ? configured : [{ itemName: '', targetCount: 64 }]) addSupplyItemRow(entry.itemName, entry.targetCount)
+  }
 
   if (refreshConfig) {
     itemUseAssigned.checked = modules.itemUse?.assigned === true
@@ -413,13 +413,13 @@ function renderBotModulesPanel (refreshConfig = false) {
     supplyX.value = modules.containerSupply?.x ?? ''
     supplyY.value = modules.containerSupply?.y ?? ''
     supplyZ.value = modules.containerSupply?.z ?? ''
-    supplyTargetCount.value = String(modules.containerSupply?.targetCount || 64)
     supplyInterval.value = String(modules.containerSupply?.intervalMs || 5000)
   }
 
   const itemUseInstalled = state.installedMods.includes('itemUse')
   const containerSupplyInstalled = state.installedMods.includes('containerSupply')
-  const anyModInstalled = itemUseInstalled || containerSupplyInstalled
+  const autoFishingInstalled = state.installedMods.includes('autoFishing')
+  const anyModInstalled = itemUseInstalled || containerSupplyInstalled || autoFishingInstalled
   const status = bot?.moduleStatus || {}
   const summary = document.getElementById('selectedBotModSummary'), summaryCount = document.getElementById('selectedModCount'), settingsButton = document.getElementById('openSelectedModSettingsButton')
   if (summary) {
@@ -427,6 +427,7 @@ function renderBotModulesPanel (refreshConfig = false) {
     const entries=[]
     if(itemUseInstalled)entries.push({name:'Item Use',assigned:modules.itemUse?.assigned===true,status:status.itemUse||'未実行',running:status.itemUseRunning===true})
     if(containerSupplyInstalled)entries.push({name:'Container Supply',assigned:modules.containerSupply?.assigned===true,status:status.containerSupply||'未実行',running:status.containerSupplyRunning===true})
+    if(autoFishingInstalled)entries.push({name:'AutoFishing',assigned:modules.autoFishing?.assigned===true,status:status.autoFishing||'未実行',running:status.autoFishingRunning===true})
     if(!bot)summary.append(createElement('div','server-empty','Botを選択してください。'))
     else if(!entries.length)summary.append(createElement('div','server-empty','利用可能なModはありません。「Mod一覧・追加」から導入できます。'))
     else for(const entry of entries){const row=createElement('div','selected-mod-row'),info=createElement('div','selected-mod-info');info.append(createElement('strong','',entry.name),createElement('span','',entry.status));row.append(info,createElement('span',entry.running?'mod-state running':(entry.assigned?'mod-state assigned':'mod-state'),entry.running?'実行中':(entry.assigned?'割り当て済み':'未割当')));summary.append(row)}
@@ -436,10 +437,13 @@ function renderBotModulesPanel (refreshConfig = false) {
   document.getElementById('modulePanel').hidden = !anyModInstalled
   document.getElementById('itemUseModuleCard').hidden = !itemUseInstalled
   document.getElementById('containerSupplyModuleCard').hidden = !containerSupplyInstalled
+  document.getElementById('autoFishingModuleCard').hidden = !autoFishingInstalled
   const assignedUse = itemUseAssigned.checked
   const assignedSupply = containerSupplyAssigned.checked
+  const autoFishingAssigned = document.getElementById('autoFishingAssigned')
   document.getElementById('itemUseStatus').textContent = status.itemUse || '未実行'
   document.getElementById('containerSupplyStatus').textContent = status.containerSupply || '未実行'
+  document.getElementById('autoFishingStatus').textContent = status.autoFishing || '未実行'
   const noBot = !bot
   itemUseAssigned.disabled = noBot || !itemUseInstalled
   itemUseMode.disabled = noBot || !itemUseInstalled || !assignedUse
@@ -449,11 +453,34 @@ function renderBotModulesPanel (refreshConfig = false) {
   document.getElementById('itemUseStartButton').disabled = !connected || !assignedUse || !moduleItemUseSelect.value
   document.getElementById('itemUseStopButton').disabled = !bot || status.itemUseRunning !== true
   containerSupplyAssigned.disabled = noBot || !containerSupplyInstalled
-  for (const input of [supplyX, supplyY, supplyZ, supplyTargetCount, supplyInterval, supplyItemName]) input.disabled = noBot || !containerSupplyInstalled || !assignedSupply
+  for (const input of [supplyX, supplyY, supplyZ, supplyInterval, ...supplyItemsList.querySelectorAll('input,button')]) input.disabled = noBot || !containerSupplyInstalled || !assignedSupply
   document.getElementById('supplySaveButton').disabled = noBot
   document.getElementById('supplyStartButton').disabled = !connected || !assignedSupply
   document.getElementById('supplyStopButton').disabled = !bot || status.containerSupplyRunning !== true
+  autoFishingAssigned.disabled = noBot || !autoFishingInstalled
+  document.getElementById('autoFishingBiteTimeout').disabled = noBot || !autoFishingInstalled || !autoFishingAssigned.checked
+  document.getElementById('autoFishingRecastDelay').disabled = noBot || !autoFishingInstalled || !autoFishingAssigned.checked
+  document.getElementById('autoFishingStartButton').disabled = !connected || !autoFishingAssigned.checked
+  document.getElementById('autoFishingStopButton').disabled = !bot || status.autoFishingRunning !== true
   document.getElementById('moduleSaveButton').disabled = noBot || !anyModInstalled
+}
+
+function addSupplyItemRow (itemName = '', targetCount = 64) {
+  const row = createElement('div', 'module-inline-fields supply-item-row')
+  const nameLabel = createElement('label', 'field')
+  nameLabel.append(createElement('span', '', 'アイテム名'))
+  const name = document.createElement('input')
+  name.type = 'text'; name.className = 'inventory-select'; name.placeholder = 'minecraft:stone'; name.setAttribute('list', 'supplyItemOptions'); name.value = itemName
+  nameLabel.append(name)
+  const countLabel = createElement('label', 'field')
+  countLabel.append(createElement('span', '', '目標数'))
+  const count = document.createElement('input')
+  count.type = 'number'; count.min = '1'; count.max = '100000'; count.step = '1'; count.value = String(targetCount)
+  countLabel.append(count)
+  const remove = createElement('button', 'icon-button danger', '削除')
+  remove.type = 'button'; remove.addEventListener('click', () => { row.remove(); if (!document.querySelector('#supplyItemsList .supply-item-row')) addSupplyItemRow() })
+  row.append(nameLabel, countLabel, remove)
+  document.getElementById('supplyItemsList').append(row)
 }
 
 function renderModStore () {
@@ -575,9 +602,16 @@ async function saveModulesFromForm () {
       x: document.getElementById('supplyX').value,
       y: document.getElementById('supplyY').value,
       z: document.getElementById('supplyZ').value,
-      itemName: document.getElementById('supplyItemName').value,
-      targetCount: document.getElementById('supplyTargetCount').value,
+      items: Array.from(document.querySelectorAll('#supplyItemsList .supply-item-row')).map(row => ({
+        itemName: row.querySelector('input[type=text]').value,
+        targetCount: row.querySelector('input[type=number]').value
+      })).filter(entry => entry.itemName.trim()),
       intervalMs: document.getElementById('supplyInterval').value
+    },
+    autoFishing: {
+      assigned: document.getElementById('autoFishingAssigned').checked,
+      biteTimeoutMs: document.getElementById('autoFishingBiteTimeout').value,
+      recastDelayMs: document.getElementById('autoFishingRecastDelay').value
     }
   }
   const updated = await api.updateModules({ botId: bot.id, modules })
@@ -1063,7 +1097,7 @@ dropItemForm.addEventListener('submit', async (event) => {
   }
 })
 
-for (const checkboxId of ['itemUseAssigned', 'containerSupplyAssigned']) {
+for (const checkboxId of ['itemUseAssigned', 'containerSupplyAssigned', 'autoFishingAssigned']) {
   document.getElementById(checkboxId).addEventListener('change', () => renderBotModulesPanel(false))
 }
 
@@ -1129,6 +1163,30 @@ document.getElementById('supplyStartButton').addEventListener('click', async () 
   } catch (error) {
     showToast(error.message || 'Container Supplyを開始できませんでした。')
   }
+})
+
+document.getElementById('addSupplyItemButton').addEventListener('click', () => addSupplyItemRow())
+
+document.getElementById('autoFishingStartButton').addEventListener('click', async () => {
+  const bot = selectedBot()
+  if (!bot) return showToast('Botを選択してください。')
+  try {
+    await saveModulesFromForm()
+    const updated = await api.startAutoFishing(bot.id)
+    state.bots.set(updated.id, updated)
+    renderBotModulesPanel(false)
+    showToast('AutoFishingを開始しました。')
+  } catch (error) { showToast(error.message || 'AutoFishingを開始できませんでした。') }
+})
+document.getElementById('autoFishingStopButton').addEventListener('click', async () => {
+  const bot = selectedBot()
+  if (!bot) return
+  try {
+    const updated = await api.stopAutoFishing(bot.id)
+    state.bots.set(updated.id, updated)
+    renderBotModulesPanel(false)
+    showToast('AutoFishingを停止しました。')
+  } catch (error) { showToast(error.message || 'AutoFishingを停止できませんでした。') }
 })
 
 document.getElementById('supplyStopButton').addEventListener('click', async () => {
