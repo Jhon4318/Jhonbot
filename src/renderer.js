@@ -642,9 +642,26 @@ function initializeDashboardLayout () {
   document.getElementById('closeAddBotFormButton').addEventListener('click', () => { addBotPanel.hidden = true })
   document.getElementById('closeServerFormButton').addEventListener('click', () => { serverFormPanel.hidden = true })
   const settingsDialog = document.getElementById('selectedModSettingsDialog')
+  const assignmentDialog = document.getElementById('modAssignmentDialog')
   const catalogDialog = document.getElementById('modCatalogDialog')
-  document.getElementById('openSelectedModSettingsButton').addEventListener('click', () => { if (selectedBot() && state.installedMods.length && !settingsDialog.open) settingsDialog.showModal() })
+  document.getElementById('openSelectedModSettingsButton').addEventListener('click', () => {
+    const bot = selectedBot()
+    if (bot && Object.values(bot.modules || {}).some(module => module?.assigned === true) && !settingsDialog.open) settingsDialog.showModal()
+  })
   document.getElementById('closeSelectedModSettingsDialogButton').addEventListener('click', () => settingsDialog.close())
+  document.getElementById('openModAssignmentDialogButton').addEventListener('click', () => {
+    if (!selectedBot()) return
+    renderModAssignmentDialog()
+    if (!assignmentDialog.open) assignmentDialog.showModal()
+  })
+  document.getElementById('closeModAssignmentDialogButton').addEventListener('click', () => assignmentDialog.close())
+  document.getElementById('saveModAssignmentsButton').addEventListener('click', async () => {
+    try { await saveModAssignments() } catch (error) { showToast(error.message || 'Modの割り当てを保存できませんでした。') }
+  })
+  document.getElementById('openModCatalogFromAssignmentButton').addEventListener('click', () => {
+    assignmentDialog.close()
+    if (!catalogDialog.open) catalogDialog.showModal()
+  })
   document.getElementById('openModCatalogDialogButton').addEventListener('click', () => { if (!catalogDialog.open) catalogDialog.showModal() })
   document.getElementById('closeModCatalogDialogButton').addEventListener('click', () => catalogDialog.close())
   document.getElementById('controlTargetSelect').addEventListener('change', async (event) => {
@@ -658,14 +675,15 @@ function initializeDashboardLayout () {
 async function saveModulesFromForm () {
   const bot = selectedBot()
   if (!bot) throw new Error('設定するBotを選択してください。')
+  const savedModules = bot.modules || {}
   const modules = {
     itemUse: {
-      assigned: document.getElementById('itemUseAssigned').checked,
+      assigned: savedModules.itemUse?.assigned === true,
       useMode: document.getElementById('itemUseMode').value,
       intervalMs: document.getElementById('itemUseInterval').value
     },
     containerSupply: {
-      assigned: document.getElementById('containerSupplyAssigned').checked,
+      assigned: savedModules.containerSupply?.assigned === true,
       x: document.getElementById('supplyX').value,
       y: document.getElementById('supplyY').value,
       z: document.getElementById('supplyZ').value,
@@ -676,14 +694,35 @@ async function saveModulesFromForm () {
       intervalMs: document.getElementById('supplyInterval').value
     },
     autoFishing: {
-      assigned: document.getElementById('autoFishingAssigned').checked,
+      assigned: savedModules.autoFishing?.assigned === true,
       biteTimeoutMs: document.getElementById('autoFishingBiteTimeout').value,
       recastDelayMs: document.getElementById('autoFishingRecastDelay').value
+    },
+    lookDirection: {
+      assigned: savedModules.lookDirection?.assigned === true,
+      yawDeg: document.getElementById('lookDirectionYaw').value,
+      pitchDeg: document.getElementById('lookDirectionPitch').value
     }
   }
   const updated = await api.updateModules({ botId: bot.id, modules })
   state.bots.set(updated.id, updated)
   renderBotModulesPanel(false)
+  return updated
+}
+
+async function saveModAssignments () {
+  const bot = selectedBot()
+  if (!bot) throw new Error('割り当て先のBotを選択してください。')
+  const modules = { ...(bot.modules || {}) }
+  for (const checkbox of document.querySelectorAll('[data-mod-assignment]')) {
+    const modId = checkbox.dataset.modAssignment
+    modules[modId] = { ...(modules[modId] || {}), assigned: checkbox.checked }
+  }
+  const updated = await api.updateModules({ botId: bot.id, modules })
+  state.bots.set(updated.id, updated)
+  renderBotModulesPanel(true)
+  document.getElementById('modAssignmentDialog').close()
+  showToast('Modの割り当てを保存しました。')
   return updated
 }
 
@@ -1164,10 +1203,6 @@ dropItemForm.addEventListener('submit', async (event) => {
   }
 })
 
-for (const checkboxId of ['itemUseAssigned', 'containerSupplyAssigned', 'autoFishingAssigned']) {
-  document.getElementById(checkboxId).addEventListener('change', () => renderBotModulesPanel(false))
-}
-
 async function saveAndUpdateModules () {
   try {
     await saveModulesFromForm()
@@ -1254,6 +1289,22 @@ document.getElementById('autoFishingStopButton').addEventListener('click', async
     renderBotModulesPanel(false)
     showToast('AutoFishingを停止しました。')
   } catch (error) { showToast(error.message || 'AutoFishingを停止できませんでした。') }
+})
+
+document.getElementById('lookDirectionApplyButton').addEventListener('click', async () => {
+  const bot = selectedBot()
+  if (!bot) return showToast('Botを選択してください。')
+  const yawDeg = document.getElementById('lookDirectionYaw').value
+  const pitchDeg = document.getElementById('lookDirectionPitch').value
+  try {
+    await saveModulesFromForm()
+    const updated = await api.setLookDirection({ botId: bot.id, yawDeg, pitchDeg })
+    state.bots.set(updated.id, updated)
+    renderBotModulesPanel(false)
+    showToast('指定した角度に視点を変更しました。')
+  } catch (error) {
+    showToast(error.message || 'Botの視点を変更できませんでした。')
+  }
 })
 
 document.getElementById('supplyStopButton').addEventListener('click', async () => {
