@@ -140,7 +140,7 @@
               </label>
               <button id="dropItemButton" class="primary-button" type="submit" disabled>アイテムを投げる</button>
             </form>
-          </section></div><div class="selected-mod-block"><div class="management-section-heading"><strong>割り当て済みMod</strong><span id="selectedModCount" class="muted tiny">0件</span></div><div id="selectedBotModSummary" class="selected-mod-summary"><div class="server-empty">Botを選択してください。</div></div><div class="selected-mod-actions"><button id="openSelectedModSettingsButton" type="button" class="secondary-button" disabled>Mod設定</button><button id="openModCatalogDialogButton" type="button" class="primary-button">Mod一覧・追加</button></div></div></section><section class="panel chat-panel" data-panel-id="chat"><div class="panel-heading"><div><h2>ワールドチャット</h2><p class="muted small">選択中Botのメッセージ履歴と送信欄</p></div><span class="step-chip">CHAT</span></div><div class="chat-card dashboard-chat-card">
+          </section></div><div class="selected-mod-block"><div class="management-section-heading"><strong>割り当て済みMod</strong><span id="selectedModCount" class="muted tiny">0件</span></div><div id="selectedBotModSummary" class="selected-mod-summary"><div class="server-empty">Botを選択してください。</div></div><div class="selected-mod-actions"><button id="openModAssignmentDialogButton" type="button" class="secondary-button" disabled>Mod割り当て</button><button id="openSelectedModSettingsButton" type="button" class="primary-button" disabled>Mod操作</button><button id="openModCatalogDialogButton" type="button" class="secondary-button">Mod一覧・追加</button></div></div></section><section class="panel chat-panel" data-panel-id="chat"><div class="panel-heading"><div><h2>ワールドチャット</h2><p class="muted small">選択中Botのメッセージ履歴と送信欄</p></div><span class="step-chip">CHAT</span></div><div class="chat-card dashboard-chat-card">
             <div class="subheading">ワールドチャット <span>Enterで送信 / Shift+Enterで改行</span></div>
             <div id="chatMessages" class="chat-messages" aria-live="polite">
               <div class="chat-empty">Botを選択してください。</div>
@@ -162,18 +162,18 @@
       </section></main>
   </div>
 
-  <dialog id="selectedModSettingsDialog" class="panel-dialog"><div class="dialog-header"><div><div class="dialog-kicker">BOT MODULE SETTINGS</div><h2>選択BotのMod設定</h2></div><button id="closeSelectedModSettingsDialogButton" type="button" class="icon-button">閉じる</button></div><section class="panel module-panel" id="modulePanel">
+  <dialog id="modAssignmentDialog" class="panel-dialog mod-assignment-dialog"><div class="dialog-header"><div><div class="dialog-kicker">MOD ASSIGNMENT</div><h2>BotへのMod割り当て</h2></div><button id="closeModAssignmentDialogButton" type="button" class="icon-button">閉じる</button></div><section class="panel module-panel"><div class="panel-heading"><div><h2>利用するModを選択</h2><p class="muted small">チェックを入れたModだけが、このBotの「割り当て済みMod」に表示され、操作できるようになります。</p></div><span class="step-chip">ASSIGNMENT</span></div><div class="module-selected" id="assignmentSelectedBot">Botを選択してください。</div><div id="modAssignmentList" class="mod-assignment-list"><div class="server-empty">Botを選択してください。</div></div><div class="module-actions module-save-row"><button id="openModCatalogFromAssignmentButton" type="button" class="secondary-button">Mod一覧・追加</button><button id="saveModAssignmentsButton" type="button" class="primary-button" disabled>割り当てを保存</button></div></section></dialog><dialog id="selectedModSettingsDialog" class="panel-dialog"><div class="dialog-header"><div><div class="dialog-kicker">ASSIGNED MOD OPERATIONS</div><h2>割り当て済みModの操作</h2></div><button id="closeSelectedModSettingsDialogButton" type="button" class="icon-button">閉じる</button></div><section class="panel module-panel" id="modulePanel">
         <div class="panel-heading">
           <div>
-            <h2>導入済みModの操作</h2>
-            <p class="muted small">Modを導入すると、ここに操作パネルが表示されます。各ModはBotごとに割り当てられます。</p>
+            <h2>割り当て済みModの操作</h2>
+            <p class="muted small">割り当て画面で有効にしたModだけを表示します。ここでは設定の変更とModの実行・停止を行います。</p>
           </div>
           <span class="step-chip">04 / MODULES</span>
         </div>
         <div class="module-selected" id="moduleSelectedBot">Botを選択してください。</div>
         <div class="module-grid">
           <section class="module-card" id="itemUseModuleCard">
-            <div class="module-card-heading"><h3>Item Use</h3><label class="module-assignment"><input id="itemUseAssigned" type="checkbox"> 割り当て</label></div>
+            <div class="module-card-heading"><h3>Item Use</h3></div>
             <p class="muted tiny">インベントリから選んだアイテムを使用します。通常使用または食べる・飲む動作を選べます。</p>
             <label class="field"><span>使用するアイテム</span><select id="moduleItemUseSelect" class="inventory-select"><option value="">アイテムなし</option></select></label>
             <div class="module-inline-fields">
@@ -189,7 +189,7 @@
           </section>
 
           <section class="module-card" id="containerSupplyModuleCard">
-            <div class="module-card-heading"><h3>Container Supply</h3><label class="module-assignment"><input id="containerSupplyAssigned" type="checkbox"> 割り当て</label></div>
+            <div class="module-card-heading"><h3>Container Supply</h3></div>
             <p class="muted tiny">指定したコンテナの中身を確認し、目標数になるまでBotの所持品から補充します。</p>
             <div class="module-coordinate-fields">
               <label class="field"><span>X</span><input id="supplyX" type="number" step="any" placeholder="X座標"></label>
@@ -208,7 +208,7 @@
           </section>
 
           <section class="module-card" id="autoFishingModuleCard">
-            <div class="module-card-heading"><h3>AutoFishing</h3><label class="module-assignment"><input id="autoFishingAssigned" type="checkbox"> 割り当て</label></div>
+            <div class="module-card-heading"><h3>AutoFishing</h3></div>
             <p class="muted tiny">釣竿を自動で装備し、Bedrockの釣り針イベントからアタリを検出して回収・再キャストします。</p>
             <div class="module-inline-fields">
               <label class="field"><span>アタリ待ち上限（ms）</span><input id="autoFishingBiteTimeout" type="number" min="15000" max="300000" step="5000" value="120000"></label>
@@ -221,12 +221,25 @@
             <div class="module-status" id="autoFishingStatus">未実行</div>
           </section>
 
+          <section class="module-card" id="lookDirectionModuleCard">
+            <div class="module-card-heading"><h3>Look Direction</h3></div>
+            <p class="muted tiny">水平角（Yaw）と上下角（Pitch）を指定し、Botの視線をその角度に変更します。値は度数で入力します。</p>
+            <div class="module-inline-fields">
+              <label class="field"><span>Yaw（水平角：-180°〜180°）</span><input id="lookDirectionYaw" type="number" min="-180" max="180" step="0.1" value="0"></label>
+              <label class="field"><span>Pitch（上下角：-90°〜90°）</span><input id="lookDirectionPitch" type="number" min="-90" max="90" step="0.1" value="0"></label>
+            </div>
+            <div class="module-actions">
+              <button id="lookDirectionApplyButton" type="button" class="primary-button">この角度を向く</button>
+            </div>
+            <div class="module-status" id="lookDirectionStatus">未実行</div>
+          </section>
+
         </div>
-        <div class="module-actions module-save-row"><button id="moduleSaveButton" type="button" class="primary-button">Mod設定を保存</button></div>
+        <div class="module-actions module-save-row"><button id="moduleSaveButton" type="button" class="primary-button">設定を保存</button></div>
         <p class="module-footnote">同じBotのインベントリ操作は同時実行しません。Container Supplyは補充先への移動中、手動移動を開始できない設計です。</p>
       </section></dialog><dialog id="modCatalogDialog" class="panel-dialog mod-catalog-dialog"><div class="dialog-header"><div><div class="dialog-kicker">MOD CATALOG</div><h2>Mod一覧・追加</h2></div><button id="closeModCatalogDialogButton" type="button" class="icon-button">閉じる</button></div><section class="panel mod-store-panel">
         <div class="panel-heading">
-          <div><h2>Mod管理</h2><p class="muted small">必要なModを導入すると、Bot操作パネルにその機能が追加されます。導入後はBotごとに割り当ててください。</p></div>
+          <div><h2>Mod管理</h2><p class="muted small">Modを導入したあと、Botの「Mod割り当て」から使用するModを選択してください。</p></div>
           <span class="step-chip">MOD CATALOG</span>
         </div>
         <div id="modCatalogList" class="mod-catalog-list"></div>
