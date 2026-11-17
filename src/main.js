@@ -1857,6 +1857,135 @@ function startContainerSupply (botId) {
   return publicBot(bot)
 }
 
+function waitForAutoFishingBite (bot, agent) {
+  const client = agent._client
+  if (!client || typeof client.on !== 'function' || typeof client.removeListener !== 'function') {
+    throw new Error('Bedrockパケットを監視できないためAutoFishingを利用できません。')
+  }
+  const timeoutMs = bot.modules.autoFishing.biteTimeoutMs
+  return new Promise((resolve, reject) => {
+    let hookRuntimeId = null
+    let hookDistance = Number.POSITIVE_INFINITY
+    let settled = false
+    const origin = agent.entity?.position
+    const finish = (error) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      client.removeListener('add_entity', onEntitySpawn)
+      client.removeListener('entity_event', onEntityEvent)
+      agent.removeListener('end', onEnd)
+      if (bot.autoFishingCancelWait === cancel) bot.autoFishingCancelWait = null
+      if (error) reject(error)
+      else resolve(hookRuntimeId)
+    }
+    const cancel = () => {
+      const error = new Error('AutoFishingは停止されました。')
+      error.code = 'AUTO_FISH_STOPPED'
+      finish(error)
+    }
+    const onEntitySpawn = (packet) => {
+      if (!isFishingHookSpawn(packet)) return
+      const id = runtimeEntityId(packet.runtime_id)
+      if (id === null) return
+      const position = packet.position
+      let distance = 0
+      if (origin && position && [position.x, position.y, position.z].every(Number.isFinite)) {
+        const dx = position.x - origin.x
+        const dy = position.y - origin.y
+        const dz = position.z - origin.z
+        distance = Math.sqrt(dx * dx + dy * dy + dz * dz)
+        if (distance > 16) return
+      }
+      if (hookRuntimeId === null || distance < hookDistance) {
+        hookRuntimeId = id
+        hookDistance = distance
+        bot.autoFishingHookId = id
+      }
+    }
+    const onEntityEvent = (packet) => {
+      if (hookRuntimeId !== null && isFishingHookBite(packet, hookRuntimeId)) finish()
+    }
+    const onEnd = (reason) => finish(new Error('釣り中にBotが切断されました: ' + String(reason || 'disconnected')))
+    const timer = setTimeout(() => {
+      const error = new Error('釣りのアタリ待ちがタイムアウトしました。')
+      error.code = 'AUTO_FISH_TIMEOUT'
+      finish(error)
+    }, timeoutMs)
+    bot.autoFishingCancelWait = cancel
+    bot.autoFishingHookId = null
+    client.on('add_entity', onEntitySpawn)
+    client.on('entity_event', onEntityEvent)
+    agent.once('end', onEnd)
+    try { agent.activateItem() } catch (error) { finish(error) }
+  })
+}
+
+async function runAutoFishingCycle (bot) {
+  if (!bot.autoFishingRunning || bot.status !== 'connected' || bot.autoFishingBusy) return
+  bot.autoFishingBusy = true
+  const generation = bot.autoFishingGeneration
+  try {
+    const { agent } = getConnectedAgent(bot.id)
+    if (bot.itemUseBusy || bot.itemUseRunning || bot.containerSupplyBusy || bot.containerSupplyRunning) {
+      throw new Error('Item UseまたはContainer Supplyの実行中はAutoFishingを開始できません。')
+    }
+    const rod = findFishingRod(agent.inventory)
+    if (!rod) throw new Error('インベントリに釣竿（fishing_rod）がありません。')
+    bot.autoFishingStatus = '釣竿を装備中'
+    publishModuleStatus(bot)
+    await agent.equip(rod, 'hand')
+    if (!bot.autoFishingRunning || generation !== bot.autoFishingGeneration || bot.agent !== agent) return
+    bot.autoFishingStatus = 'キャスト・アタリ待ち'
+    publishModuleStatus(bot)
+    try {
+      await waitForAutoFishingBite(bot, agent)
+    } catch (error) {
+      if (error.code !== 'AUTO_FISH_TIMEOUT') throw error
+      pushLog(bot.label + ': AutoFishingでアタリを検出できませんでした。再キャストします。', 'warning', bot.id)
+    }
+    if (!bot.autoFishingRunning || generation !== bot.autoFishingGeneration || bot.agent !== agent) return
+    bot.autoFishingStatus = '魚を回収中'
+    publishModuleStatus(bot)
+    agent.activateItem()
+    await new Promise(resolve => setTimeout(resolve, 500))
+    if (!bot.autoFishingRunning || generation !== bot.autoFishingGeneration || bot.agent !== agent) return
+    publishBotInventory(bot)
+    bot.autoFishingStatus = '回収完了・次のキャスト待ち'
+    publishModuleStatus(bot)
+  } catch (error) {
+    if (bot.autoFishingRunning && generation === bot.autoFishingGeneration && error.code !== 'AUTO_FISH_STOPPED') {
+      stopAutoFishing(bot, 'エラーで停止')
+      pushLog(bot.label + ': AutoFishingを停止しました: ' + safeErrorMessage(error), 'warning', bot.id)
+    }
+  } finally {
+    bot.autoFishingBusy = false
+  }
+  if (bot.autoFishingRunning && bot.status === 'connected' && generation === bot.autoFishingGeneration) {
+    bot.autoFishingTimer = setTimeout(() => runAutoFishingCycle(bot), bot.modules.autoFishing.recastDelayMs)
+  }
+}
+
+function startAutoFishing (botId) {
+  const bot = bots.get(botId)
+  if (!bot) throw new Error('Botが見つかりません。')
+  if (!(settings.installedMods || []).includes('autoFishing')) throw new Error('AutoFishingが導入されていません。')
+  if (!isModuleAssigned(bot.modules, 'autoFishing')) throw new Error('先にAutoFishingモジュールを割り当ててください。')
+  const { agent } = getConnectedAgent(botId)
+  if (bot.itemUseBusy || bot.itemUseRunning || bot.containerSupplyBusy || bot.containerSupplyRunning) {
+    throw new Error('Item UseまたはContainer Supplyの実行中はAutoFishingを開始できません。')
+  }
+  if (bot.autoFishingBusy) throw new Error('現在の釣り処理が終わるまで待ってください。')
+  if (!findFishingRod(agent.inventory)) throw new Error('インベントリに釣竿（fishing_rod）がありません。')
+  stopAutoFishing(bot, '再設定')
+  bot.autoFishingRunning = true
+  bot.autoFishingStatus = '開始準備中'
+  pushLog(bot.label + ': AutoFishingを開始しました。', 'info', bot.id)
+  publishModuleStatus(bot)
+  void runAutoFishingCycle(bot)
+  return publicBot(bot)
+}
+
 function scheduleBotReconnect (bot, reason, wasConnected = false) {
   if (!bot || bot.parentBotId || bot.manualDisconnect || bot.kicked || bot.reconnectTimer) return false
   if (!isRetryableDisconnect(reason, bot.lastError, wasConnected || bot.hasJoinedWorld)) {
