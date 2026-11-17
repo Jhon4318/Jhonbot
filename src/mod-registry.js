@@ -21,6 +21,13 @@ const MOD_CATALOG = Object.freeze([
     version: '1.0.0',
     category: '自動化',
     description: 'Bedrockの釣り針イベントでアタリを検出し、釣竿の回収と再キャストを自動で繰り返します。'
+  }),
+  Object.freeze({
+    id: 'lookDirection',
+    name: 'Look Direction',
+    version: '1.0.0',
+    category: '操作',
+    description: 'Yaw（水平角）とPitch（上下角）を度数で指定し、Botの視線をその角度へ向けます。'
   })
 ])
 
