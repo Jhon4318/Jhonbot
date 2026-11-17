@@ -196,17 +196,29 @@
               <label class="field"><span>Y</span><input id="supplyY" type="number" step="any" placeholder="Y座標"></label>
               <label class="field"><span>Z</span><input id="supplyZ" type="number" step="any" placeholder="Z座標"></label>
             </div>
-            <label class="field"><span>補充するアイテム</span><input id="supplyItemName" type="text" list="supplyItemOptions" class="inventory-select" placeholder="minecraft:stone"><datalist id="supplyItemOptions"></datalist></label>
-            <div class="module-inline-fields">
-              <label class="field"><span>コンテナ内の目標数</span><input id="supplyTargetCount" type="number" min="1" max="100000" step="1" value="64"></label>
-              <label class="field"><span>確認間隔（ms）</span><input id="supplyInterval" type="number" min="1000" max="60000" step="500" value="5000"></label>
-            </div>
+            <div class="management-section-heading"><strong>補充アイテム一覧（最大32種類）</strong><button id="addSupplyItemButton" type="button" class="secondary-button">アイテム追加</button></div>
+            <div id="supplyItemsList" class="supply-items-list"><datalist id="supplyItemOptions"></datalist></div>
+            <label class="field"><span>確認間隔（ms）</span><input id="supplyInterval" type="number" min="1000" max="60000" step="500" value="5000"></label>
             <div class="module-actions">
               <button id="supplySaveButton" type="button" class="secondary-button">設定を保存</button>
               <button id="supplyStartButton" type="button" class="primary-button">補充開始</button>
               <button id="supplyStopButton" type="button" class="secondary-button" disabled>停止</button>
             </div>
             <div class="module-status" id="containerSupplyStatus">未実行</div>
+          </section>
+
+          <section class="module-card" id="autoFishingModuleCard">
+            <div class="module-card-heading"><h3>AutoFishing</h3><label class="module-assignment"><input id="autoFishingAssigned" type="checkbox"> 割り当て</label></div>
+            <p class="muted tiny">釣竿を自動で装備し、Bedrockの釣り針イベントからアタリを検出して回収・再キャストします。</p>
+            <div class="module-inline-fields">
+              <label class="field"><span>アタリ待ち上限（ms）</span><input id="autoFishingBiteTimeout" type="number" min="15000" max="300000" step="5000" value="120000"></label>
+              <label class="field"><span>再キャスト間隔（ms）</span><input id="autoFishingRecastDelay" type="number" min="250" max="10000" step="250" value="1000"></label>
+            </div>
+            <div class="module-actions">
+              <button id="autoFishingStartButton" type="button" class="primary-button">釣り開始</button>
+              <button id="autoFishingStopButton" type="button" class="secondary-button" disabled>停止</button>
+            </div>
+            <div class="module-status" id="autoFishingStatus">未実行</div>
           </section>
 
         </div>
