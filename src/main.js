@@ -21,6 +21,8 @@ const { validateControl, normalizeCoordinates } = require('./control-validation'
 const { safeErrorMessage, isAllowedAuthUrl } = require('./runtime-guards')
 const { assertCanAuthenticate, assertCanJoinWorld } = require('./account-state')
 const { createEncryptedAuthCacheFactory, hasEncryptedAuthCache } = require('./auth-cache')
+const { restoreSavedAuthflow } = require('./auth-restore')
+const { isFishingHookSpawn, isFishingHookBite, findFishingRod, runtimeEntityId } = require('./auto-fishing')
 const { normalizeChatMessage, normalizeDropRequest, createInventorySnapshot } = require('./bot-actions')
 const { installSubClientSupport, createGuestLoginTokens, createSubClientLoginDispatcher, MAX_SUB_CLIENTS } = require('./subclients')
 const { nextGuestSubClientId, resolveGuestLabel } = require('./guest-naming')
@@ -178,7 +180,9 @@ function publicBot (bot) {
       containerSupply: bot.containerSupplyStatus || '未実行',
       reconnectAttempts: bot.reconnectAttempts || 0,
       itemUseRunning: bot.itemUseRunning === true,
-      containerSupplyRunning: bot.containerSupplyRunning === true
+      containerSupplyRunning: bot.containerSupplyRunning === true,
+      autoFishing: bot.autoFishingStatus || '未実行',
+      autoFishingRunning: bot.autoFishingRunning === true
     },
     autoReconnect: {
       enabled: !bot.parentBotId,
@@ -266,6 +270,13 @@ function createBotRecord (saved) {
     itemUseGeneration: 0,
     itemUseSlot: null,
     itemUseStatus: '未実行',
+    autoFishingTimer: null,
+    autoFishingRunning: false,
+    autoFishingBusy: false,
+    autoFishingGeneration: 0,
+    autoFishingStatus: '未実行',
+    autoFishingCancelWait: null,
+    autoFishingHookId: null,
     containerSupplyTimer: null,
     containerSupplyRunning: false,
     containerSupplyBusy: false,
@@ -361,6 +372,45 @@ function encryptedAuthCacheFactory (botId) {
     userDataPath: app.getPath('userData'),
     safeStorage
   })(botId)
+}
+
+function createAuthflowForBot (bot) {
+  return new Authflow(
+    bot.id,
+    encryptedAuthCacheFactory(bot.id),
+    { flow: 'live', authTitle: Titles.MinecraftNintendoSwitch, deviceType: 'Nintendo' },
+    (data) => onMicrosoftDeviceCode(bot, data)
+  )
+}
+
+function restoreSavedAuthentications () {
+  for (const bot of bots.values()) {
+    if (bot.parentBotId || bot.accountStatus !== 'saved' || bot.authStarting) continue
+    bot.authStarting = true
+    publishAccountStatus(bot, 'authenticating')
+    pushLog(`${bot.label}: 保存済みのMicrosoft / Xbox認証情報を復元しています。`, 'info', bot.id)
+    void restoreSavedAuthflow(bot, {
+      hasCache: (botId) => hasEncryptedAuthCache(app.getPath('userData'), botId),
+      createAuthflow: createAuthflowForBot
+    }).then((result) => {
+      if (!bots.has(bot.id)) return
+      bot.authflow = result.authflow
+      bot.pendingAuthCode = null
+      publishAccountStatus(bot, 'authenticated')
+      pushLog(`${bot.label}: 保存済みのMicrosoft / Xbox認証を復元しました。ワールド参加できます。`, 'success', bot.id)
+    }).catch((error) => {
+      if (!bots.has(bot.id)) return
+      bot.authflow = null
+      if (!bot.pendingAuthCode) {
+        publishAccountStatus(bot, 'saved', safeErrorMessage(error))
+        pushLog(`${bot.label}: 保存済み認証を復元できませんでした。再認証が必要です: ${safeErrorMessage(error)}`, 'warning', bot.id)
+      }
+    }).finally(() => {
+      if (!bots.has(bot.id)) return
+      bot.authStarting = false
+      publishBot(bot)
+    })
+  }
 }
 
 function setBotStatus (bot, status, extra = {}) {
@@ -776,12 +826,7 @@ async function authenticateBot (botId) {
 
     // Match bedrock-protocol 3.60.1's online Bedrock defaults. The Authflow is
     // retained and later passed to Mineflayer so world joining reuses this login.
-    const authflow = new Authflow(
-      bot.id,
-      encryptedAuthCacheFactory(bot.id),
-      { flow: 'live', authTitle: Titles.MinecraftNintendoSwitch, deviceType: 'Nintendo' },
-      (data) => onMicrosoftDeviceCode(bot, data)
-    )
+    const authflow = createAuthflowForBot(bot)
     bot.authflow = authflow
     const xbox = await authflow.getXboxToken()
     if (!xbox?.XSTSToken || !xbox?.userXUID) {
@@ -1518,9 +1563,23 @@ function stopContainerSupply (bot, status = '停止中') {
   publishModuleStatus(bot)
 }
 
+function stopAutoFishing (bot, status = '停止中') {
+  clearTimeout(bot.autoFishingTimer)
+  bot.autoFishingTimer = null
+  bot.autoFishingRunning = false
+  bot.autoFishingGeneration++
+  bot.autoFishingHookId = null
+  const cancel = bot.autoFishingCancelWait
+  bot.autoFishingCancelWait = null
+  try { cancel?.() } catch {}
+  bot.autoFishingStatus = status
+  publishModuleStatus(bot)
+}
+
 function stopBotModules (bot, status = '接続終了') {
   stopBotItemUse(bot, status)
   stopContainerSupply(bot, status)
+  stopAutoFishing(bot, status)
 }
 
 function getModState () {
@@ -1541,6 +1600,9 @@ async function setModInstallation (modId, installed) {
       } else if (mod.id === 'containerSupply') {
         stopContainerSupply(bot, 'Modアンインストール')
         bot.modules.containerSupply.assigned = false
+      } else if (mod.id === 'autoFishing') {
+        stopAutoFishing(bot, 'Modアンインストール')
+        bot.modules.autoFishing.assigned = false
       }
       publishBot(bot)
     }
@@ -1558,8 +1620,10 @@ async function updateBotModules (botId, input) {
   const next = normalizeBotModules(input)
   if (next.itemUse.assigned && !(settings.installedMods || []).includes('itemUse')) throw new Error('先にMod管理から Item Use を導入してください。')
   if (next.containerSupply.assigned && !(settings.installedMods || []).includes('containerSupply')) throw new Error('先にMod管理から Container Supply を導入してください。')
+  if (next.autoFishing.assigned && !(settings.installedMods || []).includes('autoFishing')) throw new Error('先にMod管理から AutoFishing を導入してください。')
   if (JSON.stringify(bot.modules.itemUse) !== JSON.stringify(next.itemUse)) stopBotItemUse(bot, next.itemUse.assigned ? '設定変更・停止' : 'モジュール未割り当て')
   if (JSON.stringify(bot.modules.containerSupply) !== JSON.stringify(next.containerSupply)) stopContainerSupply(bot, next.containerSupply.assigned ? '設定変更・停止' : 'モジュール未割り当て')
+  if (JSON.stringify(bot.modules.autoFishing) !== JSON.stringify(next.autoFishing)) stopAutoFishing(bot, next.autoFishing.assigned ? '設定変更・停止' : 'モジュール未割り当て')
   bot.modules = next
   await saveSettings()
   publishBot(bot)
@@ -2010,6 +2074,7 @@ ipcMain.handle('app:get-state', () => ({
   modCatalog: MOD_CATALOG,
   servers: publicServerProfiles(),
   bots: Array.from(bots.values()).map(publicBot),
+  pendingAuthCodes: Array.from(bots.values()).map(bot => bot.pendingAuthCode).filter(Boolean),
   logs: logBuffer
 }))
 ipcMain.handle('bot:add', (_event, input) => publicBot(bots.get(addBot(input).id)))
@@ -2034,6 +2099,8 @@ ipcMain.handle('bot:start-item-use', (_event, args) => startBotItemUse(args?.bot
 ipcMain.handle('bot:stop-item-use', (_event, botId) => { const bot = bots.get(botId); if (!bot) throw new Error('Botが見つかりません。'); stopBotItemUse(bot, '手動停止'); return publicBot(bot) })
 ipcMain.handle('bot:start-container-supply', (_event, botId) => startContainerSupply(botId))
 ipcMain.handle('bot:stop-container-supply', (_event, botId) => { const bot = bots.get(botId); if (!bot) throw new Error('Botが見つかりません。'); stopContainerSupply(bot, '手動停止'); return publicBot(bot) })
+ipcMain.handle('bot:start-auto-fishing', (_event, botId) => startAutoFishing(botId))
+ipcMain.handle('bot:stop-auto-fishing', (_event, botId) => { const bot = bots.get(botId); if (!bot) throw new Error('Botが見つかりません。'); stopAutoFishing(bot, '手動停止'); return publicBot(bot) })
 ipcMain.handle('world:select-session', (_event, args) => {
   const requestId = String(args?.requestId || '')
   const pending = pendingWorldSelections.get(requestId)
@@ -2100,6 +2167,7 @@ app.whenReady().then(async () => {
   initializeDiagnosticLog()
   await loadSettings()
   createWindow()
+  restoreSavedAuthentications()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
