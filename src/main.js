@@ -481,6 +481,7 @@ function onMicrosoftDeviceCode (bot, data) {
     verificationUri: data?.verification_uri || data?.verificationUri || 'https://www.microsoft.com/link',
     message: data?.message || '表示されたコードをMicrosoftの認証ページに入力してください。'
   }
+  bot.pendingAuthCode = authInfo
   send('auth:device-code', authInfo)
   pushLog(`${bot.label}: Microsoftのデバイスコード認証が必要です。`, 'info', bot.id)
 }
