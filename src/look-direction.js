@@ -16,9 +16,13 @@ function normalizeLookDirection (input = {}) {
 }
 
 function toMineflayerLookRadians (direction) {
+  // UI angles follow Bedrock's native rotation convention. Mineflayer's
+  // internal yaw is PI - Bedrock yaw and its internal pitch is inverted.
+  const fullTurn = Math.PI * 2
+  const rawYaw = Math.PI - (direction.yawDeg * Math.PI / 180)
   return {
-    yaw: direction.yawDeg * Math.PI / 180,
-    pitch: direction.pitchDeg * Math.PI / 180
+    yaw: ((rawYaw % fullTurn) + fullTurn) % fullTurn,
+    pitch: -(direction.pitchDeg * Math.PI / 180)
   }
 }
 
