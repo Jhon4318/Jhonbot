@@ -414,6 +414,9 @@ function renderBotModulesPanel (refreshConfig = false) {
     supplyY.value = modules.containerSupply?.y ?? ''
     supplyZ.value = modules.containerSupply?.z ?? ''
     supplyInterval.value = String(modules.containerSupply?.intervalMs || 5000)
+    document.getElementById('autoFishingAssigned').checked = modules.autoFishing?.assigned === true
+    document.getElementById('autoFishingBiteTimeout').value = String(modules.autoFishing?.biteTimeoutMs || 120000)
+    document.getElementById('autoFishingRecastDelay').value = String(modules.autoFishing?.recastDelayMs || 1000)
   }
 
   const itemUseInstalled = state.installedMods.includes('itemUse')
