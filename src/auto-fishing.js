@@ -9,7 +9,7 @@ function runtimeEntityId (value) {
 
 function isFishingHookSpawn (packet) {
   const type = String(packet?.entity_type || '').toLowerCase()
-  return type === 'fishing_hook' || type === 'minecraft:fishing_hook' || type.endsWith(':fishing_hook')
+  return type === '77' || type === 'fishing_hook' || type === 'minecraft:fishing_hook' || type.endsWith(':fishing_hook')
 }
 
 function isFishingHookBite (packet, expectedRuntimeId) {
