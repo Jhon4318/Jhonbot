@@ -1781,22 +1781,23 @@ async function supplyContainerOnce (bot) {
     }
     if (typeof window.containerItems !== 'function' || typeof agent.deposit !== 'function') throw new Error('開いた画面はアイテム投入に対応していないコンテナです。')
     if (!bot.containerSupplyRunning || generation !== bot.containerSupplyGeneration || bot.agent !== agent) return '停止済み'
-    const containerItems = typeof window.containerItems === 'function' ? window.containerItems() : []
-    const matchingItems = containerItems.filter(item => item && item.name === config.itemName)
-    const currentCount = matchingItems.reduce((total, item) => total + (Number(item.count) || 0), 0)
-    const needed = Math.max(0, config.targetCount - currentCount)
-    if (needed === 0) return '目標数に到達 (' + currentCount + '/' + config.targetCount + ')'
-    const inventoryItems = (agent.inventory?.items?.() || []).filter(item => item && item.name === config.itemName && Number(item.count) > 0)
-    if (!inventoryItems.length) return 'Botのインベントリに指定アイテムがありません'
-    if (typeof agent.deposit !== 'function') throw new Error('コンテナへのアイテム投入APIが利用できません。')
-    let remaining = needed
-    let depositCount = 0
-    for (const sourceItem of inventoryItems) {
+    if (typeof window.containerItems !== 'function' || typeof agent.deposit !== 'function') throw new Error('開いた画面はアイテム投入に対応していないコンテナです。')
+    const results = []
+    for (const configuredItem of config.items) {
+      if (!bot.containerSupplyRunning || generation !== bot.containerSupplyGeneration || bot.agent !== agent) return '停止済み'
+      const currentCount = window.containerItems()
+        .filter(item => item && item.name === configuredItem.itemName)
+        .reduce((total, item) => total + (Number(item.count) || 0), 0)
+      let remaining = Math.max(0, configuredItem.targetCount - currentCount)
+      let depositCount = 0
       while (remaining > 0) {
         if (!bot.containerSupplyRunning || generation !== bot.containerSupplyGeneration || bot.agent !== agent) return '停止済み'
-        const sourceCount = Number(sourceItem.count) || 0
-        if (sourceCount <= 0) break
-        const count = Math.min(remaining, sourceCount)
+        const sourceItem = (agent.inventory?.items?.() || []).find(item =>
+          item && item.name === configuredItem.itemName && Number(item.count) > 0
+        )
+        if (!sourceItem) break
+        const count = Math.min(remaining, Number(sourceItem.count) || 0)
+        if (count <= 0) break
         const response = await agent.deposit(sourceItem, null, count)
         const movedCount = Number(response?.movedCount)
         const moved = Number.isInteger(movedCount) && movedCount > 0 ? Math.min(count, movedCount) : count
@@ -1804,11 +1805,11 @@ async function supplyContainerOnce (bot) {
         depositCount += moved
         remaining -= moved
       }
-      if (remaining <= 0) break
+      results.push(configuredItem.itemName + ' ' + (currentCount + depositCount) + '/' + configuredItem.targetCount + (remaining > 0 ? '（在庫不足）' : ''))
     }
     if (bot.agent !== agent) throw new Error('補充処理中にBotが切断されました。')
-    const result = remaining > 0 ? '一部補充 (' + depositCount + '個)・在庫不足' : depositCount + '個を補充しました'
-    pushLog(bot.label + ': ' + block.name + ' [' + config.x + ', ' + config.y + ', ' + config.z + '] に ' + config.itemName + ' を' + depositCount + '個投入しました。', 'success', bot.id)
+    const result = results.join(' / ')
+    pushLog(bot.label + ': ' + block.name + ' [' + config.x + ', ' + config.y + ', ' + config.z + '] 複数アイテム補充: ' + result, 'success', bot.id)
     publishBotInventory(bot)
     return result
   } finally {
