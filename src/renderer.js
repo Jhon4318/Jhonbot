@@ -1297,7 +1297,6 @@ document.getElementById('lookDirectionApplyButton').addEventListener('click', as
   const yawDeg = document.getElementById('lookDirectionYaw').value
   const pitchDeg = document.getElementById('lookDirectionPitch').value
   try {
-    await saveModulesFromForm()
     const updated = await api.setLookDirection({ botId: bot.id, yawDeg, pitchDeg })
     state.bots.set(updated.id, updated)
     renderBotModulesPanel(false)
