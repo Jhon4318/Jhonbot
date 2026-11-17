@@ -170,3 +170,11 @@ test('Mod assignment is separated from operations and operation cards have no as
   assert.match(renderer, /api\.setLookDirection\(\{ botId: bot\.id, yawDeg, pitchDeg \}\)/)
   assert.doesNotMatch(renderer, /getElementById\('(?:itemUseAssigned|containerSupplyAssigned|autoFishingAssigned)'\)/)
 })
+
+test('Mod assignment drafts survive Bot refreshes and are discarded on dialog close', () => {
+  assert.match(renderer, /modAssignmentDrafts: new Map\(\)/)
+  assert.match(renderer, /checkbox\.addEventListener\('change', \(\) => \{ draft\[mod\.id\] = checkbox\.checked \}\)/)
+  assert.match(renderer, /if \(document\.getElementById\('modAssignmentDialog'\)\?\.open\) renderModAssignmentDialog\(\)/)
+  assert.match(renderer, /assignmentDialog\.addEventListener\('close', \(\) => state\.modAssignmentDrafts\.clear\(\)\)/)
+  assert.match(renderer, /const draft = state\.modAssignmentDrafts\.get\(bot\.id\) \|\| \{\}/)
+})
