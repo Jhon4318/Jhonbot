@@ -469,6 +469,8 @@ function renderBotModulesPanel (refreshConfig = false) {
 }
 
 function addSupplyItemRow (itemName = '', targetCount = 64) {
+  const list = document.getElementById('supplyItemsList')
+  if (list.querySelectorAll('.supply-item-row').length >= 32) return showToast('補充アイテムは最大32種類まで登録できます。')
   const row = createElement('div', 'module-inline-fields supply-item-row')
   const nameLabel = createElement('label', 'field')
   nameLabel.append(createElement('span', '', 'アイテム名'))
@@ -483,7 +485,7 @@ function addSupplyItemRow (itemName = '', targetCount = 64) {
   const remove = createElement('button', 'icon-button danger', '削除')
   remove.type = 'button'; remove.addEventListener('click', () => { row.remove(); if (!document.querySelector('#supplyItemsList .supply-item-row')) addSupplyItemRow() })
   row.append(nameLabel, countLabel, remove)
-  document.getElementById('supplyItemsList').append(row)
+  list.append(row)
 }
 
 function renderModStore () {
