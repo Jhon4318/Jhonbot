@@ -22,7 +22,7 @@ function toMineflayerLookRadians (direction) {
   const rawYaw = Math.PI - (direction.yawDeg * Math.PI / 180)
   return {
     yaw: ((rawYaw % fullTurn) + fullTurn) % fullTurn,
-    pitch: -(direction.pitchDeg * Math.PI / 180)
+    pitch: direction.pitchDeg === 0 ? 0 : -(direction.pitchDeg * Math.PI / 180)
   }
 }
 
