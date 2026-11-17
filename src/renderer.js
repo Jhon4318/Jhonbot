@@ -364,22 +364,17 @@ function renderBotModulesPanel (refreshConfig = false) {
   const modules = bot?.modules || {}
   const items = bot ? (state.inventoryByBot.get(bot.id) || []) : []
   const moduleSelectedBot = document.getElementById('moduleSelectedBot')
-  const itemUseAssigned = document.getElementById('itemUseAssigned')
-  const itemUseMode = document.getElementById('itemUseMode')
-  const itemUseInterval = document.getElementById('itemUseInterval')
-  const containerSupplyAssigned = document.getElementById('containerSupplyAssigned')
   const supplyX = document.getElementById('supplyX')
   const supplyY = document.getElementById('supplyY')
   const supplyZ = document.getElementById('supplyZ')
   const supplyItemsList = document.getElementById('supplyItemsList')
   const supplyInterval = document.getElementById('supplyInterval')
   const moduleItemUseSelect = document.getElementById('moduleItemUseSelect')
+  const installed = new Set(state.installedMods)
+  const assigned = (id) => installed.has(id) && modules[id]?.assigned === true
 
-  if (!bot) {
-    moduleSelectedBot.textContent = 'Botを追加して選択してください。'
-  } else {
-    moduleSelectedBot.textContent = bot.label + ' · ' + (connected ? 'ワールド参加中' : (statusLabels[bot.status] || bot.status))
-  }
+  if (!bot) moduleSelectedBot.textContent = 'Botを追加して選択してください。'
+  else moduleSelectedBot.textContent = bot.label + ' · ' + (connected ? 'ワールド参加中' : (statusLabels[bot.status] || bot.status))
 
   const previousUseSlot = moduleItemUseSelect.value
   const selectedUseSlot = refreshConfig ? '' : previousUseSlot
@@ -403,70 +398,136 @@ function renderBotModulesPanel (refreshConfig = false) {
     const configured = modules.containerSupply?.items || (modules.containerSupply?.itemName ? [{ itemName: modules.containerSupply.itemName, targetCount: modules.containerSupply.targetCount || 64 }] : [])
     supplyItemsList.replaceChildren()
     for (const entry of configured.length ? configured : [{ itemName: '', targetCount: 64 }]) addSupplyItemRow(entry.itemName, entry.targetCount)
-  }
-
-  if (refreshConfig) {
-    itemUseAssigned.checked = modules.itemUse?.assigned === true
-    itemUseMode.value = modules.itemUse?.useMode === 'consume' ? 'consume' : 'activate'
-    itemUseInterval.value = String(modules.itemUse?.intervalMs || 1500)
-    containerSupplyAssigned.checked = modules.containerSupply?.assigned === true
+    document.getElementById('itemUseMode').value = modules.itemUse?.useMode === 'consume' ? 'consume' : 'activate'
+    document.getElementById('itemUseInterval').value = String(modules.itemUse?.intervalMs || 1500)
     supplyX.value = modules.containerSupply?.x ?? ''
     supplyY.value = modules.containerSupply?.y ?? ''
     supplyZ.value = modules.containerSupply?.z ?? ''
     supplyInterval.value = String(modules.containerSupply?.intervalMs || 5000)
-    document.getElementById('autoFishingAssigned').checked = modules.autoFishing?.assigned === true
     document.getElementById('autoFishingBiteTimeout').value = String(modules.autoFishing?.biteTimeoutMs || 120000)
     document.getElementById('autoFishingRecastDelay').value = String(modules.autoFishing?.recastDelayMs || 1000)
+    document.getElementById('lookDirectionYaw').value = String(modules.lookDirection?.yawDeg ?? 0)
+    document.getElementById('lookDirectionPitch').value = String(modules.lookDirection?.pitchDeg ?? 0)
   }
 
-  const itemUseInstalled = state.installedMods.includes('itemUse')
-  const containerSupplyInstalled = state.installedMods.includes('containerSupply')
-  const autoFishingInstalled = state.installedMods.includes('autoFishing')
-  const anyModInstalled = itemUseInstalled || containerSupplyInstalled || autoFishingInstalled
   const status = bot?.moduleStatus || {}
-  const summary = document.getElementById('selectedBotModSummary'), summaryCount = document.getElementById('selectedModCount'), settingsButton = document.getElementById('openSelectedModSettingsButton')
+  const descriptors = [
+    { id: 'itemUse', name: 'Item Use', status: status.itemUse || '未実行', running: status.itemUseRunning === true, cardId: 'itemUseModuleCard' },
+    { id: 'containerSupply', name: 'Container Supply', status: status.containerSupply || '未実行', running: status.containerSupplyRunning === true, cardId: 'containerSupplyModuleCard' },
+    { id: 'autoFishing', name: 'AutoFishing', status: status.autoFishing || '未実行', running: status.autoFishingRunning === true, cardId: 'autoFishingModuleCard' },
+    { id: 'lookDirection', name: 'Look Direction', status: status.lookDirection || '未実行', running: false, cardId: 'lookDirectionModuleCard' }
+  ]
+  const entries = descriptors.filter(entry => assigned(entry.id))
+  const anyAssignedMod = entries.length > 0
+  const noBot = !bot
+  const summary = document.getElementById('selectedBotModSummary')
+  const summaryCount = document.getElementById('selectedModCount')
+  const settingsButton = document.getElementById('openSelectedModSettingsButton')
+  const assignmentButton = document.getElementById('openModAssignmentDialogButton')
+
   if (summary) {
     summary.replaceChildren()
-    const entries=[]
-    if(itemUseInstalled)entries.push({name:'Item Use',assigned:modules.itemUse?.assigned===true,status:status.itemUse||'未実行',running:status.itemUseRunning===true})
-    if(containerSupplyInstalled)entries.push({name:'Container Supply',assigned:modules.containerSupply?.assigned===true,status:status.containerSupply||'未実行',running:status.containerSupplyRunning===true})
-    if(autoFishingInstalled)entries.push({name:'AutoFishing',assigned:modules.autoFishing?.assigned===true,status:status.autoFishing||'未実行',running:status.autoFishingRunning===true})
-    if(!bot)summary.append(createElement('div','server-empty','Botを選択してください。'))
-    else if(!entries.length)summary.append(createElement('div','server-empty','利用可能なModはありません。「Mod一覧・追加」から導入できます。'))
-    else for(const entry of entries){const row=createElement('div','selected-mod-row'),info=createElement('div','selected-mod-info');info.append(createElement('strong','',entry.name),createElement('span','',entry.status));row.append(info,createElement('span',entry.running?'mod-state running':(entry.assigned?'mod-state assigned':'mod-state'),entry.running?'実行中':(entry.assigned?'割り当て済み':'未割当')));summary.append(row)}
-    if(summaryCount)summaryCount.textContent=entries.length+'件'
-    if(settingsButton)settingsButton.disabled=!bot||!anyModInstalled
+    if (!bot) summary.append(createElement('div', 'server-empty', 'Botを選択してください。'))
+    else if (!state.installedMods.length) summary.append(createElement('div', 'server-empty', '利用可能なModがありません。「Mod一覧・追加」から導入してください。'))
+    else if (!entries.length) summary.append(createElement('div', 'server-empty', '割り当て済みModはありません。「Mod割り当て」から有効にしてください。'))
+    else {
+      for (const entry of entries) {
+        const row = createElement('div', 'selected-mod-row')
+        const info = createElement('div', 'selected-mod-info')
+        info.append(createElement('strong', '', entry.name), createElement('span', '', entry.status))
+        const stateChip = createElement('span', entry.running ? 'mod-state running' : 'mod-state assigned', entry.running ? '実行中' : '割り当て済み')
+        const action = createElement('button', 'secondary-button selected-mod-open-button', '操作')
+        action.type = 'button'
+        action.addEventListener('click', () => {
+          const dialog = document.getElementById('selectedModSettingsDialog')
+          if (!dialog.open) dialog.showModal()
+          requestAnimationFrame(() => document.getElementById(entry.cardId)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }))
+        })
+        row.append(info, stateChip, action)
+        summary.append(row)
+      }
+    }
+    if (summaryCount) summaryCount.textContent = entries.length + '件'
   }
-  document.getElementById('modulePanel').hidden = !anyModInstalled
-  document.getElementById('itemUseModuleCard').hidden = !itemUseInstalled
-  document.getElementById('containerSupplyModuleCard').hidden = !containerSupplyInstalled
-  document.getElementById('autoFishingModuleCard').hidden = !autoFishingInstalled
-  const assignedUse = itemUseAssigned.checked
-  const assignedSupply = containerSupplyAssigned.checked
-  const autoFishingAssigned = document.getElementById('autoFishingAssigned')
+  if (settingsButton) settingsButton.disabled = noBot || !anyAssignedMod
+  if (assignmentButton) assignmentButton.disabled = noBot
+  document.getElementById('modulePanel').hidden = !anyAssignedMod
+  document.getElementById('itemUseModuleCard').hidden = !assigned('itemUse')
+  document.getElementById('containerSupplyModuleCard').hidden = !assigned('containerSupply')
+  document.getElementById('autoFishingModuleCard').hidden = !assigned('autoFishing')
+  document.getElementById('lookDirectionModuleCard').hidden = !assigned('lookDirection')
+
+  const itemUseAssigned = assigned('itemUse')
+  const containerSupplyAssigned = assigned('containerSupply')
+  const autoFishingAssigned = assigned('autoFishing')
+  const lookDirectionAssigned = assigned('lookDirection')
   document.getElementById('itemUseStatus').textContent = status.itemUse || '未実行'
   document.getElementById('containerSupplyStatus').textContent = status.containerSupply || '未実行'
   document.getElementById('autoFishingStatus').textContent = status.autoFishing || '未実行'
-  const noBot = !bot
-  itemUseAssigned.disabled = noBot || !itemUseInstalled
-  itemUseMode.disabled = noBot || !itemUseInstalled || !assignedUse
-  itemUseInterval.disabled = noBot || !itemUseInstalled || !assignedUse
-  moduleItemUseSelect.disabled = !connected || !items.length
-  document.getElementById('itemUseOnceButton').disabled = !connected || !assignedUse || !moduleItemUseSelect.value
-  document.getElementById('itemUseStartButton').disabled = !connected || !assignedUse || !moduleItemUseSelect.value
+  document.getElementById('lookDirectionStatus').textContent = status.lookDirection || '未実行'
+
+  document.getElementById('itemUseMode').disabled = noBot || !itemUseAssigned
+  document.getElementById('itemUseInterval').disabled = noBot || !itemUseAssigned
+  moduleItemUseSelect.disabled = !connected || !items.length || !itemUseAssigned
+  document.getElementById('itemUseOnceButton').disabled = !connected || !itemUseAssigned || !moduleItemUseSelect.value
+  document.getElementById('itemUseStartButton').disabled = !connected || !itemUseAssigned || !moduleItemUseSelect.value
   document.getElementById('itemUseStopButton').disabled = !bot || status.itemUseRunning !== true
-  containerSupplyAssigned.disabled = noBot || !containerSupplyInstalled
-  document.getElementById('addSupplyItemButton').disabled = noBot || !containerSupplyInstalled || !assignedSupply
-  for (const input of [supplyX, supplyY, supplyZ, supplyInterval, ...supplyItemsList.querySelectorAll('input,button')]) input.disabled = noBot || !containerSupplyInstalled || !assignedSupply
-  document.getElementById('supplySaveButton').disabled = noBot
-  document.getElementById('supplyStartButton').disabled = !connected || !assignedSupply
+
+  document.getElementById('addSupplyItemButton').disabled = noBot || !containerSupplyAssigned
+  for (const input of [supplyX, supplyY, supplyZ, supplyInterval, ...supplyItemsList.querySelectorAll('input,button')]) {
+    input.disabled = noBot || !containerSupplyAssigned
+  }
+  document.getElementById('supplySaveButton').disabled = noBot || !containerSupplyAssigned
+  document.getElementById('supplyStartButton').disabled = !connected || !containerSupplyAssigned
   document.getElementById('supplyStopButton').disabled = !bot || status.containerSupplyRunning !== true
-  autoFishingAssigned.disabled = noBot || !autoFishingInstalled
-  document.getElementById('autoFishingBiteTimeout').disabled = noBot || !autoFishingInstalled || !autoFishingAssigned.checked
-  document.getElementById('autoFishingRecastDelay').disabled = noBot || !autoFishingInstalled || !autoFishingAssigned.checked
-  document.getElementById('autoFishingStartButton').disabled = !connected || !autoFishingAssigned.checked
+
+  document.getElementById('autoFishingBiteTimeout').disabled = noBot || !autoFishingAssigned
+  document.getElementById('autoFishingRecastDelay').disabled = noBot || !autoFishingAssigned
+  document.getElementById('autoFishingStartButton').disabled = !connected || !autoFishingAssigned
   document.getElementById('autoFishingStopButton').disabled = !bot || status.autoFishingRunning !== true
-  document.getElementById('moduleSaveButton').disabled = noBot || !anyModInstalled
+
+  document.getElementById('lookDirectionYaw').disabled = noBot || !lookDirectionAssigned
+  document.getElementById('lookDirectionPitch').disabled = noBot || !lookDirectionAssigned
+  document.getElementById('lookDirectionApplyButton').disabled = !connected || !lookDirectionAssigned
+  document.getElementById('moduleSaveButton').disabled = noBot || !anyAssignedMod
+  renderModAssignmentDialog()
+}
+
+function renderModAssignmentDialog () {
+  const bot = selectedBot()
+  const target = document.getElementById('modAssignmentList')
+  const botLabel = document.getElementById('assignmentSelectedBot')
+  const saveButton = document.getElementById('saveModAssignmentsButton')
+  if (!target || !botLabel || !saveButton) return
+
+  target.replaceChildren()
+  if (!bot) {
+    botLabel.textContent = 'Botを選択してください。'
+    target.append(createElement('div', 'server-empty', '先にBotを選択してください。'))
+    saveButton.disabled = true
+    return
+  }
+
+  botLabel.textContent = bot.label + ' · ' + (bot.status === 'connected' ? 'ワールド参加中' : (statusLabels[bot.status] || bot.status))
+  const installable = state.modCatalog.filter(mod => state.installedMods.includes(mod.id))
+  if (!installable.length) {
+    target.append(createElement('div', 'server-empty', '導入済みModがありません。「Mod一覧・追加」から先に導入してください。'))
+    saveButton.disabled = true
+    return
+  }
+
+  for (const mod of installable) {
+    const row = createElement('label', 'mod-assignment-row')
+    const checkbox = document.createElement('input')
+    checkbox.type = 'checkbox'
+    checkbox.dataset.modAssignment = mod.id
+    checkbox.checked = bot.modules?.[mod.id]?.assigned === true
+    const details = createElement('span', 'mod-assignment-details')
+    details.append(createElement('strong', '', mod.name), createElement('span', '', mod.description))
+    row.append(checkbox, details)
+    target.append(row)
+  }
+  saveButton.disabled = false
 }
 
 function addSupplyItemRow (itemName = '', targetCount = 64) {
