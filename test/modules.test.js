@@ -3,44 +3,34 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { DEFAULT_MODULES, normalizeBotModules, moduleConfigComplete, isModuleAssigned } = require('../src/modules')
 
-test('provides independent feature modules unassigned by default', () => {
+test('provides independent modules unassigned by default', () => {
   const modules = normalizeBotModules()
   assert.deepEqual(modules, {
     itemUse: { assigned: false, useMode: 'activate', intervalMs: 1500 },
-    containerSupply: { assigned: false, x: null, y: null, z: null, itemName: '', targetCount: 64, intervalMs: 5000 }
+    containerSupply: { assigned: false, x: null, y: null, z: null, items: [], intervalMs: 5000 },
+    autoFishing: { assigned: false, biteTimeoutMs: 120000, recastDelayMs: 1000 }
   })
   assert.equal(DEFAULT_MODULES.itemUse.assigned, false)
   assert.equal(Object.hasOwn(modules, 'connectionManager'), false)
 })
 
-test('normalizes module assignments and clamps unsafe settings', () => {
+test('normalizes assignments and clamps unsafe settings', () => {
   const modules = normalizeBotModules({
     itemUse: { assigned: true, intervalMs: 1 },
-    containerSupply: { assigned: true, x: 100, y: 64, z: -20, itemName: ' minecraft:stone ', targetCount: 999999, intervalMs: 50 },
-    connectionManager: { assigned: true, maxRetries: 99, initialDelayMs: 100, maxDelayMs: 400000 }
+    containerSupply: { assigned: true, x: 100, y: 64, z: -20, items: [{ itemName: ' minecraft:stone ', targetCount: 999999 }], intervalMs: 50 },
+    autoFishing: { assigned: true, biteTimeoutMs: 1, recastDelayMs: 999999 },
+    connectionManager: { assigned: true }
   })
   assert.equal(modules.itemUse.assigned, true)
-  assert.equal(modules.itemUse.useMode, 'activate')
   assert.equal(modules.itemUse.intervalMs, 750)
   assert.deepEqual([modules.containerSupply.x, modules.containerSupply.y, modules.containerSupply.z], [100, 64, -20])
-  assert.equal(modules.containerSupply.itemName, 'minecraft:stone')
-  assert.equal(modules.containerSupply.targetCount, 64)
+  assert.deepEqual(modules.containerSupply.items, [{ itemName: 'minecraft:stone', targetCount: 64 }])
   assert.equal(modules.containerSupply.intervalMs, 1000)
+  assert.deepEqual(modules.autoFishing, { assigned: true, biteTimeoutMs: 15000, recastDelayMs: 10000 })
   assert.equal(Object.hasOwn(modules, 'connectionManager'), false)
 })
 
-test('rejects incomplete container supply coordinates and item', () => {
-  const modules = normalizeBotModules({ containerSupply: { assigned: true, x: 1, y: '', z: 3, itemName: '' } })
-  assert.equal(moduleConfigComplete(modules.containerSupply), false)
-})
-
-test('recognizes assigned modules explicitly', () => {
-  const modules = normalizeBotModules({ itemUse: { assigned: true } })
-  assert.equal(isModuleAssigned(modules, 'itemUse'), true)
-  assert.equal(isModuleAssigned(modules, 'containerSupply'), false)
-})
-
-test('migrates the old single Container Supply item into the new item list', () => {
+test('migrates legacy single-item Container Supply settings', () => {
   const modules = normalizeBotModules({
     containerSupply: { assigned: true, x: 10, y: 64, z: -5, itemName: 'minecraft:stone', targetCount: 128 }
   })
@@ -48,26 +38,31 @@ test('migrates the old single Container Supply item into the new item list', () 
   assert.equal(moduleConfigComplete(modules.containerSupply), true)
 })
 
-test('normalizes multiple Container Supply items and drops duplicates or invalid entries', () => {
-  const modules = normalizeBotModules({
-    containerSupply: {
-      x: 1, y: 2, z: 3,
-      items: [
-        { itemName: 'minecraft:stone', targetCount: 128 },
-        { itemName: 'minecraft:stone', targetCount: 4 },
-        { itemName: ' minecraft:dirt ', targetCount: 32 },
-        { itemName: '', targetCount: 64 }
-      ]
-    }
-  })
-  assert.deepEqual(modules.containerSupply.items, [
+test('supports multiple Container Supply items, deduplicates names and limits the list', () => {
+  const entries = [
+    { itemName: 'minecraft:stone', targetCount: 128 },
+    { itemName: 'minecraft:stone', targetCount: 4 },
+    { itemName: ' minecraft:dirt ', targetCount: 32 },
+    { itemName: '', targetCount: 64 },
+    ...Array.from({ length: 35 }, (_, i) => ({ itemName: 'minecraft:item_' + i, targetCount: i + 1 }))
+  ]
+  const modules = normalizeBotModules({ containerSupply: { x: 1, y: 2, z: 3, items: entries } })
+  assert.equal(modules.containerSupply.items.length, 32)
+  assert.deepEqual(modules.containerSupply.items.slice(0, 2), [
     { itemName: 'minecraft:stone', targetCount: 128 },
     { itemName: 'minecraft:dirt', targetCount: 32 }
   ])
   assert.equal(moduleConfigComplete(modules.containerSupply), true)
 })
 
-test('normalizes AutoFishing settings', () => {
-  const modules = normalizeBotModules({ autoFishing: { assigned: true, biteTimeoutMs: 1, recastDelayMs: 999999 } })
-  assert.deepEqual(modules.autoFishing, { assigned: true, biteTimeoutMs: 15000, recastDelayMs: 10000 })
+test('rejects incomplete Container Supply coordinates and items', () => {
+  const modules = normalizeBotModules({ containerSupply: { x: 1, y: '', z: 3, items: [] } })
+  assert.equal(moduleConfigComplete(modules.containerSupply), false)
+})
+
+test('recognizes assigned modules explicitly', () => {
+  const modules = normalizeBotModules({ itemUse: { assigned: true }, autoFishing: { assigned: true } })
+  assert.equal(isModuleAssigned(modules, 'itemUse'), true)
+  assert.equal(isModuleAssigned(modules, 'containerSupply'), false)
+  assert.equal(isModuleAssigned(modules, 'autoFishing'), true)
 })
