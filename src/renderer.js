@@ -662,7 +662,7 @@ function initializeDashboardLayout () {
     if (!assignmentDialog.open) assignmentDialog.showModal()
   })
   document.getElementById('closeModAssignmentDialogButton').addEventListener('click', () => assignmentDialog.close())
-  assignmentDialog.addEventListener('close', () => { if (state.selectedBotId) state.modAssignmentDrafts.delete(state.selectedBotId) })
+  assignmentDialog.addEventListener('close', () => state.modAssignmentDrafts.clear())
   document.getElementById('saveModAssignmentsButton').addEventListener('click', async () => {
     try { await saveModAssignments() } catch (error) { showToast(error.message || 'Modの割り当てを保存できませんでした。') }
   })
