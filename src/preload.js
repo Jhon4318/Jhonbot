@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('botApp', {
   stopContainerSupply: (id) => ipcRenderer.invoke('bot:stop-container-supply', id),
   startAutoFishing: (id) => ipcRenderer.invoke('bot:start-auto-fishing', id),
   stopAutoFishing: (id) => ipcRenderer.invoke('bot:stop-auto-fishing', id),
+  setLookDirection: (args) => ipcRenderer.invoke('bot:look-direction', args),
   selectWorldSession: (args) => ipcRenderer.invoke('world:select-session', args),
   cancelWorldSelection: (id) => ipcRenderer.invoke('world:cancel-selection', id),
   resolveServerKey: (args) => ipcRenderer.invoke('security:resolve-server-key', args),
