@@ -456,6 +456,7 @@ function renderBotModulesPanel (refreshConfig = false) {
   document.getElementById('itemUseStartButton').disabled = !connected || !assignedUse || !moduleItemUseSelect.value
   document.getElementById('itemUseStopButton').disabled = !bot || status.itemUseRunning !== true
   containerSupplyAssigned.disabled = noBot || !containerSupplyInstalled
+  document.getElementById('addSupplyItemButton').disabled = noBot || !containerSupplyInstalled || !assignedSupply
   for (const input of [supplyX, supplyY, supplyZ, supplyInterval, ...supplyItemsList.querySelectorAll('input,button')]) input.disabled = noBot || !containerSupplyInstalled || !assignedSupply
   document.getElementById('supplySaveButton').disabled = noBot
   document.getElementById('supplyStartButton').disabled = !connected || !assignedSupply
