@@ -490,7 +490,6 @@ function renderBotModulesPanel (refreshConfig = false) {
   document.getElementById('lookDirectionPitch').disabled = noBot || !lookDirectionAssigned
   document.getElementById('lookDirectionApplyButton').disabled = !connected || !lookDirectionAssigned
   document.getElementById('moduleSaveButton').disabled = noBot || !anyAssignedMod
-  renderModAssignmentDialog()
 }
 
 function renderModAssignmentDialog () {
@@ -646,7 +645,8 @@ function initializeDashboardLayout () {
   const catalogDialog = document.getElementById('modCatalogDialog')
   document.getElementById('openSelectedModSettingsButton').addEventListener('click', () => {
     const bot = selectedBot()
-    if (bot && Object.values(bot.modules || {}).some(module => module?.assigned === true) && !settingsDialog.open) settingsDialog.showModal()
+    const hasAssigned = bot && state.installedMods.some(id => bot.modules?.[id]?.assigned === true)
+    if (hasAssigned && !settingsDialog.open) settingsDialog.showModal()
   })
   document.getElementById('closeSelectedModSettingsDialogButton').addEventListener('click', () => settingsDialog.close())
   document.getElementById('openModAssignmentDialogButton').addEventListener('click', () => {
@@ -1431,6 +1431,7 @@ api.onModsUpdated((info) => {
   state.modCatalog = Array.isArray(info?.modCatalog) ? info.modCatalog : state.modCatalog
   renderModStore()
   renderBotModulesPanel(true)
+  if (document.getElementById('modAssignmentDialog').open) renderModAssignmentDialog()
 })
 api.onWorldSessions((info) => {
   state.pendingWorldRequestId = info.requestId
