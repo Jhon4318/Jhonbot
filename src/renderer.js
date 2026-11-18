@@ -469,7 +469,7 @@ function renderBotModulesPanel (refreshConfig = false) {
   const modeDescription = document.getElementById('botModeDescription')
   if (modeSelect) {
     modeSelect.value = bot?.movementMode === 'player' ? 'player' : 'chunk-hold'
-    modeSelect.disabled = !bot || bot.isGuest
+    modeSelect.disabled = !bot
   }
   if (modeDescription) {
     modeDescription.textContent = !bot
@@ -665,7 +665,7 @@ function initializeDashboardLayout () {
   document.getElementById('closeModCatalogDialogButton').addEventListener('click', () => catalogDialog.close())
   document.getElementById('botMovementMode').addEventListener('change', async (event) => {
     const bot = selectedBot()
-    if (!bot || bot.isGuest) return
+    if (!bot) return
     const select = event.currentTarget
     select.disabled = true
     try {
