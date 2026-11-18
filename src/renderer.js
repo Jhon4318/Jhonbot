@@ -758,6 +758,7 @@ function renderChatPanel () {
 function renderInventoryPanel () {
   const bot = selectedBot()
   const connected = bot?.status === 'connected'
+  const playerMode = bot?.movementMode === 'player'
   const items = bot ? (state.inventoryByBot.get(bot.id) || []) : []
   const updatedAt = bot ? state.inventoryUpdatedAtByBot.get(bot.id) : null
   inventoryList.replaceChildren()
@@ -808,8 +809,8 @@ function renderInventoryPanel () {
     dropItemCount.value = '1'
   }
   inventorySelect.disabled = !connected || !items.length
-  dropItemCount.disabled = !connected || !items.length
-  document.getElementById('dropItemButton').disabled = !connected || !items.length
+  dropItemCount.disabled = !connected || !items.length || !playerMode
+  document.getElementById('dropItemButton').disabled = !connected || !items.length || !playerMode
   refreshInventoryButton.disabled = !connected
 }
 
