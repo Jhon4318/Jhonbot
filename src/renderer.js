@@ -1279,7 +1279,7 @@ document.getElementById('autoFishingStartButton').addEventListener('click', asyn
   if (!bot) return showToast('Botを選択してください。')
   try {
     await saveModulesFromForm()
-    const updated = await api.start自動釣り(bot.id)
+    const updated = await api.startAutoFishing(bot.id)
     state.bots.set(updated.id, updated)
     renderBotModulesPanel(false)
     showToast('自動釣りを開始しました。')
@@ -1289,7 +1289,7 @@ document.getElementById('autoFishingStopButton').addEventListener('click', async
   const bot = selectedBot()
   if (!bot) return
   try {
-    const updated = await api.stop自動釣り(bot.id)
+    const updated = await api.stopAutoFishing(bot.id)
     state.bots.set(updated.id, updated)
     renderBotModulesPanel(false)
     showToast('自動釣りを停止しました。')
