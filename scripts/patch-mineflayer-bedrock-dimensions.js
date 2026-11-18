@@ -111,8 +111,8 @@ function applyPatch () {
 
   const changed = inputResult.changed || physicsResult.changed
   process.stdout.write(changed
-    ? '[Jhonbot] Bedrock player input and Mineflayer physics suppression enabled.\\n'
-    : '[Jhonbot] Bedrock player input and Mineflayer physics patches already enabled.\\n')
+    ? '[Jhonbot] Bedrock player input and Mineflayer physics suppression enabled.\n'
+    : '[Jhonbot] Bedrock player input and Mineflayer physics patches already enabled.\n')
   return { clientInputPath, physicsPath }
 }
 
