@@ -1211,9 +1211,9 @@ dropItemForm.addEventListener('submit', async (event) => {
 async function saveAndUpdateModules () {
   try {
     await saveModulesFromForm()
-    showToast('Botモジュールの設定を保存しました。')
+    showToast('BotModの設定を保存しました。')
   } catch (error) {
-    showToast(error.message || 'モジュール設定を保存できませんでした。')
+    showToast(error.message || 'Mod設定を保存できませんでした。')
   }
 }
 
@@ -1241,7 +1241,7 @@ document.getElementById('itemUseStartButton').addEventListener('click', async ()
     const updated = await api.startItemUse({ botId: bot.id, slot })
     state.bots.set(updated.id, updated)
     renderBotModulesPanel(false)
-    showToast('Item Useの連続使用を開始しました。')
+    showToast('アイテム使用の連続使用を開始しました。')
   } catch (error) {
     showToast(error.message || '連続使用を開始できませんでした。')
   }
@@ -1254,8 +1254,8 @@ document.getElementById('itemUseStopButton').addEventListener('click', async () 
     const updated = await api.stopItemUse(bot.id)
     state.bots.set(updated.id, updated)
     renderBotModulesPanel(false)
-    showToast('Item Useを停止しました。')
-  } catch (error) { showToast(error.message || 'Item Useを停止できませんでした。') }
+    showToast('アイテム使用を停止しました。')
+  } catch (error) { showToast(error.message || 'アイテム使用を停止できませんでした。') }
 })
 
 document.getElementById('supplyStartButton').addEventListener('click', async () => {
@@ -1266,9 +1266,9 @@ document.getElementById('supplyStartButton').addEventListener('click', async () 
     const updated = await api.startContainerSupply(bot.id)
     state.bots.set(updated.id, updated)
     renderBotModulesPanel(false)
-    showToast('Container Supplyを開始しました。')
+    showToast('コンテナ補充を開始しました。')
   } catch (error) {
-    showToast(error.message || 'Container Supplyを開始できませんでした。')
+    showToast(error.message || 'コンテナ補充を開始できませんでした。')
   }
 })
 
@@ -1279,21 +1279,21 @@ document.getElementById('autoFishingStartButton').addEventListener('click', asyn
   if (!bot) return showToast('Botを選択してください。')
   try {
     await saveModulesFromForm()
-    const updated = await api.startAutoFishing(bot.id)
+    const updated = await api.start自動釣り(bot.id)
     state.bots.set(updated.id, updated)
     renderBotModulesPanel(false)
-    showToast('AutoFishingを開始しました。')
-  } catch (error) { showToast(error.message || 'AutoFishingを開始できませんでした。') }
+    showToast('自動釣りを開始しました。')
+  } catch (error) { showToast(error.message || '自動釣りを開始できませんでした。') }
 })
 document.getElementById('autoFishingStopButton').addEventListener('click', async () => {
   const bot = selectedBot()
   if (!bot) return
   try {
-    const updated = await api.stopAutoFishing(bot.id)
+    const updated = await api.stop自動釣り(bot.id)
     state.bots.set(updated.id, updated)
     renderBotModulesPanel(false)
-    showToast('AutoFishingを停止しました。')
-  } catch (error) { showToast(error.message || 'AutoFishingを停止できませんでした。') }
+    showToast('自動釣りを停止しました。')
+  } catch (error) { showToast(error.message || '自動釣りを停止できませんでした。') }
 })
 
 document.getElementById('lookDirectionApplyButton').addEventListener('click', async () => {
@@ -1318,8 +1318,8 @@ document.getElementById('supplyStopButton').addEventListener('click', async () =
     const updated = await api.stopContainerSupply(bot.id)
     state.bots.set(updated.id, updated)
     renderBotModulesPanel(false)
-    showToast('Container Supplyを停止しました。')
-  } catch (error) { showToast(error.message || 'Container Supplyを停止できませんでした。') }
+    showToast('コンテナ補充を停止しました。')
+  } catch (error) { showToast(error.message || 'コンテナ補充を停止できませんでした。') }
 })
 
 gotoForm.addEventListener('submit', async (event) => {
