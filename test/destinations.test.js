@@ -180,6 +180,11 @@ test('migrates saved Realm destinations and per-Bot modules', () => {
         itemUse: { assigned: true, useMode: 'consume', intervalMs: 2000 },
         containerSupply: { assigned: true, x: 1, y: 64, z: 2, itemName: 'minecraft:stone', targetCount: 128 }
       }
+    }, {
+      id: 'player-mode-bot',
+      label: 'Player Mode Bot',
+      targetType: 'friend-world',
+      movementMode: 'player'
     }]
   })
   assert.equal(migrated.bots[0].targetType, 'realm')
@@ -188,4 +193,6 @@ test('migrates saved Realm destinations and per-Bot modules', () => {
   assert.equal(migrated.bots[0].modules.itemUse.assigned, true)
   assert.equal(migrated.bots[0].modules.itemUse.useMode, 'consume')
   assert.equal(migrated.bots[0].modules.containerSupply.targetCount, 128)
+  assert.equal(migrated.bots[0].movementMode, 'chunk-hold')
+  assert.equal(migrated.bots[1].movementMode, 'player')
 })
