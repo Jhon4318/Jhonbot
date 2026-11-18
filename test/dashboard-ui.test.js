@@ -68,7 +68,7 @@ test('connection actions are attached to the selected Bot in the center panel', 
 })
 
 test('right panel is scoped to the selected Bot and keeps chat and logs visible', () => {
-  for (const id of ['selectedFunctionBotName', 'inventoryList', 'inventorySelect', 'selectedBotModSummary', 'openModAssignmentDialogButton', 'openSelectedModSettingsButton', 'openModCatalogDialogButton', 'chatMessages', 'chatInput', 'logList']) {
+  for (const id of ['selectedFunctionBotName', 'inventoryModuleCard', 'inventoryList', 'inventorySelect', 'selectedBotModSummary', 'selectedModCount', 'botMovementMode', 'botModeDescription', 'modulePanel', 'openModCatalogDialogButton', 'chatMessages', 'chatInput', 'logList']) {
     assert.ok(elementIds(html).includes(id), 'Missing dashboard element: ' + id)
   }
   assert.ok(renderer.includes('function selectedBot ()'))
@@ -157,24 +157,26 @@ test('registered Bot list uses compact single-row cards', () => {
   assert.match(styles, /\.control-panel \.control-select-row\s*\{\s*display:\s*grid;/)
 })
 
-test('Mod assignment is separated from operations and operation cards have no assignment checkboxes', () => {
-  for (const id of ['modAssignmentDialog', 'modAssignmentList', 'saveModAssignmentsButton', 'lookDirectionModuleCard', 'lookDirectionYaw', 'lookDirectionPitch', 'lookDirectionApplyButton']) {
-    assert.ok(elementIds(html).includes(id), 'Missing Mod UI element: ' + id)
+test('Bot Mods are selected inline and operation panel switches without assignment dialogs', () => {
+  for (const id of ['inventoryModuleCard', 'selectedBotModSummary', 'selectedModCount', 'botMovementMode', 'botModeDescription', 'modulePanel', 'itemUseModuleCard', 'containerSupplyModuleCard', 'autoFishingModuleCard', 'lookDirectionModuleCard', 'lookDirectionYaw', 'lookDirectionPitch', 'lookDirectionApplyButton']) {
+    assert.ok(elementIds(html).includes(id), 'Missing inline Mod element: ' + id)
   }
-  for (const id of ['itemUseAssigned', 'containerSupplyAssigned', 'autoFishingAssigned']) {
-    assert.equal(elementIds(html).includes(id), false, 'Operation UI should not contain assignment checkbox: ' + id)
+  for (const id of ['modAssignmentDialog', 'modAssignmentList', 'saveModAssignmentsButton', 'selectedModSettingsDialog', 'openSelectedModSettingsButton', 'openModAssignmentDialogButton']) {
+    assert.equal(elementIds(html).includes(id), false, 'Obsolete separate assignment UI remains: ' + id)
   }
-  assert.match(renderer, /function renderModAssignmentDialog \(\)/)
-  assert.match(renderer, /function saveModAssignments \(\)/)
+  assert.match(renderer, /selectedModId: 'inventory'/)
   assert.match(renderer, /const entries = descriptors\.filter\(entry => assigned\(entry\.id\)\)/)
+  assert.match(renderer, /state\.selectedModId = entry\.id/)
+  assert.match(renderer, /api\.setModAssignment\(\{ botId: currentBot\.id, modId: mod\.id, assigned: !assigned \}\)/)
+  assert.match(renderer, /api\.installMod\(\{ botId: currentBot\.id, modId: mod\.id \}\)/)
   assert.match(renderer, /api\.setLookDirection\(\{ botId: bot\.id, yawDeg, pitchDeg \}\)/)
-  assert.doesNotMatch(renderer, /getElementById\('(?:itemUseAssigned|containerSupplyAssigned|autoFishingAssigned)'\)/)
+  assert.match(renderer, /api\.setBotMovementMode\(\{ botId: bot\.id, movementMode: select\.value \}\)/)
+  assert.doesNotMatch(renderer, /renderModAssignmentDialog|saveModAssignments|modAssignmentDrafts/)
 })
 
-test('Mod assignment drafts survive Bot refreshes and are discarded on dialog close', () => {
-  assert.match(renderer, /modAssignmentDrafts: new Map\(\)/)
-  assert.match(renderer, /checkbox\.addEventListener\('change', \(\) => \{ draft\[mod\.id\] = checkbox\.checked \}\)/)
-  assert.match(renderer, /if \(document\.getElementById\('modAssignmentDialog'\)\?\.open\) renderModAssignmentDialog\(\)/)
-  assert.match(renderer, /assignmentDialog\.addEventListener\('close', \(\) => state\.modAssignmentDrafts\.clear\(\)\)/)
-  assert.match(renderer, /const draft = state\.modAssignmentDrafts\.get\(bot\.id\) \|\| \{\}/)
+test('chunk-hold mode leaves inventory refresh enabled but prevents player actions', () => {
+  assert.match(renderer, /document\.getElementById\('dropItemButton'\)\.disabled = !connected \|\| !playerMode/)
+  assert.match(renderer, /refreshInventoryButton\.disabled = !connected/)
+  assert.match(renderer, /button\.disabled = !connected \|\| !playerMode/)
+  assert.match(renderer, /input\.disabled = !connected \|\| !playerMode \|\| !bot\.pathfinderReady/)
 })
