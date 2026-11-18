@@ -485,7 +485,7 @@ function renderBotModulesPanel (refreshConfig = false) {
   document.getElementById('autoFishingStatus').textContent = status.autoFishing || '未実行'
   document.getElementById('lookDirectionStatus').textContent = status.lookDirection || '未実行'
 
-  document.getElementById('itemUseMode').disabled = noBotOr(!itemUseAssigned)
+  document.getElementById('itemUseMode').disabled = !bot || !itemUseAssigned
   document.getElementById('itemUseInterval').disabled = !bot || !itemUseAssigned
   moduleItemUseSelect.disabled = !connected || !items.length || !itemUseAssigned || !playerMode
   document.getElementById('itemUseOnceButton').disabled = !connected || !itemUseAssigned || !moduleItemUseSelect.value || !playerMode
@@ -510,7 +510,6 @@ function renderBotModulesPanel (refreshConfig = false) {
   document.getElementById('lookDirectionApplyButton').disabled = !connected || !lookDirectionAssigned || !playerMode
 }
 
-function noBotOr (condition) { return !selectedBot() || condition }
 
 function addSupplyItemRow (itemName = '', targetCount = 64) {
   const list = document.getElementById('supplyItemsList')
@@ -535,33 +534,65 @@ function addSupplyItemRow (itemName = '', targetCount = 64) {
 function renderModStore () {
   const target = document.getElementById('modCatalogList')
   target.replaceChildren()
+  const bot = selectedBot()
   for (const mod of state.modCatalog) {
     const installed = state.installedMods.includes(mod.id)
+    const assigned = !!bot && (mod.builtIn || bot.modules?.[mod.id]?.assigned === true)
     const card = createElement('article', 'mod-catalog-card')
     const top = createElement('div', 'mod-catalog-top')
     const title = createElement('div', 'mod-catalog-title')
     title.append(createElement('strong', '', mod.name), createElement('span', '', 'v' + mod.version + ' · ' + mod.category))
-    const status = createElement('span', installed ? 'mod-installed' : 'mod-not-installed', installed ? '導入済み' : '未導入')
+    const statusText = mod.builtIn ? '標準搭載' : (assigned ? 'このBotに割り当て済み' : (installed ? '導入済み' : '未導入'))
+    const status = createElement('span', installed ? 'mod-installed' : 'mod-not-installed', statusText)
     top.append(title, status)
     const description = createElement('p', 'muted tiny', mod.description)
-    const button = createElement('button', installed ? 'secondary-button' : 'primary-button', installed ? 'アンインストール' : '導入')
-    button.type = 'button'
-    button.addEventListener('click', async () => {
-      if (installed && !window.confirm('「' + mod.name + '」をアンインストールしますか？\n\n各Botへの割り当ては解除されますが、設定値は保持されます。')) return
-      button.disabled = true
+    const assignButton = createElement('button', assigned ? 'secondary-button' : 'primary-button',
+      !bot ? 'Botを選択してください' : (mod.builtIn ? '標準搭載' : (assigned ? 'Botから外す' : (installed ? 'Botに追加' : '導入してBotに追加'))))
+    assignButton.type = 'button'
+    assignButton.disabled = !bot || !!mod.builtIn
+    assignButton.addEventListener('click', async () => {
+      const currentBot = selectedBot()
+      if (!currentBot || mod.builtIn) return
+      assignButton.disabled = true
       try {
-        const result = installed ? await api.uninstallMod(mod.id) : await api.installMod(mod.id)
-        state.installedMods = result.installedMods || []
+        let updated
+        if (installed) {
+          updated = await api.setModAssignment({ botId: currentBot.id, modId: mod.id, assigned: !assigned })
+          state.bots.set(updated.id, updated)
+        } else {
+          const result = await api.installMod({ botId: currentBot.id, modId: mod.id })
+          state.installedMods = result.installedMods || []
+          if (result.bot) state.bots.set(result.bot.id, result.bot)
+        }
         renderModStore()
         renderBotModulesPanel(true)
-        showToast('Mod「' + mod.name + '」を' + (installed ? 'アンインストール' : '導入') + 'しました。')
+        showToast(`Mod「${mod.name}」を${assigned ? 'Botから外しました' : 'Botに追加しました'}。`)
       } catch (error) {
-        showToast(error.message || 'Modの状態を変更できませんでした。')
+        showToast(error.message || 'Modを変更できませんでした。')
       } finally {
-        button.disabled = false
+        assignButton.disabled = false
       }
     })
-    card.append(top, description, button)
+    card.append(top, description, assignButton)
+    if (installed && !mod.builtIn) {
+      const uninstall = createElement('button', 'text-button mod-uninstall-button', 'このPCからアンインストール')
+      uninstall.type = 'button'
+      uninstall.addEventListener('click', async () => {
+        if (!window.confirm(`Mod「${mod.name}」をこのPCからアンインストールしますか？\n\nすべてのBotから割り当てが解除されます。`)) return
+        uninstall.disabled = true
+        try {
+          const result = await api.uninstallMod(mod.id)
+          state.installedMods = result.installedMods || []
+          renderModStore()
+          renderBotModulesPanel(true)
+          showToast(`Mod「${mod.name}」をアンインストールしました。`)
+        } catch (error) {
+          showToast(error.message || 'Modをアンインストールできませんでした。')
+          uninstall.disabled = false
+        }
+      })
+      card.append(uninstall)
+    }
     target.append(card)
   }
   if (!state.modCatalog.length) target.append(createElement('p', 'server-empty', '利用可能なModはありません。'))
@@ -623,31 +654,32 @@ function initializeDashboardLayout () {
   })
   document.getElementById('closeAddBotFormButton').addEventListener('click', () => { addBotPanel.hidden = true })
   document.getElementById('closeServerFormButton').addEventListener('click', () => { serverFormPanel.hidden = true })
-  const settingsDialog = document.getElementById('selectedModSettingsDialog')
-  const assignmentDialog = document.getElementById('modAssignmentDialog')
   const catalogDialog = document.getElementById('modCatalogDialog')
-  document.getElementById('openSelectedModSettingsButton').addEventListener('click', () => {
-    const bot = selectedBot()
-    const hasAssigned = bot && state.installedMods.some(id => bot.modules?.[id]?.assigned === true)
-    if (hasAssigned && !settingsDialog.open) settingsDialog.showModal()
-  })
-  document.getElementById('closeSelectedModSettingsDialogButton').addEventListener('click', () => settingsDialog.close())
-  document.getElementById('openModAssignmentDialogButton').addEventListener('click', () => {
-    if (!selectedBot()) return
-    renderModAssignmentDialog()
-    if (!assignmentDialog.open) assignmentDialog.showModal()
-  })
-  document.getElementById('closeModAssignmentDialogButton').addEventListener('click', () => assignmentDialog.close())
-  assignmentDialog.addEventListener('close', () => state.modAssignmentDrafts.clear())
-  document.getElementById('saveModAssignmentsButton').addEventListener('click', async () => {
-    try { await saveModAssignments() } catch (error) { showToast(error.message || 'Modの割り当てを保存できませんでした。') }
-  })
-  document.getElementById('openModCatalogFromAssignmentButton').addEventListener('click', () => {
-    assignmentDialog.close()
+  document.getElementById('openModCatalogDialogButton').addEventListener('click', () => {
+    renderModStore()
     if (!catalogDialog.open) catalogDialog.showModal()
   })
-  document.getElementById('openModCatalogDialogButton').addEventListener('click', () => { if (!catalogDialog.open) catalogDialog.showModal() })
   document.getElementById('closeModCatalogDialogButton').addEventListener('click', () => catalogDialog.close())
+  document.getElementById('botMovementMode').addEventListener('change', async (event) => {
+    const bot = selectedBot()
+    if (!bot || bot.isGuest) return
+    const select = event.currentTarget
+    select.disabled = true
+    try {
+      const updated = await api.setBotMovementMode({ botId: bot.id, movementMode: select.value })
+      state.bots.set(updated.id, updated)
+      renderBots()
+      renderBotModulesPanel(false)
+      renderControlPanel()
+      renderModStore()
+      showToast(updated.movementMode === 'player' ? 'プレイヤーモードに切り替えました。' : 'チャンク保持モードに切り替えました。')
+    } catch (error) {
+      showToast(error.message || 'Botの動作モードを変更できませんでした。')
+      renderBotModulesPanel(false)
+    } finally {
+      select.disabled = false
+    }
+  })
   document.getElementById('controlTargetSelect').addEventListener('change', async (event) => {
     const bot = selectedBot(); if (!bot || bot.isGuest) return
     const value = event.target.value
@@ -661,6 +693,7 @@ async function saveModulesFromForm () {
   if (!bot) throw new Error('設定するBotを選択してください。')
   const savedModules = bot.modules || {}
   const modules = {
+    inventory: { assigned: true },
     itemUse: {
       assigned: savedModules.itemUse?.assigned === true,
       useMode: document.getElementById('itemUseMode').value,
@@ -691,24 +724,6 @@ async function saveModulesFromForm () {
   const updated = await api.updateModules({ botId: bot.id, modules })
   state.bots.set(updated.id, updated)
   renderBotModulesPanel(false)
-  return updated
-}
-
-async function saveModAssignments () {
-  const bot = selectedBot()
-  if (!bot) throw new Error('割り当て先のBotを選択してください。')
-  const modules = { ...(bot.modules || {}) }
-  const draft = state.modAssignmentDrafts.get(bot.id) || {}
-  for (const mod of state.modCatalog) {
-    if (!state.installedMods.includes(mod.id)) continue
-    modules[mod.id] = { ...(modules[mod.id] || {}), assigned: draft[mod.id] === true }
-  }
-  const updated = await api.updateModules({ botId: bot.id, modules })
-  state.bots.set(updated.id, updated)
-  state.modAssignmentDrafts.delete(bot.id)
-  renderBotModulesPanel(true)
-  document.getElementById('modAssignmentDialog').close()
-  showToast('Modの割り当てを保存しました。')
   return updated
 }
 
@@ -908,7 +923,7 @@ function renderServerProfiles () {
 
 function selectBot (botId) {
   if (!botId || botId === state.selectedBotId) return
-  releaseAllHeldInputs(); state.selectedBotId=botId; renderBots(); renderBotModulesPanel(true); loadSelectedBotData()
+  releaseAllHeldInputs(); state.selectedBotId=botId; state.selectedModId='inventory'; renderBots(); renderBotModulesPanel(true); renderModStore(); loadSelectedBotData()
 }
 function renderBots () {
   botList.replaceChildren()
@@ -1416,7 +1431,6 @@ api.onModsUpdated((info) => {
   state.modCatalog = Array.isArray(info?.modCatalog) ? info.modCatalog : state.modCatalog
   renderModStore()
   renderBotModulesPanel(true)
-  if (document.getElementById('modAssignmentDialog').open) renderModAssignmentDialog()
 })
 api.onWorldSessions((info) => {
   state.pendingWorldRequestId = info.requestId
