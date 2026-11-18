@@ -1578,7 +1578,7 @@ function queueBotInventoryPublish (bot, agent) {
 async function tossBotItem (botId, input) {
   const { bot, agent } = getConnectedAgent(botId)
   requirePlayerMode(bot, 'アイテムを投げる操作')
-  if (bot.itemUseBusy || bot.itemUseRunning || bot.containerSupplyBusy || bot.containerSupplyRunning || bot.autoFishingBusy || bot.autoFishingRunning) throw new Error('別のモジュールがインベントリを操作中です。')
+  if (bot.itemUseBusy || bot.itemUseRunning || bot.containerSupplyBusy || bot.containerSupplyRunning || bot.autoFishingBusy || bot.autoFishingRunning) throw new Error('別のModがインベントリを操作中です。')
   const request = normalizeDropRequest(input, agent.inventory)
   if (typeof agent.tossStack !== 'function') throw new Error('Bedrock用のアイテム投棄APIが利用できません。')
   await agent.tossStack(request.item, request.count)
@@ -1617,7 +1617,7 @@ function stopContainerSupply (bot, status = '停止中') {
   publishModuleStatus(bot)
 }
 
-function stopAutoFishing (bot, status = '停止中') {
+function stop自動釣り (bot, status = '停止中') {
   clearTimeout(bot.autoFishingTimer)
   bot.autoFishingTimer = null
   bot.autoFishingRunning = false
@@ -1633,7 +1633,7 @@ function stopAutoFishing (bot, status = '停止中') {
 function stopBotModules (bot, status = '接続終了') {
   stopBotItemUse(bot, status)
   stopContainerSupply(bot, status)
-  stopAutoFishing(bot, status)
+  stop自動釣り(bot, status)
 }
 
 function getModState () {
@@ -1658,7 +1658,7 @@ async function setModInstallation (modId, installed, botId = null) {
         stopContainerSupply(target, 'Modアンインストール')
         target.modules.containerSupply.assigned = false
       } else if (mod.id === 'autoFishing') {
-        stopAutoFishing(target, 'Modアンインストール')
+        stop自動釣り(target, 'Modアンインストール')
         target.modules.autoFishing.assigned = false
       } else if (mod.id === 'lookDirection') {
         target.modules.lookDirection.assigned = false
@@ -1688,7 +1688,7 @@ async function setBotModAssignment (botId, modId, assigned) {
 
   if (mod.id === 'itemUse' && !assigned) stopBotItemUse(bot, 'BotからModを解除')
   if (mod.id === 'containerSupply' && !assigned) stopContainerSupply(bot, 'BotからModを解除')
-  if (mod.id === 'autoFishing' && !assigned) stopAutoFishing(bot, 'BotからModを解除')
+  if (mod.id === 'autoFishing' && !assigned) stop自動釣り(bot, 'BotからModを解除')
   bot.modules[mod.id] = { ...(bot.modules[mod.id] || {}), assigned: Boolean(assigned) }
   await saveSettings()
   publishBot(bot)
@@ -1700,25 +1700,25 @@ async function updateBotModules (botId, input) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
   const next = normalizeBotModules(input)
-  if (next.itemUse.assigned && !(settings.installedMods || []).includes('itemUse')) throw new Error('先にMod管理から Item Use を導入してください。')
-  if (next.containerSupply.assigned && !(settings.installedMods || []).includes('containerSupply')) throw new Error('先にMod管理から Container Supply を導入してください。')
-  if (next.autoFishing.assigned && !(settings.installedMods || []).includes('autoFishing')) throw new Error('先にMod管理から AutoFishing を導入してください。')
-  if (next.lookDirection.assigned && !(settings.installedMods || []).includes('lookDirection')) throw new Error('先にMod管理から Look Direction を導入してください。')
-  if (JSON.stringify(bot.modules.itemUse) !== JSON.stringify(next.itemUse)) stopBotItemUse(bot, next.itemUse.assigned ? '設定変更・停止' : 'モジュール未割り当て')
-  if (JSON.stringify(bot.modules.containerSupply) !== JSON.stringify(next.containerSupply)) stopContainerSupply(bot, next.containerSupply.assigned ? '設定変更・停止' : 'モジュール未割り当て')
-  if (JSON.stringify(bot.modules.autoFishing) !== JSON.stringify(next.autoFishing)) stopAutoFishing(bot, next.autoFishing.assigned ? '設定変更・停止' : 'モジュール未割り当て')
+  if (next.itemUse.assigned && !(settings.installedMods || []).includes('itemUse')) throw new Error('先にMod管理から アイテム使用 を導入してください。')
+  if (next.containerSupply.assigned && !(settings.installedMods || []).includes('containerSupply')) throw new Error('先にMod管理から コンテナ補充 を導入してください。')
+  if (next.autoFishing.assigned && !(settings.installedMods || []).includes('autoFishing')) throw new Error('先にMod管理から 自動釣り を導入してください。')
+  if (next.lookDirection.assigned && !(settings.installedMods || []).includes('lookDirection')) throw new Error('先にMod管理から 視点変更 を導入してください。')
+  if (JSON.stringify(bot.modules.itemUse) !== JSON.stringify(next.itemUse)) stopBotItemUse(bot, next.itemUse.assigned ? '設定変更・停止' : 'Mod未割り当て')
+  if (JSON.stringify(bot.modules.containerSupply) !== JSON.stringify(next.containerSupply)) stopContainerSupply(bot, next.containerSupply.assigned ? '設定変更・停止' : 'Mod未割り当て')
+  if (JSON.stringify(bot.modules.autoFishing) !== JSON.stringify(next.autoFishing)) stop自動釣り(bot, next.autoFishing.assigned ? '設定変更・停止' : 'Mod未割り当て')
   bot.modules = next
   await saveSettings()
   publishBot(bot)
-  pushLog(bot.label + ': Botモジュール設定を保存しました。', 'success', bot.id)
+  pushLog(bot.label + ': BotMod設定を保存しました。', 'success', bot.id)
   return publicBot(bot)
 }
 
 async function setBotLookDirection (botId, input) {
   const { bot, agent } = getConnectedAgent(botId)
   requirePlayerMode(bot, '視点変更')
-  if (!(settings.installedMods || []).includes('lookDirection')) throw new Error('Look Direction が導入されていません。')
-  if (!isModuleAssigned(bot.modules, 'lookDirection')) throw new Error('このBotにLook Directionモジュールが割り当てられていません。')
+  if (!(settings.installedMods || []).includes('lookDirection')) throw new Error('視点変更 が導入されていません。')
+  if (!isModuleAssigned(bot.modules, 'lookDirection')) throw new Error('このBotに視点変更Modが割り当てられていません。')
   const direction = normalizeLookDirection(input)
   await applyLookDirection(agent, direction)
   if (bot.agent !== agent) throw new Error('視点変更中にBotが切断されました。')
@@ -1733,9 +1733,9 @@ async function setBotLookDirection (botId, input) {
 async function useBotItemOnce (botId, slot, options = {}) {
   const { bot, agent } = getConnectedAgent(botId)
   requirePlayerMode(bot, 'アイテム使用')
-  if (!(settings.installedMods || []).includes('itemUse')) throw new Error('Item Use が導入されていません。')
-  if (!isModuleAssigned(bot.modules, 'itemUse')) throw new Error('このBotにItem Useモジュールが割り当てられていません。')
-  if (bot.containerSupplyRunning || bot.containerSupplyBusy || bot.autoFishingRunning || bot.autoFishingBusy) throw new Error('Container SupplyまたはAutoFishingの実行中はインベントリ操作できません。')
+  if (!(settings.installedMods || []).includes('itemUse')) throw new Error('アイテム使用 が導入されていません。')
+  if (!isModuleAssigned(bot.modules, 'itemUse')) throw new Error('このBotにアイテム使用Modが割り当てられていません。')
+  if (bot.containerSupplyRunning || bot.containerSupplyBusy || bot.autoFishingRunning || bot.autoFishingBusy) throw new Error('コンテナ補充または自動釣りの実行中はインベントリ操作できません。')
   if ((bot.itemUseBusy || bot.itemUseRunning) && !options.fromCycle) throw new Error('このBotはすでにアイテム操作を実行中です。')
   if (!options.fromCycle) bot.itemUseBusy = true
   const generation = bot.itemUseGeneration
@@ -1751,19 +1751,19 @@ async function useBotItemOnce (botId, slot, options = {}) {
     bot.itemUseStatus = 'アイテムを装備中'
     publishModuleStatus(bot)
     await agent.equip(item, 'hand')
-    if (generation !== bot.itemUseGeneration) throw new Error('Item Useは停止されました。')
+    if (generation !== bot.itemUseGeneration) throw new Error('アイテム使用は停止されました。')
     if (bot.agent !== agent) throw new Error('アイテムを装備中にBotが切断されました。')
     if (bot.modules.itemUse.useMode === 'consume') {
       if (typeof agent.consume !== 'function') throw new Error('このアイテムは食べる・飲むAPIに対応していません。')
       await agent.consume()
-      if (generation !== bot.itemUseGeneration) throw new Error('Item Useは停止されました。')
+      if (generation !== bot.itemUseGeneration) throw new Error('アイテム使用は停止されました。')
     } else {
       agent.activateItem()
       activated = true
       bot.itemUseStatus = '使用中: ' + (item.displayName || item.name)
       publishModuleStatus(bot)
       await new Promise(resolve => setTimeout(resolve, 350))
-      if (generation !== bot.itemUseGeneration) throw new Error('Item Useは停止されました。')
+      if (generation !== bot.itemUseGeneration) throw new Error('アイテム使用は停止されました。')
     }
     if (bot.agent !== agent) throw new Error('アイテム使用中にBotが切断されました。')
     bot.itemUseStatus = '使用完了: ' + (item.displayName || item.name)
@@ -1791,7 +1791,7 @@ async function runItemUseCycle (bot) {
   } catch (error) {
     if (bot.itemUseRunning) {
       stopBotItemUse(bot, 'エラーで停止')
-      pushLog(bot.label + ': Item Useを停止しました: ' + safeErrorMessage(error), 'warning', bot.id)
+      pushLog(bot.label + ': アイテム使用を停止しました: ' + safeErrorMessage(error), 'warning', bot.id)
     }
   } finally {
     bot.itemUseBusy = false
@@ -1805,10 +1805,10 @@ function startBotItemUse (botId, slot) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
   requirePlayerMode(bot, '連続アイテム使用')
-  if (!(settings.installedMods || []).includes('itemUse')) throw new Error('Item Use が導入されていません。')
-  if (!isModuleAssigned(bot.modules, 'itemUse')) throw new Error('先にItem Useモジュールを割り当ててください。')
+  if (!(settings.installedMods || []).includes('itemUse')) throw new Error('アイテム使用 が導入されていません。')
+  if (!isModuleAssigned(bot.modules, 'itemUse')) throw new Error('先にアイテム使用Modを割り当ててください。')
   const { agent } = getConnectedAgent(botId)
-  if (bot.containerSupplyRunning || bot.containerSupplyBusy || bot.autoFishingRunning || bot.autoFishingBusy) throw new Error('Container SupplyまたはAutoFishingの実行中はアイテムを使用できません。')
+  if (bot.containerSupplyRunning || bot.containerSupplyBusy || bot.autoFishingRunning || bot.autoFishingBusy) throw new Error('コンテナ補充または自動釣りの実行中はアイテムを使用できません。')
   if (bot.itemUseBusy || bot.itemUseRunning) throw new Error('このBotはすでにアイテム操作を実行中です。')
   const index = Number(slot)
   if (!Number.isInteger(index) || index < 9 || index > 44 || !agent.inventory?.slots?.[index]) {
@@ -1818,7 +1818,7 @@ function startBotItemUse (botId, slot) {
   bot.itemUseSlot = index
   bot.itemUseRunning = true
   bot.itemUseStatus = '連続使用中'
-  pushLog(bot.label + ': Item Useの連続動作を開始しました。', 'info', bot.id)
+  pushLog(bot.label + ': アイテム使用の連続動作を開始しました。', 'info', bot.id)
   runItemUseCycle(bot)
   publishModuleStatus(bot)
   return publicBot(bot)
@@ -1857,11 +1857,11 @@ function openContainerWindow (agent, block, timeoutMs = 8000) {
 async function supplyContainerOnce (bot) {
   requirePlayerMode(bot, 'コンテナ補充')
   const config = bot.modules.containerSupply
-  if (!moduleConfigComplete(config)) throw new Error('Container Supplyの座標・アイテム・目標数を設定してください。')
+  if (!moduleConfigComplete(config)) throw new Error('コンテナ補充の座標・アイテム・目標数を設定してください。')
   const { agent } = getConnectedAgent(bot.id)
-  if (bot.itemUseBusy || bot.itemUseRunning || bot.autoFishingBusy || bot.autoFishingRunning) throw new Error('Item UseまたはAutoFishingの実行中はコンテナ補充を開始できません。')
+  if (bot.itemUseBusy || bot.itemUseRunning || bot.autoFishingBusy || bot.autoFishingRunning) throw new Error('アイテム使用または自動釣りの実行中はコンテナ補充を開始できません。')
   if (!bot.pathfinderReady || typeof agent.pathfinder?.goto !== 'function') throw new Error('経路探索が利用できません。')
-  if (bot.movementStatus.startsWith('手動操作中')) throw new Error('手動移動を停止してからContainer Supplyを開始してください。')
+  if (bot.movementStatus.startsWith('手動操作中')) throw new Error('手動移動を停止してからコンテナ補充を開始してください。')
   const coordinates = new Vec3(config.x, config.y, config.z)
   const generation = bot.containerSupplyGeneration
   bot.containerSupplyStatus = '補充先へ移動中'
@@ -1928,7 +1928,7 @@ async function runContainerSupplyCycle (bot) {
   } catch (error) {
     if (bot.containerSupplyRunning) {
       bot.containerSupplyStatus = /destination full|container is full|コンテナ.*満杯/i.test(safeErrorMessage(error)) ? 'コンテナ満杯・収納不可' : 'エラー: ' + safeErrorMessage(error)
-      pushLog(bot.label + ': Container Supply: ' + safeErrorMessage(error), 'warning', bot.id)
+      pushLog(bot.label + ': コンテナ補充: ' + safeErrorMessage(error), 'warning', bot.id)
       if (/destination full|container is full|コンテナ.*満杯/i.test(safeErrorMessage(error))) bot.containerSupplyRunning = false
       publishModuleStatus(bot)
     }
@@ -1944,26 +1944,26 @@ function startContainerSupply (botId) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
   requirePlayerMode(bot, 'コンテナ補充')
-  if (!(settings.installedMods || []).includes('containerSupply')) throw new Error('Container Supply が導入されていません。')
-  if (!isModuleAssigned(bot.modules, 'containerSupply')) throw new Error('先にContainer Supplyモジュールを割り当ててください。')
+  if (!(settings.installedMods || []).includes('containerSupply')) throw new Error('コンテナ補充 が導入されていません。')
+  if (!isModuleAssigned(bot.modules, 'containerSupply')) throw new Error('先にコンテナ補充Modを割り当ててください。')
   if (!moduleConfigComplete(bot.modules.containerSupply)) throw new Error('補充先のX/Y/Z、アイテム名、目標個数を設定してください。')
   getConnectedAgent(botId)
   if (bot.containerSupplyBusy) throw new Error('現在のコンテナ処理が終わるまで待ってください。')
-  if (bot.itemUseBusy || bot.itemUseRunning || bot.autoFishingBusy || bot.autoFishingRunning) throw new Error('Item UseまたはAutoFishingの実行中はコンテナ補充を開始できません。')
-  if (bot.movementStatus.startsWith('手動操作中')) throw new Error('手動移動を停止してからContainer Supplyを開始してください。')
+  if (bot.itemUseBusy || bot.itemUseRunning || bot.autoFishingBusy || bot.autoFishingRunning) throw new Error('アイテム使用または自動釣りの実行中はコンテナ補充を開始できません。')
+  if (bot.movementStatus.startsWith('手動操作中')) throw new Error('手動移動を停止してからコンテナ補充を開始してください。')
   stopContainerSupply(bot, '再設定')
   bot.containerSupplyRunning = true
   bot.containerSupplyStatus = '開始準備中'
-  pushLog(bot.label + ': Container Supplyを開始しました。', 'info', bot.id)
+  pushLog(bot.label + ': コンテナ補充を開始しました。', 'info', bot.id)
   runContainerSupplyCycle(bot)
   publishModuleStatus(bot)
   return publicBot(bot)
 }
 
-function waitForAutoFishingBite (bot, agent) {
+function waitFor自動釣りBite (bot, agent) {
   const client = agent._client
   if (!client || typeof client.on !== 'function' || typeof client.removeListener !== 'function') {
-    throw new Error('Bedrockパケットを監視できないためAutoFishingを利用できません。')
+    throw new Error('Bedrockパケットを監視できないため自動釣りを利用できません。')
   }
   const timeoutMs = bot.modules.autoFishing.biteTimeoutMs
   return new Promise((resolve, reject) => {
@@ -1983,7 +1983,7 @@ function waitForAutoFishingBite (bot, agent) {
       else resolve(hookRuntimeId)
     }
     const cancel = () => {
-      const error = new Error('AutoFishingは停止されました。')
+      const error = new Error('自動釣りは停止されました。')
       error.code = 'AUTO_FISH_STOPPED'
       finish(error)
     }
@@ -2027,14 +2027,14 @@ function waitForAutoFishingBite (bot, agent) {
   })
 }
 
-async function runAutoFishingCycle (bot) {
+async function run自動釣りCycle (bot) {
   if (!bot.autoFishingRunning || bot.status !== 'connected' || bot.autoFishingBusy || !requiresPlayerInput(bot.movementMode)) return
   bot.autoFishingBusy = true
   const generation = bot.autoFishingGeneration
   try {
     const { agent } = getConnectedAgent(bot.id)
     if (bot.itemUseBusy || bot.itemUseRunning || bot.containerSupplyBusy || bot.containerSupplyRunning) {
-      throw new Error('Item UseまたはContainer Supplyの実行中はAutoFishingを開始できません。')
+      throw new Error('アイテム使用またはコンテナ補充の実行中は自動釣りを開始できません。')
     }
     const rod = findFishingRod(agent.inventory)
     if (!rod) throw new Error('インベントリに釣竿（fishing_rod）がありません。')
@@ -2045,10 +2045,10 @@ async function runAutoFishingCycle (bot) {
     bot.autoFishingStatus = 'キャスト・アタリ待ち'
     publishModuleStatus(bot)
     try {
-      await waitForAutoFishingBite(bot, agent)
+      await waitFor自動釣りBite(bot, agent)
     } catch (error) {
       if (error.code !== 'AUTO_FISH_TIMEOUT') throw error
-      pushLog(bot.label + ': AutoFishingでアタリを検出できませんでした。再キャストします。', 'warning', bot.id)
+      pushLog(bot.label + ': 自動釣りでアタリを検出できませんでした。再キャストします。', 'warning', bot.id)
     }
     if (!bot.autoFishingRunning || generation !== bot.autoFishingGeneration || bot.agent !== agent) return
     bot.autoFishingStatus = '魚を回収中'
@@ -2063,35 +2063,35 @@ async function runAutoFishingCycle (bot) {
     publishModuleStatus(bot)
   } catch (error) {
     if (bot.autoFishingRunning && generation === bot.autoFishingGeneration && error.code !== 'AUTO_FISH_STOPPED') {
-      stopAutoFishing(bot, 'エラーで停止')
-      pushLog(bot.label + ': AutoFishingを停止しました: ' + safeErrorMessage(error), 'warning', bot.id)
+      stop自動釣り(bot, 'エラーで停止')
+      pushLog(bot.label + ': 自動釣りを停止しました: ' + safeErrorMessage(error), 'warning', bot.id)
     }
   } finally {
     bot.autoFishingBusy = false
   }
   if (bot.autoFishingRunning && bot.status === 'connected' && generation === bot.autoFishingGeneration) {
-    bot.autoFishingTimer = setTimeout(() => runAutoFishingCycle(bot), bot.modules.autoFishing.recastDelayMs)
+    bot.autoFishingTimer = setTimeout(() => run自動釣りCycle(bot), bot.modules.autoFishing.recastDelayMs)
   }
 }
 
-function startAutoFishing (botId) {
+function start自動釣り (botId) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
   requirePlayerMode(bot, '自動釣り')
-  if (!(settings.installedMods || []).includes('autoFishing')) throw new Error('AutoFishingが導入されていません。')
-  if (!isModuleAssigned(bot.modules, 'autoFishing')) throw new Error('先にAutoFishingモジュールを割り当ててください。')
+  if (!(settings.installedMods || []).includes('autoFishing')) throw new Error('自動釣りが導入されていません。')
+  if (!isModuleAssigned(bot.modules, 'autoFishing')) throw new Error('先に自動釣りModを割り当ててください。')
   const { agent } = getConnectedAgent(botId)
   if (bot.itemUseBusy || bot.itemUseRunning || bot.containerSupplyBusy || bot.containerSupplyRunning) {
-    throw new Error('Item UseまたはContainer Supplyの実行中はAutoFishingを開始できません。')
+    throw new Error('アイテム使用またはコンテナ補充の実行中は自動釣りを開始できません。')
   }
   if (bot.autoFishingBusy) throw new Error('現在の釣り処理が終わるまで待ってください。')
   if (!findFishingRod(agent.inventory)) throw new Error('インベントリに釣竿（fishing_rod）がありません。')
-  stopAutoFishing(bot, '再設定')
+  stop自動釣り(bot, '再設定')
   bot.autoFishingRunning = true
   bot.autoFishingStatus = '開始準備中'
-  pushLog(bot.label + ': AutoFishingを開始しました。', 'info', bot.id)
+  pushLog(bot.label + ': 自動釣りを開始しました。', 'info', bot.id)
   publishModuleStatus(bot)
-  void runAutoFishingCycle(bot)
+  void run自動釣りCycle(bot)
   return publicBot(bot)
 }
 
@@ -2143,7 +2143,7 @@ function setBotControl (botId, control, active) {
   const { bot, agent } = getConnectedAgent(botId)
   requirePlayerMode(bot, '手動移動')
   validateControl(control)
-  if (active && bot.containerSupplyRunning) throw new Error('Container Supply実行中は手動移動できません。先にContainer Supplyを停止してください。')
+  if (active && bot.containerSupplyRunning) throw new Error('コンテナ補充実行中は手動移動できません。先にコンテナ補充を停止してください。')
   if (active) {
     bot.movementRequestId++
     if (bot.movementStatus.startsWith('座標移動中') || bot.movementStatus === '周囲のチャンクを確認中') {
@@ -2159,7 +2159,7 @@ function setBotControl (botId, control, active) {
 async function gotoBot (botId, input) {
   const { bot, agent } = getConnectedAgent(botId)
   requirePlayerMode(bot, '座標移動')
-  if (bot.containerSupplyRunning) throw new Error('Container Supply実行中は別の座標移動を開始できません。先にContainer Supplyを停止してください。')
+  if (bot.containerSupplyRunning) throw new Error('コンテナ補充実行中は別の座標移動を開始できません。先にコンテナ補充を停止してください。')
   if (!bot.pathfinderReady || !agent.pathfinder) throw new Error(bot.pathfinderError || '経路探索の準備ができていません。周囲の地形データを確認してください。')
   if (agent._bedrockWorldSupport && !agent._bedrockWorldSupport.supported) {
     throw new Error(`地形データを読み取れないため座標移動できません: ${agent._bedrockWorldSupport.reason || '未対応の形式'}`)
@@ -2342,9 +2342,9 @@ ipcMain.handle('bot:start-item-use', (_event, args) => startBotItemUse(args?.bot
 ipcMain.handle('bot:stop-item-use', (_event, botId) => { const bot = bots.get(botId); if (!bot) throw new Error('Botが見つかりません。'); stopBotItemUse(bot, '手動停止'); return publicBot(bot) })
 ipcMain.handle('bot:start-container-supply', (_event, botId) => startContainerSupply(botId))
 ipcMain.handle('bot:stop-container-supply', (_event, botId) => { const bot = bots.get(botId); if (!bot) throw new Error('Botが見つかりません。'); stopContainerSupply(bot, '手動停止'); return publicBot(bot) })
-ipcMain.handle('bot:start-auto-fishing', (_event, botId) => startAutoFishing(botId))
+ipcMain.handle('bot:start-auto-fishing', (_event, botId) => start自動釣り(botId))
 ipcMain.handle('bot:look-direction', (_event, args) => setBotLookDirection(args?.botId, args))
-ipcMain.handle('bot:stop-auto-fishing', (_event, botId) => { const bot = bots.get(botId); if (!bot) throw new Error('Botが見つかりません。'); stopAutoFishing(bot, '手動停止'); return publicBot(bot) })
+ipcMain.handle('bot:stop-auto-fishing', (_event, botId) => { const bot = bots.get(botId); if (!bot) throw new Error('Botが見つかりません。'); stop自動釣り(bot, '手動停止'); return publicBot(bot) })
 ipcMain.handle('world:select-session', (_event, args) => {
   const requestId = String(args?.requestId || '')
   const pending = pendingWorldSelections.get(requestId)
