@@ -28,6 +28,7 @@ const { installSubClientSupport, createGuestLoginTokens, createSubClientLoginDis
 const { nextGuestSubClientId, resolveGuestLabel } = require('./guest-naming')
 const { installBedrockDimensionSync } = require('./bedrock-dimension-sync')
 const { normalizeBotModules, moduleConfigComplete, isModuleAssigned } = require('./modules')
+const { BOT_MOVEMENT_MODES, normalizeBotMovementMode, suppressPlayerAuthInput, requiresPlayerInput } = require('./bot-modes')
 const { normalizeLookDirection, applyLookDirection } = require('./look-direction')
 const { reconnectDelay, isRetryableDisconnect } = require('./connection-manager')
 const { MOD_CATALOG, normalizeInstalledMods, addInstalledMod, removeInstalledMod } = require('./mod-registry')
@@ -175,6 +176,7 @@ function publicBot (bot) {
     targetId: bot.targetId || '',
     networkId: bot.networkId || '',
     worldName: bot.worldName || '',
+    movementMode: normalizeBotMovementMode(bot.movementMode),
     modules: normalizeBotModules(bot.modules),
     moduleStatus: {
       itemUse: bot.itemUseStatus || '未実行',
@@ -238,6 +240,7 @@ function createBotRecord (saved) {
     targetId: saved.targetId || '',
     networkId: saved.networkId || '',
     worldName: saved.worldName || '',
+    movementMode: normalizeBotMovementMode(saved.movementMode),
     status: 'disconnected',
     client: null,
     agent: null,
@@ -348,8 +351,8 @@ function saveSettings () {
       id, label, host, port, mode, signallingUrl, lastSuccessfulMode: lastSuccessfulMode || '', lastSuccessfulAt: lastSuccessfulAt || ''
     })),
     trustedServerKeys: { ...settings.trustedServerKeys },
-    bots: Array.from(bots.values()).map(({ id, label, targetType, targetId, networkId, worldName, modules, parentBotId, subClientId }) => ({
-      id, label, targetType, targetId, networkId, worldName, modules: normalizeBotModules(modules), ...(parentBotId ? { parentBotId, subClientId } : {})
+    bots: Array.from(bots.values()).map(({ id, label, targetType, targetId, networkId, worldName, movementMode, modules, parentBotId, subClientId }) => ({
+      id, label, targetType, targetId, networkId, worldName, movementMode: normalizeBotMovementMode(movementMode), modules: normalizeBotModules(modules), ...(parentBotId ? { parentBotId, subClientId } : {})
     }))
   }
   settingsSaveQueue = settingsSaveQueue.catch(() => {}).then(async () => {
@@ -977,6 +980,7 @@ async function connectBot (botId, options = {}) {
   }
 
   bot.agent = agent
+  applyBotMovementMode(bot, agent)
   bot.client = agent._client
   try { installSubClientSupport(bot.client) } catch (error) {
     try { bot.client?.disconnect('SubClient initialization failed') } catch { try { bot.client?.close() } catch {} }
@@ -1236,6 +1240,7 @@ async function addGuestBot (parentBotId, input) {
     targetId: parent.targetId,
     networkId: parent.networkId,
     worldName: parent.worldName,
+    movementMode: parent.movementMode,
     parentBotId: parent.id,
     subClientId
   })
@@ -1303,6 +1308,7 @@ async function joinGuestBot (parent, guest) {
   }
 
   guest.agent = agent
+  applyBotMovementMode(guest, agent)
   guest.client = view
   try {
     installBotDimensionSync(guest, agent)
@@ -1470,6 +1476,49 @@ function getConnectedAgent (botId) {
   return { bot, agent: bot.agent }
 }
 
+function requirePlayerMode (bot, action = 'この操作') {
+  if (!requiresPlayerInput(bot?.movementMode)) {
+    throw new Error(`${action}にはプレイヤーモードが必要です。Botの動作モードを「プレイヤーモード」に変更してください。`)
+  }
+}
+
+function applyBotMovementMode (bot, agent = bot?.agent) {
+  if (!agent) return
+  const suppress = suppressPlayerAuthInput(bot?.movementMode)
+  agent._jhonDisablePlayerAuthInput = suppress
+  if (!suppress) agent._jhonResetInputTick = true
+}
+
+async function setBotMovementMode (botId, inputMode) {
+  const bot = bots.get(botId)
+  if (!bot) throw new Error('Botが見つかりません。')
+  const next = normalizeBotMovementMode(inputMode)
+  if (bot.movementMode === next) return publicBot(bot)
+
+  bot.movementMode = next
+  applyBotMovementMode(bot)
+  if (next === BOT_MOVEMENT_MODES.CHUNK_HOLD) {
+    bot.movementRequestId++
+    try { bot.agent?.clearControlStates() } catch {}
+    try { bot.agent?.pathfinder?.setGoal(null) } catch {}
+    try { bot.agent?.pathfinder?.stop() } catch {}
+    if (bot.itemUseRunning || bot.itemUseBusy || bot.containerSupplyRunning || bot.containerSupplyBusy || bot.autoFishingRunning || bot.autoFishingBusy) {
+      stopBotModules(bot, 'チャンク保持モードへ切替')
+    }
+    bot.movementStatus = 'プレイヤー入力停止中'
+    bot.pathfinderReady = false
+  } else if (bot.agent) {
+    bot.movementStatus = '停止中'
+    if (bot.agent._bedrockWorldSupport?.supported) preparePathfinder(bot)
+  }
+
+  await saveSettings()
+  const label = next === BOT_MOVEMENT_MODES.CHUNK_HOLD ? 'チャンク保持モード' : 'プレイヤーモード'
+  pushLog(`${bot.label}: 動作モードを「${label}」に変更しました。`, 'success', bot.id)
+  publishBot(bot)
+  return publicBot(bot)
+}
+
 function recordBotChatMessage (bot, direction, username, message) {
   const entry = {
     id: randomUUID(),
@@ -1528,6 +1577,7 @@ function queueBotInventoryPublish (bot, agent) {
 
 async function tossBotItem (botId, input) {
   const { bot, agent } = getConnectedAgent(botId)
+  requirePlayerMode(bot, 'アイテムを投げる操作')
   if (bot.itemUseBusy || bot.itemUseRunning || bot.containerSupplyBusy || bot.containerSupplyRunning || bot.autoFishingBusy || bot.autoFishingRunning) throw new Error('別のモジュールがインベントリを操作中です。')
   const request = normalizeDropRequest(input, agent.inventory)
   if (typeof agent.tossStack !== 'function') throw new Error('Bedrock用のアイテム投棄APIが利用できません。')
@@ -1641,6 +1691,7 @@ async function updateBotModules (botId, input) {
 
 async function setBotLookDirection (botId, input) {
   const { bot, agent } = getConnectedAgent(botId)
+  requirePlayerMode(bot, '視点変更')
   if (!(settings.installedMods || []).includes('lookDirection')) throw new Error('Look Direction が導入されていません。')
   if (!isModuleAssigned(bot.modules, 'lookDirection')) throw new Error('このBotにLook Directionモジュールが割り当てられていません。')
   const direction = normalizeLookDirection(input)
@@ -1656,6 +1707,7 @@ async function setBotLookDirection (botId, input) {
 
 async function useBotItemOnce (botId, slot, options = {}) {
   const { bot, agent } = getConnectedAgent(botId)
+  requirePlayerMode(bot, 'アイテム使用')
   if (!(settings.installedMods || []).includes('itemUse')) throw new Error('Item Use が導入されていません。')
   if (!isModuleAssigned(bot.modules, 'itemUse')) throw new Error('このBotにItem Useモジュールが割り当てられていません。')
   if (bot.containerSupplyRunning || bot.containerSupplyBusy || bot.autoFishingRunning || bot.autoFishingBusy) throw new Error('Container SupplyまたはAutoFishingの実行中はインベントリ操作できません。')
@@ -1727,6 +1779,7 @@ async function runItemUseCycle (bot) {
 function startBotItemUse (botId, slot) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
+  requirePlayerMode(bot, '連続アイテム使用')
   if (!(settings.installedMods || []).includes('itemUse')) throw new Error('Item Use が導入されていません。')
   if (!isModuleAssigned(bot.modules, 'itemUse')) throw new Error('先にItem Useモジュールを割り当ててください。')
   const { agent } = getConnectedAgent(botId)
@@ -1777,6 +1830,7 @@ function openContainerWindow (agent, block, timeoutMs = 8000) {
 }
 
 async function supplyContainerOnce (bot) {
+  requirePlayerMode(bot, 'コンテナ補充')
   const config = bot.modules.containerSupply
   if (!moduleConfigComplete(config)) throw new Error('Container Supplyの座標・アイテム・目標数を設定してください。')
   const { agent } = getConnectedAgent(bot.id)
@@ -1864,6 +1918,7 @@ async function runContainerSupplyCycle (bot) {
 function startContainerSupply (botId) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
+  requirePlayerMode(bot, 'コンテナ補充')
   if (!(settings.installedMods || []).includes('containerSupply')) throw new Error('Container Supply が導入されていません。')
   if (!isModuleAssigned(bot.modules, 'containerSupply')) throw new Error('先にContainer Supplyモジュールを割り当ててください。')
   if (!moduleConfigComplete(bot.modules.containerSupply)) throw new Error('補充先のX/Y/Z、アイテム名、目標個数を設定してください。')
@@ -1948,7 +2003,7 @@ function waitForAutoFishingBite (bot, agent) {
 }
 
 async function runAutoFishingCycle (bot) {
-  if (!bot.autoFishingRunning || bot.status !== 'connected' || bot.autoFishingBusy) return
+  if (!bot.autoFishingRunning || bot.status !== 'connected' || bot.autoFishingBusy || !requiresPlayerInput(bot.movementMode)) return
   bot.autoFishingBusy = true
   const generation = bot.autoFishingGeneration
   try {
@@ -1997,6 +2052,7 @@ async function runAutoFishingCycle (bot) {
 function startAutoFishing (botId) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
+  requirePlayerMode(bot, '自動釣り')
   if (!(settings.installedMods || []).includes('autoFishing')) throw new Error('AutoFishingが導入されていません。')
   if (!isModuleAssigned(bot.modules, 'autoFishing')) throw new Error('先にAutoFishingモジュールを割り当ててください。')
   const { agent } = getConnectedAgent(botId)
@@ -2060,6 +2116,7 @@ function stopBotMovement (botId, statusText = '停止中') {
 
 function setBotControl (botId, control, active) {
   const { bot, agent } = getConnectedAgent(botId)
+  requirePlayerMode(bot, '手動移動')
   validateControl(control)
   if (active && bot.containerSupplyRunning) throw new Error('Container Supply実行中は手動移動できません。先にContainer Supplyを停止してください。')
   if (active) {
@@ -2076,6 +2133,7 @@ function setBotControl (botId, control, active) {
 
 async function gotoBot (botId, input) {
   const { bot, agent } = getConnectedAgent(botId)
+  requirePlayerMode(bot, '座標移動')
   if (bot.containerSupplyRunning) throw new Error('Container Supply実行中は別の座標移動を開始できません。先にContainer Supplyを停止してください。')
   if (!bot.pathfinderReady || !agent.pathfinder) throw new Error(bot.pathfinderError || '経路探索の準備ができていません。周囲の地形データを確認してください。')
   if (agent._bedrockWorldSupport && !agent._bedrockWorldSupport.supported) {
