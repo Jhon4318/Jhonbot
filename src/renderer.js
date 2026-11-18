@@ -39,7 +39,7 @@ const dropItemCount = document.getElementById('dropItemCount')
 const dropItemForm = document.getElementById('dropItemForm')
 const refreshInventoryButton = document.getElementById('refreshInventoryButton')
 
-const state = { bots: new Map(), servers: [], installedMods: [], modCatalog: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map(), modAssignmentDrafts: new Map(), botPage: 0, serverPage: 0 }
+const state = { bots: new Map(), servers: [], installedMods: [], modCatalog: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map(), selectedModId: 'inventory', botPage: 0, serverPage: 0 }
 const statusLabels = {
   disconnected: '未参加',
   authenticating: '認証処理中',
@@ -361,6 +361,7 @@ function renderControlPanel () {
 function renderBotModulesPanel (refreshConfig = false) {
   const bot = selectedBot()
   const connected = bot?.status === 'connected'
+  const playerMode = bot?.movementMode === 'player'
   const modules = bot?.modules || {}
   const items = bot ? (state.inventoryByBot.get(bot.id) || []) : []
   const moduleSelectedBot = document.getElementById('moduleSelectedBot')
@@ -371,7 +372,9 @@ function renderBotModulesPanel (refreshConfig = false) {
   const supplyInterval = document.getElementById('supplyInterval')
   const moduleItemUseSelect = document.getElementById('moduleItemUseSelect')
   const installed = new Set(state.installedMods)
-  const assigned = (id) => installed.has(id) && modules[id]?.assigned === true
+  const assigned = (id) => id === 'inventory'
+    ? !!bot
+    : installed.has(id) && modules[id]?.assigned === true
 
   if (!bot) moduleSelectedBot.textContent = 'Botを追加して選択してください。'
   else moduleSelectedBot.textContent = bot.label + ' · ' + (connected ? 'ワールド参加中' : (statusLabels[bot.status] || bot.status))
@@ -412,50 +415,66 @@ function renderBotModulesPanel (refreshConfig = false) {
 
   const status = bot?.moduleStatus || {}
   const descriptors = [
-    { id: 'itemUse', name: 'Item Use', status: status.itemUse || '未実行', running: status.itemUseRunning === true, cardId: 'itemUseModuleCard' },
-    { id: 'containerSupply', name: 'Container Supply', status: status.containerSupply || '未実行', running: status.containerSupplyRunning === true, cardId: 'containerSupplyModuleCard' },
-    { id: 'autoFishing', name: 'AutoFishing', status: status.autoFishing || '未実行', running: status.autoFishingRunning === true, cardId: 'autoFishingModuleCard' },
-    { id: 'lookDirection', name: 'Look Direction', status: status.lookDirection || '未実行', running: false, cardId: 'lookDirectionModuleCard' }
+    { id: 'inventory', name: 'インベントリ管理', state: '所持品の確認・投棄', cardId: 'inventoryModuleCard' },
+    { id: 'itemUse', name: 'アイテム使用', state: status.itemUse || '未実行', cardId: 'itemUseModuleCard', running: status.itemUseRunning === true },
+    { id: 'containerSupply', name: 'コンテナ補充', state: status.containerSupply || '未実行', cardId: 'containerSupplyModuleCard', running: status.containerSupplyRunning === true },
+    { id: 'autoFishing', name: '自動釣り', state: status.autoFishing || '未実行', cardId: 'autoFishingModuleCard', running: status.autoFishingRunning === true },
+    { id: 'lookDirection', name: '視点変更', state: status.lookDirection || '未実行', cardId: 'lookDirectionModuleCard', running: false }
   ]
   const entries = descriptors.filter(entry => assigned(entry.id))
-  const anyAssignedMod = entries.length > 0
-  const noBot = !bot
+  if (!entries.some(entry => entry.id === state.selectedModId)) state.selectedModId = 'inventory'
+  if (!entries.some(entry => entry.id === state.selectedModId)) state.selectedModId = entries[0]?.id || 'inventory'
+
   const summary = document.getElementById('selectedBotModSummary')
   const summaryCount = document.getElementById('selectedModCount')
-  const settingsButton = document.getElementById('openSelectedModSettingsButton')
-  const assignmentButton = document.getElementById('openModAssignmentDialogButton')
-
   if (summary) {
     summary.replaceChildren()
     if (!bot) summary.append(createElement('div', 'server-empty', 'Botを選択してください。'))
-    else if (!state.installedMods.length) summary.append(createElement('div', 'server-empty', '利用可能なModがありません。「Mod一覧・追加」から導入してください。'))
-    else if (!entries.length) summary.append(createElement('div', 'server-empty', '割り当て済みModはありません。「Mod割り当て」から有効にしてください。'))
+    else if (!entries.length) summary.append(createElement('div', 'server-empty', '割り当て済みModはありません。Modを追加してください。'))
     else {
       for (const entry of entries) {
-        const row = createElement('div', 'selected-mod-row')
-        const info = createElement('div', 'selected-mod-info')
-        info.append(createElement('strong', '', entry.name), createElement('span', '', entry.status))
-        const stateChip = createElement('span', entry.running ? 'mod-state running' : 'mod-state assigned', entry.running ? '実行中' : '割り当て済み')
-        const action = createElement('button', 'secondary-button selected-mod-open-button', '操作')
-        action.type = 'button'
-        action.addEventListener('click', () => {
-          const dialog = document.getElementById('selectedModSettingsDialog')
-          if (!dialog.open) dialog.showModal()
-          requestAnimationFrame(() => document.getElementById(entry.cardId)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }))
+        const button = createElement('button', 'selected-mod-row' + (state.selectedModId === entry.id ? ' selected' : ''))
+        button.type = 'button'
+        button.setAttribute('aria-pressed', String(state.selectedModId === entry.id))
+        const info = createElement('span', 'selected-mod-info')
+        info.append(createElement('strong', '', entry.name), createElement('span', '', entry.state))
+        const stateChip = createElement('span', entry.running ? 'mod-state running' : 'mod-state assigned', entry.running ? '実行中' : (entry.id === 'inventory' ? '標準搭載' : '割り当て済み'))
+        button.append(info, stateChip)
+        button.addEventListener('click', () => {
+          if (state.selectedModId === entry.id) return
+          state.selectedModId = entry.id
+          renderBotModulesPanel(false)
         })
-        row.append(info, stateChip, action)
-        summary.append(row)
+        summary.append(button)
       }
     }
     if (summaryCount) summaryCount.textContent = entries.length + '件'
   }
-  if (settingsButton) settingsButton.disabled = noBot || !anyAssignedMod
-  if (assignmentButton) assignmentButton.disabled = noBot
-  document.getElementById('modulePanel').hidden = !anyAssignedMod
-  document.getElementById('itemUseModuleCard').hidden = !assigned('itemUse')
-  document.getElementById('containerSupplyModuleCard').hidden = !assigned('containerSupply')
-  document.getElementById('autoFishingModuleCard').hidden = !assigned('autoFishing')
-  document.getElementById('lookDirectionModuleCard').hidden = !assigned('lookDirection')
+
+  const selectedId = state.selectedModId
+  document.getElementById('modulePanel').hidden = !bot
+  document.getElementById('inventoryModuleCard').hidden = selectedId !== 'inventory'
+  document.getElementById('itemUseModuleCard').hidden = selectedId !== 'itemUse' || !assigned('itemUse')
+  document.getElementById('containerSupplyModuleCard').hidden = selectedId !== 'containerSupply' || !assigned('containerSupply')
+  document.getElementById('autoFishingModuleCard').hidden = selectedId !== 'autoFishing' || !assigned('autoFishing')
+  document.getElementById('lookDirectionModuleCard').hidden = selectedId !== 'lookDirection' || !assigned('lookDirection')
+  document.getElementById('moduleSaveButton').hidden = selectedId === 'inventory' || !bot
+
+  const selectedName = descriptors.find(entry => entry.id === selectedId)?.name || 'インベントリ管理'
+  moduleSelectedBot.textContent = bot ? bot.label + ' · ' + selectedName : 'Botを選択してください。'
+  const modeSelect = document.getElementById('botMovementMode')
+  const modeDescription = document.getElementById('botModeDescription')
+  if (modeSelect) {
+    modeSelect.value = bot?.movementMode === 'player' ? 'player' : 'chunk-hold'
+    modeSelect.disabled = !bot || bot.isGuest
+  }
+  if (modeDescription) {
+    modeDescription.textContent = !bot
+      ? 'Botを選択してください。'
+      : playerMode
+        ? 'プレイヤー入力を送信します。移動・アイテム使用・自動釣り・コンテナ補充などが利用できます。'
+        : '定期的なプレイヤー入力を送信しません。インベントリ・チャットの受信や確認に利用できます。プレイヤー操作Modを使う場合はプレイヤーモードへ切り替えてください。'
+  }
 
   const itemUseAssigned = assigned('itemUse')
   const containerSupplyAssigned = assigned('containerSupply')
@@ -466,75 +485,32 @@ function renderBotModulesPanel (refreshConfig = false) {
   document.getElementById('autoFishingStatus').textContent = status.autoFishing || '未実行'
   document.getElementById('lookDirectionStatus').textContent = status.lookDirection || '未実行'
 
-  document.getElementById('itemUseMode').disabled = noBot || !itemUseAssigned
-  document.getElementById('itemUseInterval').disabled = noBot || !itemUseAssigned
-  moduleItemUseSelect.disabled = !connected || !items.length || !itemUseAssigned
-  document.getElementById('itemUseOnceButton').disabled = !connected || !itemUseAssigned || !moduleItemUseSelect.value
-  document.getElementById('itemUseStartButton').disabled = !connected || !itemUseAssigned || !moduleItemUseSelect.value
+  document.getElementById('itemUseMode').disabled = noBotOr(!itemUseAssigned)
+  document.getElementById('itemUseInterval').disabled = !bot || !itemUseAssigned
+  moduleItemUseSelect.disabled = !connected || !items.length || !itemUseAssigned || !playerMode
+  document.getElementById('itemUseOnceButton').disabled = !connected || !itemUseAssigned || !moduleItemUseSelect.value || !playerMode
+  document.getElementById('itemUseStartButton').disabled = !connected || !itemUseAssigned || !moduleItemUseSelect.value || !playerMode
   document.getElementById('itemUseStopButton').disabled = !bot || status.itemUseRunning !== true
 
-  document.getElementById('addSupplyItemButton').disabled = noBot || !containerSupplyAssigned
+  document.getElementById('addSupplyItemButton').disabled = !bot || !containerSupplyAssigned
   for (const input of [supplyX, supplyY, supplyZ, supplyInterval, ...supplyItemsList.querySelectorAll('input,button')]) {
-    input.disabled = noBot || !containerSupplyAssigned
+    input.disabled = !bot || !containerSupplyAssigned
   }
-  document.getElementById('supplySaveButton').disabled = noBot || !containerSupplyAssigned
-  document.getElementById('supplyStartButton').disabled = !connected || !containerSupplyAssigned
+  document.getElementById('supplySaveButton').disabled = !bot || !containerSupplyAssigned
+  document.getElementById('supplyStartButton').disabled = !connected || !containerSupplyAssigned || !playerMode
   document.getElementById('supplyStopButton').disabled = !bot || status.containerSupplyRunning !== true
 
-  document.getElementById('autoFishingBiteTimeout').disabled = noBot || !autoFishingAssigned
-  document.getElementById('autoFishingRecastDelay').disabled = noBot || !autoFishingAssigned
-  document.getElementById('autoFishingStartButton').disabled = !connected || !autoFishingAssigned
+  document.getElementById('autoFishingBiteTimeout').disabled = !bot || !autoFishingAssigned
+  document.getElementById('autoFishingRecastDelay').disabled = !bot || !autoFishingAssigned
+  document.getElementById('autoFishingStartButton').disabled = !connected || !autoFishingAssigned || !playerMode
   document.getElementById('autoFishingStopButton').disabled = !bot || status.autoFishingRunning !== true
 
-  document.getElementById('lookDirectionYaw').disabled = noBot || !lookDirectionAssigned
-  document.getElementById('lookDirectionPitch').disabled = noBot || !lookDirectionAssigned
-  document.getElementById('lookDirectionApplyButton').disabled = !connected || !lookDirectionAssigned
-  document.getElementById('moduleSaveButton').disabled = noBot || !anyAssignedMod
-  if (document.getElementById('modAssignmentDialog')?.open) renderModAssignmentDialog()
+  document.getElementById('lookDirectionYaw').disabled = !bot || !lookDirectionAssigned
+  document.getElementById('lookDirectionPitch').disabled = !bot || !lookDirectionAssigned
+  document.getElementById('lookDirectionApplyButton').disabled = !connected || !lookDirectionAssigned || !playerMode
 }
 
-function renderModAssignmentDialog () {
-  const bot = selectedBot()
-  const target = document.getElementById('modAssignmentList')
-  const botLabel = document.getElementById('assignmentSelectedBot')
-  const saveButton = document.getElementById('saveModAssignmentsButton')
-  if (!target || !botLabel || !saveButton) return
-
-  target.replaceChildren()
-  if (!bot) {
-    botLabel.textContent = 'Botを選択してください。'
-    target.append(createElement('div', 'server-empty', '先にBotを選択してください。'))
-    saveButton.disabled = true
-    return
-  }
-
-  botLabel.textContent = bot.label + ' · ' + (bot.status === 'connected' ? 'ワールド参加中' : (statusLabels[bot.status] || bot.status))
-  const installable = state.modCatalog.filter(mod => state.installedMods.includes(mod.id))
-  let draft = state.modAssignmentDrafts.get(bot.id)
-  if (!draft) {
-    draft = Object.fromEntries(state.modCatalog.map(mod => [mod.id, bot.modules?.[mod.id]?.assigned === true]))
-    state.modAssignmentDrafts.set(bot.id, draft)
-  }
-  if (!installable.length) {
-    target.append(createElement('div', 'server-empty', '導入済みModがありません。「Mod一覧・追加」から先に導入してください。'))
-    saveButton.disabled = true
-    return
-  }
-
-  for (const mod of installable) {
-    const row = createElement('label', 'mod-assignment-row')
-    const checkbox = document.createElement('input')
-    checkbox.type = 'checkbox'
-    checkbox.dataset.modAssignment = mod.id
-    checkbox.checked = draft[mod.id] === true
-    checkbox.addEventListener('change', () => { draft[mod.id] = checkbox.checked })
-    const details = createElement('span', 'mod-assignment-details')
-    details.append(createElement('strong', '', mod.name), createElement('span', '', mod.description))
-    row.append(checkbox, details)
-    target.append(row)
-  }
-  saveButton.disabled = false
-}
+function noBotOr (condition) { return !selectedBot() || condition }
 
 function addSupplyItemRow (itemName = '', targetCount = 64) {
   const list = document.getElementById('supplyItemsList')
