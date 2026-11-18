@@ -666,6 +666,7 @@ function initializeDashboardLayout () {
   document.getElementById('botMovementMode').addEventListener('change', async (event) => {
     const bot = selectedBot()
     if (!bot) return
+    releaseAllHeldInputs()
     const select = event.currentTarget
     select.disabled = true
     try {
