@@ -1640,35 +1640,60 @@ function getModState () {
   return { installedMods: [...(settings.installedMods || [])], modCatalog: MOD_CATALOG }
 }
 
-async function setModInstallation (modId, installed) {
+async function setModInstallation (modId, installed, botId = null) {
   const mod = MOD_CATALOG.find(item => item.id === String(modId || ''))
   if (!mod) throw new Error('指定されたModはカタログにありません。')
+  if (mod.builtIn && !installed) throw new Error('このModは標準搭載のためアンインストールできません。')
+  const bot = botId ? bots.get(botId) : null
+  if (botId && !bot) throw new Error('Modを追加するBotが見つかりません。')
+
   const current = settings.installedMods || []
   const next = installed ? addInstalledMod(current, mod.id) : removeInstalledMod(current, mod.id)
-  if (next.length === current.length && next.every((id, index) => id === current[index])) return getModState()
   if (!installed) {
-    for (const bot of bots.values()) {
+    for (const target of bots.values()) {
       if (mod.id === 'itemUse') {
-        stopBotItemUse(bot, 'Modアンインストール')
-        bot.modules.itemUse.assigned = false
+        stopBotItemUse(target, 'Modアンインストール')
+        target.modules.itemUse.assigned = false
       } else if (mod.id === 'containerSupply') {
-        stopContainerSupply(bot, 'Modアンインストール')
-        bot.modules.containerSupply.assigned = false
+        stopContainerSupply(target, 'Modアンインストール')
+        target.modules.containerSupply.assigned = false
       } else if (mod.id === 'autoFishing') {
-        stopAutoFishing(bot, 'Modアンインストール')
-        bot.modules.autoFishing.assigned = false
+        stopAutoFishing(target, 'Modアンインストール')
+        target.modules.autoFishing.assigned = false
       } else if (mod.id === 'lookDirection') {
-        bot.modules.lookDirection.assigned = false
-        bot.lookDirectionStatus = 'Modアンインストール'
+        target.modules.lookDirection.assigned = false
+        target.lookDirectionStatus = 'Modアンインストール'
       }
-      publishBot(bot)
+      publishBot(target)
     }
+  } else if (bot) {
+    bot.modules[mod.id] = { ...(bot.modules[mod.id] || {}), assigned: true }
+    publishBot(bot)
   }
+
   settings.installedMods = next
   await saveSettings()
   send('mods:updated', getModState())
   pushLog('Mod「' + mod.name + '」を' + (installed ? '導入' : 'アンインストール') + 'しました。', 'success')
-  return getModState()
+  return { ...getModState(), ...(bot ? { bot: publicBot(bot) } : {}) }
+}
+
+async function setBotModAssignment (botId, modId, assigned) {
+  const bot = bots.get(botId)
+  if (!bot) throw new Error('Botが見つかりません。')
+  const mod = MOD_CATALOG.find(item => item.id === String(modId || ''))
+  if (!mod) throw new Error('指定されたModはカタログにありません。')
+  if (!(settings.installedMods || []).includes(mod.id)) throw new Error('先にこのModを導入してください。')
+  if (!assigned && mod.builtIn) throw new Error('このModは標準搭載のためBotから外せません。')
+
+  if (mod.id === 'itemUse' && !assigned) stopBotItemUse(bot, 'BotからModを解除')
+  if (mod.id === 'containerSupply' && !assigned) stopContainerSupply(bot, 'BotからModを解除')
+  if (mod.id === 'autoFishing' && !assigned) stopAutoFishing(bot, 'BotからModを解除')
+  bot.modules[mod.id] = { ...(bot.modules[mod.id] || {}), assigned: Boolean(assigned) }
+  await saveSettings()
+  publishBot(bot)
+  pushLog(`${bot.label}: Mod「${mod.name}」を${assigned ? '追加' : '解除'}しました。`, 'success', bot.id)
+  return publicBot(bot)
 }
 
 async function updateBotModules (botId, input) {
