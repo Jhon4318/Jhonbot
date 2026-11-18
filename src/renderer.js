@@ -288,6 +288,7 @@ function renderControlPanel () {
 
   const bot = selectedBot()
   const connected = !!bot && bot.status === 'connected'
+  const playerMode = bot?.movementMode === 'player'
   renderSelectedConnectionControls(bot)
   selectedBotInfo.textContent = bot
     ? `${positionText(bot)}${bot.health != null ? `  ·  HP ${bot.health}` : ''}${bot.food != null ? `  ·  満腹度 ${bot.food}` : ''}`
@@ -337,6 +338,8 @@ function renderControlPanel () {
     pathfinderNote.textContent = 'Botを追加してワールドに参加させてください。'
   } else if (!connected) {
     pathfinderNote.textContent = 'Botがワールドに参加すると移動操作が有効になります。'
+  } else if (!playerMode) {
+    pathfinderNote.textContent = 'チャンク保持モードではプレイヤー入力を送信しません。移動操作を使う場合はプレイヤーモードに切り替えてください。'
   } else if (bot.pathfinderReady && bot.worldSupport) {
     pathfinderNote.textContent = '地形データを読み込みました。座標移動できます。ブロックの採掘・設置は行いません。'
   } else if (!bot.worldSupport && bot.worldSupportReason) {
@@ -346,15 +349,15 @@ function renderControlPanel () {
   }
 
   for (const button of document.querySelectorAll('[data-control], #stopMovementButton, #clearControlsButton')) {
-    button.disabled = !connected
+    button.disabled = !connected || !playerMode
   }
-  for (const input of gotoForm.querySelectorAll('input, button')) input.disabled = !connected || !bot.pathfinderReady || !bot.worldSupport
+  for (const input of gotoForm.querySelectorAll('input, button')) input.disabled = !connected || !playerMode || !bot.pathfinderReady || !bot.worldSupport
   chatInput.disabled = !connected
   sendChatButton.disabled = !connected || !chatInput.value.trim()
   refreshInventoryButton.disabled = !connected
   inventorySelect.disabled = !connected || !(state.inventoryByBot.get(bot?.id) || []).length
   dropItemCount.disabled = !connected || !(state.inventoryByBot.get(bot?.id) || []).length
-  document.getElementById('dropItemButton').disabled = !connected || !(state.inventoryByBot.get(bot?.id) || []).length
+  document.getElementById('dropItemButton').disabled = !connected || !playerMode || !(state.inventoryByBot.get(bot?.id) || []).length
   renderBotModulesPanel(false)
 }
 
