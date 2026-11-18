@@ -77,16 +77,43 @@ function patchClientInputSource (source) {
   return { source: next, changed }
 }
 
+const PHYSICS_INPUT_MODE_MARKER = 'JHONBOT_BEDROCK_PLAYER_INPUT_MODE_PHYSICS'
+const ORIGINAL_PHYSICS_TICK = [
+  '    if (bot.blockAt(bot.entity.position) == null) return // check if chunk is unloaded',
+  '    if (bot.physicsEnabled && shouldUsePhysics) {'
+].join('\n')
+const REPLACEMENT_PHYSICS_TICK = [
+  '    if (bot.blockAt(bot.entity.position) == null) return // check if chunk is unloaded',
+  '    if (bot._jhonDisablePlayerAuthInput) return // ' + PHYSICS_INPUT_MODE_MARKER + ': suppress Mineflayer position/look/flying packets in chunk-hold mode',
+  '    if (bot.physicsEnabled && shouldUsePhysics) {'
+].join('\n')
+
+function patchPhysicsSource (source) {
+  if (source.includes(PHYSICS_INPUT_MODE_MARKER)) return { source, changed: false }
+  if (!source.includes(ORIGINAL_PHYSICS_TICK)) {
+    throw new Error('Pinned Mineflayer physics.js does not match the expected tickPhysics guard; refusing to patch an unknown version.')
+  }
+  const next = source.replace(ORIGINAL_PHYSICS_TICK, REPLACEMENT_PHYSICS_TICK)
+  if (!next.includes(PHYSICS_INPUT_MODE_MARKER)) throw new Error('Mineflayer physics input-mode patch marker was not written.')
+  return { source: next, changed: true }
+}
+
 function applyPatch () {
   const entry = require.resolve('mineflayer')
-  const clientInputPath = path.join(path.dirname(entry), 'lib', 'bedrock_plugins', 'client_input.js')
-  const original = fs.readFileSync(clientInputPath, 'utf8')
-  const result = patchClientInputSource(original)
-  if (result.changed) fs.writeFileSync(clientInputPath, result.source, 'utf8')
-  process.stdout.write(result.changed
-    ? '[Jhonbot] Bedrock player input mode and dimension synchronization enabled.\n'
-    : '[Jhonbot] Bedrock player input mode and dimension synchronization already enabled.\n')
-  return clientInputPath
+  const libDir = path.join(path.dirname(entry), 'lib')
+  const clientInputPath = path.join(libDir, 'bedrock_plugins', 'client_input.js')
+  const physicsPath = path.join(libDir, 'plugins', 'physics.js')
+
+  const inputResult = patchClientInputSource(fs.readFileSync(clientInputPath, 'utf8'))
+  const physicsResult = patchPhysicsSource(fs.readFileSync(physicsPath, 'utf8'))
+  if (inputResult.changed) fs.writeFileSync(clientInputPath, inputResult.source, 'utf8')
+  if (physicsResult.changed) fs.writeFileSync(physicsPath, physicsResult.source, 'utf8')
+
+  const changed = inputResult.changed || physicsResult.changed
+  process.stdout.write(changed
+    ? '[Jhonbot] Bedrock player input and Mineflayer physics suppression enabled.\\n'
+    : '[Jhonbot] Bedrock player input and Mineflayer physics patches already enabled.\\n')
+  return { clientInputPath, physicsPath }
 }
 
 if (require.main === module) applyPatch()
@@ -94,6 +121,10 @@ if (require.main === module) applyPatch()
 module.exports = {
   MARKER,
   INPUT_MODE_MARKER,
+  PHYSICS_INPUT_MODE_MARKER,
+  ORIGINAL_PHYSICS_TICK,
+  REPLACEMENT_PHYSICS_TICK,
+  patchPhysicsSource,
   ORIGINAL_SEND,
   REPLACEMENT_SEND,
   DIMENSION_GUARD,
