@@ -133,6 +133,7 @@ function migrateSettings (parsed) {
       targetId: target.serverId,
       networkId: target.networkId,
       worldName: target.worldName,
+      movementMode: item.movementMode === 'player' ? 'player' : 'chunk-hold',
       modules: item.modules && typeof item.modules === 'object' ? item.modules : {},
       ...(typeof item.parentBotId === 'string' && item.parentBotId !== item.id && [1, 2, 3].includes(Number(item.subClientId))
         ? { parentBotId: item.parentBotId, subClientId: Number(item.subClientId) }
