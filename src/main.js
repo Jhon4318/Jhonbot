@@ -427,6 +427,10 @@ function setBotStatus (bot, status, extra = {}) {
 
 function preparePathfinder (bot) {
   const agent = bot.agent
+  if (!requiresPlayerInput(bot?.movementMode)) {
+    bot.pathfinderReady = false
+    return
+  }
   if (!agent || !agent.pathfinder) return
   try {
     const movement = new Movements(agent)
