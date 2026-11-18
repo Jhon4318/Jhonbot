@@ -808,7 +808,7 @@ function renderInventoryPanel () {
     dropItemCount.max = '1'
     dropItemCount.value = '1'
   }
-  inventorySelect.disabled = !connected || !items.length
+  inventorySelect.disabled = !connected || !items.length || !playerMode
   dropItemCount.disabled = !connected || !items.length || !playerMode
   document.getElementById('dropItemButton').disabled = !connected || !items.length || !playerMode
   refreshInventoryButton.disabled = !connected
