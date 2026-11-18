@@ -6,11 +6,13 @@ const { DEFAULT_MODULES, normalizeBotModules, moduleConfigComplete, isModuleAssi
 test('provides independent modules unassigned by default', () => {
   const modules = normalizeBotModules()
   assert.deepEqual(modules, {
+    inventory: { assigned: true },
     itemUse: { assigned: false, useMode: 'activate', intervalMs: 1500 },
     containerSupply: { assigned: false, x: null, y: null, z: null, items: [], intervalMs: 5000 },
     autoFishing: { assigned: false, biteTimeoutMs: 120000, recastDelayMs: 1000 },
     lookDirection: { assigned: false, yawDeg: 0, pitchDeg: 0 }
   })
+  assert.equal(DEFAULT_MODULES.inventory.assigned, true)
   assert.equal(DEFAULT_MODULES.itemUse.assigned, false)
   assert.equal(DEFAULT_MODULES.lookDirection.assigned, false)
   assert.equal(Object.hasOwn(modules, 'connectionManager'), false)
@@ -70,4 +72,5 @@ test('recognizes assigned modules explicitly', () => {
   assert.equal(isModuleAssigned(modules, 'containerSupply'), false)
   assert.equal(isModuleAssigned(modules, 'autoFishing'), true)
   assert.equal(isModuleAssigned(modules, 'lookDirection'), false)
+  assert.equal(isModuleAssigned(modules, 'inventory'), true)
 })
