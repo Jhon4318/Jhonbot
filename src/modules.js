@@ -1,6 +1,7 @@
 'use strict'
 
 const DEFAULT_MODULES = Object.freeze({
+  inventory: Object.freeze({ assigned: true }),
   itemUse: Object.freeze({ assigned: false, useMode: 'activate', intervalMs: 1500 }),
   containerSupply: Object.freeze({ assigned: false, x: null, y: null, z: null, items: Object.freeze([]), intervalMs: 5000 }),
   autoFishing: Object.freeze({ assigned: false, biteTimeoutMs: 120000, recastDelayMs: 1000 }),
@@ -53,11 +54,13 @@ function normalizeContainerItems (containerSupply) {
 }
 
 function normalizeBotModules (input = {}) {
+  const inventory = input.inventory || {}
   const itemUse = input.itemUse || {}
   const containerSupply = input.containerSupply || {}
   const autoFishing = input.autoFishing || {}
   const lookDirection = input.lookDirection || {}
   return {
+    inventory: { assigned: inventory.assigned !== false },
     itemUse: {
       assigned: itemUse.assigned === true,
       useMode: itemUse.useMode === 'consume' ? 'consume' : 'activate',
