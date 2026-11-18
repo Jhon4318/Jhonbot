@@ -60,7 +60,7 @@ function normalizeBotModules (input = {}) {
   const autoFishing = input.autoFishing || {}
   const lookDirection = input.lookDirection || {}
   return {
-    inventory: { assigned: inventory.assigned !== false },
+    inventory: { assigned: true },
     itemUse: {
       assigned: itemUse.assigned === true,
       useMode: itemUse.useMode === 'consume' ? 'consume' : 'activate',
