@@ -2145,7 +2145,7 @@ function stopBotMovement (botId, statusText = '停止中') {
 
 function setBotControl (botId, control, active) {
   const { bot, agent } = getConnectedAgent(botId)
-  requirePlayerMode(bot, '手動移動')
+  if (active) requirePlayerMode(bot, '手動移動')
   validateControl(control)
   if (active && bot.containerSupplyRunning) throw new Error('コンテナ補充実行中は手動移動できません。先にコンテナ補充を停止してください。')
   if (active) {
