@@ -1621,7 +1621,7 @@ function stopContainerSupply (bot, status = '停止中') {
   publishModuleStatus(bot)
 }
 
-function stop自動釣り (bot, status = '停止中') {
+function stopAutoFishing (bot, status = '停止中') {
   clearTimeout(bot.autoFishingTimer)
   bot.autoFishingTimer = null
   bot.autoFishingRunning = false
@@ -1637,7 +1637,7 @@ function stop自動釣り (bot, status = '停止中') {
 function stopBotModules (bot, status = '接続終了') {
   stopBotItemUse(bot, status)
   stopContainerSupply(bot, status)
-  stop自動釣り(bot, status)
+  stopAutoFishing(bot, status)
 }
 
 function getModState () {
@@ -1662,7 +1662,7 @@ async function setModInstallation (modId, installed, botId = null) {
         stopContainerSupply(target, 'Modアンインストール')
         target.modules.containerSupply.assigned = false
       } else if (mod.id === 'autoFishing') {
-        stop自動釣り(target, 'Modアンインストール')
+        stopAutoFishing(target, 'Modアンインストール')
         target.modules.autoFishing.assigned = false
       } else if (mod.id === 'lookDirection') {
         target.modules.lookDirection.assigned = false
@@ -1692,7 +1692,7 @@ async function setBotModAssignment (botId, modId, assigned) {
 
   if (mod.id === 'itemUse' && !assigned) stopBotItemUse(bot, 'BotからModを解除')
   if (mod.id === 'containerSupply' && !assigned) stopContainerSupply(bot, 'BotからModを解除')
-  if (mod.id === 'autoFishing' && !assigned) stop自動釣り(bot, 'BotからModを解除')
+  if (mod.id === 'autoFishing' && !assigned) stopAutoFishing(bot, 'BotからModを解除')
   bot.modules[mod.id] = { ...(bot.modules[mod.id] || {}), assigned: Boolean(assigned) }
   await saveSettings()
   publishBot(bot)
@@ -1710,7 +1710,7 @@ async function updateBotModules (botId, input) {
   if (next.lookDirection.assigned && !(settings.installedMods || []).includes('lookDirection')) throw new Error('先にMod管理から 視点変更 を導入してください。')
   if (JSON.stringify(bot.modules.itemUse) !== JSON.stringify(next.itemUse)) stopBotItemUse(bot, next.itemUse.assigned ? '設定変更・停止' : 'Mod未割り当て')
   if (JSON.stringify(bot.modules.containerSupply) !== JSON.stringify(next.containerSupply)) stopContainerSupply(bot, next.containerSupply.assigned ? '設定変更・停止' : 'Mod未割り当て')
-  if (JSON.stringify(bot.modules.autoFishing) !== JSON.stringify(next.autoFishing)) stop自動釣り(bot, next.autoFishing.assigned ? '設定変更・停止' : 'Mod未割り当て')
+  if (JSON.stringify(bot.modules.autoFishing) !== JSON.stringify(next.autoFishing)) stopAutoFishing(bot, next.autoFishing.assigned ? '設定変更・停止' : 'Mod未割り当て')
   bot.modules = next
   await saveSettings()
   publishBot(bot)
@@ -1964,7 +1964,7 @@ function startContainerSupply (botId) {
   return publicBot(bot)
 }
 
-function waitFor自動釣りBite (bot, agent) {
+function waitForAutoFishingBite (bot, agent) {
   const client = agent._client
   if (!client || typeof client.on !== 'function' || typeof client.removeListener !== 'function') {
     throw new Error('Bedrockパケットを監視できないため自動釣りを利用できません。')
@@ -2031,7 +2031,7 @@ function waitFor自動釣りBite (bot, agent) {
   })
 }
 
-async function run自動釣りCycle (bot) {
+async function runAutoFishingCycle (bot) {
   if (!bot.autoFishingRunning || bot.status !== 'connected' || bot.autoFishingBusy || !requiresPlayerInput(bot.movementMode)) return
   bot.autoFishingBusy = true
   const generation = bot.autoFishingGeneration
@@ -2049,7 +2049,7 @@ async function run自動釣りCycle (bot) {
     bot.autoFishingStatus = 'キャスト・アタリ待ち'
     publishModuleStatus(bot)
     try {
-      await waitFor自動釣りBite(bot, agent)
+      await waitForAutoFishingBite(bot, agent)
     } catch (error) {
       if (error.code !== 'AUTO_FISH_TIMEOUT') throw error
       pushLog(bot.label + ': 自動釣りでアタリを検出できませんでした。再キャストします。', 'warning', bot.id)
@@ -2067,18 +2067,18 @@ async function run自動釣りCycle (bot) {
     publishModuleStatus(bot)
   } catch (error) {
     if (bot.autoFishingRunning && generation === bot.autoFishingGeneration && error.code !== 'AUTO_FISH_STOPPED') {
-      stop自動釣り(bot, 'エラーで停止')
+      stopAutoFishing(bot, 'エラーで停止')
       pushLog(bot.label + ': 自動釣りを停止しました: ' + safeErrorMessage(error), 'warning', bot.id)
     }
   } finally {
     bot.autoFishingBusy = false
   }
   if (bot.autoFishingRunning && bot.status === 'connected' && generation === bot.autoFishingGeneration) {
-    bot.autoFishingTimer = setTimeout(() => run自動釣りCycle(bot), bot.modules.autoFishing.recastDelayMs)
+    bot.autoFishingTimer = setTimeout(() => runAutoFishingCycle(bot), bot.modules.autoFishing.recastDelayMs)
   }
 }
 
-function start自動釣り (botId) {
+function startAutoFishing (botId) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
   requirePlayerMode(bot, '自動釣り')
@@ -2090,12 +2090,12 @@ function start自動釣り (botId) {
   }
   if (bot.autoFishingBusy) throw new Error('現在の釣り処理が終わるまで待ってください。')
   if (!findFishingRod(agent.inventory)) throw new Error('インベントリに釣竿（fishing_rod）がありません。')
-  stop自動釣り(bot, '再設定')
+  stopAutoFishing(bot, '再設定')
   bot.autoFishingRunning = true
   bot.autoFishingStatus = '開始準備中'
   pushLog(bot.label + ': 自動釣りを開始しました。', 'info', bot.id)
   publishModuleStatus(bot)
-  void run自動釣りCycle(bot)
+  void runAutoFishingCycle(bot)
   return publicBot(bot)
 }
 
@@ -2346,9 +2346,9 @@ ipcMain.handle('bot:start-item-use', (_event, args) => startBotItemUse(args?.bot
 ipcMain.handle('bot:stop-item-use', (_event, botId) => { const bot = bots.get(botId); if (!bot) throw new Error('Botが見つかりません。'); stopBotItemUse(bot, '手動停止'); return publicBot(bot) })
 ipcMain.handle('bot:start-container-supply', (_event, botId) => startContainerSupply(botId))
 ipcMain.handle('bot:stop-container-supply', (_event, botId) => { const bot = bots.get(botId); if (!bot) throw new Error('Botが見つかりません。'); stopContainerSupply(bot, '手動停止'); return publicBot(bot) })
-ipcMain.handle('bot:start-auto-fishing', (_event, botId) => start自動釣り(botId))
+ipcMain.handle('bot:start-auto-fishing', (_event, botId) => startAutoFishing(botId))
 ipcMain.handle('bot:look-direction', (_event, args) => setBotLookDirection(args?.botId, args))
-ipcMain.handle('bot:stop-auto-fishing', (_event, botId) => { const bot = bots.get(botId); if (!bot) throw new Error('Botが見つかりません。'); stop自動釣り(bot, '手動停止'); return publicBot(bot) })
+ipcMain.handle('bot:stop-auto-fishing', (_event, botId) => { const bot = bots.get(botId); if (!bot) throw new Error('Botが見つかりません。'); stopAutoFishing(bot, '手動停止'); return publicBot(bot) })
 ipcMain.handle('world:select-session', (_event, args) => {
   const requestId = String(args?.requestId || '')
   const pending = pendingWorldSelections.get(requestId)
