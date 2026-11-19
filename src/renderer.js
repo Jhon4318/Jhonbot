@@ -478,6 +478,8 @@ function renderBotModulesPanel (refreshConfig = false) {
         ? 'プレイヤー入力を送信します。移動・アイテム使用・自動釣り・コンテナ補充などが利用できます。'
         : 'プレイヤー入力と定期的な物理更新を停止します。チャンク保持の効果はサーバー側の実装にも依存します。チャット・インベントリの受信は継続します。操作系Modやアイテム投棄にはプレイヤーモードが必要です。'
   }
+  const inventoryActionNote = document.getElementById('inventoryActionNote')
+  if (inventoryActionNote) inventoryActionNote.hidden = !connected || playerMode
 
   const itemUseAssigned = assigned('itemUse')
   const containerSupplyAssigned = assigned('containerSupply')
