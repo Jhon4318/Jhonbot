@@ -476,7 +476,7 @@ function renderBotModulesPanel (refreshConfig = false) {
       ? 'Botを選択してください。'
       : playerMode
         ? 'プレイヤー入力を送信します。移動・アイテム使用・自動釣り・コンテナ補充などが利用できます。'
-        : '定期的なプレイヤー入力とローカル物理処理を停止します。チャンクの保持やワールド効果はサーバーの仕様に依存します。インベントリ・チャットの受信や確認に利用できます。プレイヤー操作Modを使う場合はプレイヤーモードへ切り替えてください。'
+        : 'プレイヤー入力と定期的な物理更新を停止し、チャンク保持を優先します。チャット・インベントリの受信は継続します。操作系Modやアイテム投棄にはプレイヤーモードが必要です。'
   }
 
   const itemUseAssigned = assigned('itemUse')
@@ -809,9 +809,12 @@ function renderInventoryPanel () {
     dropItemCount.max = '1'
     dropItemCount.value = '1'
   }
-  inventorySelect.disabled = !connected || !items.length || !playerMode
-  dropItemCount.disabled = !connected || !items.length || !playerMode
+  // Selecting items in the UI is allowed in either mode; throwing still requires player mode.
+  inventorySelect.disabled = !connected || !items.length
+  dropItemCount.disabled = !connected || !items.length
   document.getElementById('dropItemButton').disabled = !connected || !items.length || !playerMode
+  const inventoryActionNote = document.getElementById('inventoryActionNote')
+  if (inventoryActionNote) inventoryActionNote.hidden = !connected || playerMode
   refreshInventoryButton.disabled = !connected
 }
 
