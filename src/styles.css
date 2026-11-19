@@ -1300,7 +1300,7 @@ main#dashboardGrid{flex:1 1 auto;width:100%;min-height:0;max-height:none;margin:
 
 
 /* 0.8.14: readable and scroll-safe selected Bot Mod workspace */
-.selected-bot-panel {
+#dashboardGrid .selected-bot-panel {
   min-width: 0;
   min-height: 0;
   overflow-x: hidden;
