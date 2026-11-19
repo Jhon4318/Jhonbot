@@ -180,3 +180,14 @@ test('chunk-hold mode leaves inventory refresh enabled but prevents player actio
   assert.match(renderer, /button\.disabled = !connected \|\| !playerMode/)
   assert.match(renderer, /input\.disabled = !connected \|\| !playerMode \|\| !bot\.pathfinderReady/)
 })
+
+
+test('selected Bot Mod workspace is readable, scrollable, and explains chunk-hold inventory limits', () => {
+  const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
+  assert.match(styles, /\.selected-bot-panel\s*\{[^}]*overflow-y:\s*auto;/s)
+  assert.match(styles, /\.selected-mod-summary\s*\{[^}]*display:\s*grid;/s)
+  assert.match(styles, /\.selected-mod-operation-panel \.inventory-list\s*\{[^}]*min-height:\s*120px;/s)
+  assert.match(html, /id="inventoryActionNote" class="inventory-action-note" hidden/)
+  assert.match(renderer, /inventoryActionNote\.hidden = !connected \|\| playerMode/)
+  assert.match(renderer, /inventorySelect\.disabled = !connected \|\| !items\.length/)
+})
