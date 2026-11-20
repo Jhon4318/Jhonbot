@@ -355,9 +355,10 @@ function renderControlPanel () {
   chatInput.disabled = !connected
   sendChatButton.disabled = !connected || !chatInput.value.trim()
   refreshInventoryButton.disabled = !connected
-  inventorySelect.disabled = !connected || !playerMode || !(state.inventoryByBot.get(bot?.id) || []).length
-  dropItemCount.disabled = !connected || !playerMode || !(state.inventoryByBot.get(bot?.id) || []).length
-  document.getElementById('dropItemButton').disabled = !connected || !playerMode || !(state.inventoryByBot.get(bot?.id) || []).length
+  const hasInventoryItems = !!(state.inventoryByBot.get(bot?.id) || []).length
+  inventorySelect.disabled = !connected || !hasInventoryItems
+  dropItemCount.disabled = !connected || !hasInventoryItems
+  document.getElementById('dropItemButton').disabled = !connected || !playerMode || !hasInventoryItems
   renderBotModulesPanel(false)
 }
 
