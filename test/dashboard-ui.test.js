@@ -190,4 +190,6 @@ test('selected Bot Mod workspace is readable, scrollable, and explains chunk-hol
   assert.match(html, /id="inventoryActionNote" class="inventory-action-note" hidden/)
   assert.match(renderer, /inventoryActionNote\.hidden = !connected \|\| playerMode/)
   assert.match(renderer, /inventorySelect\.disabled = !connected \|\| !items\.length/)
+  assert.match(renderer, /inventorySelect\.disabled = !connected \|\| !hasInventoryItems/)
+  assert.match(renderer, /dropItemCount\.disabled = !connected \|\| !hasInventoryItems/)
 })
