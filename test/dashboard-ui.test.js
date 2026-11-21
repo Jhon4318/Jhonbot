@@ -68,7 +68,7 @@ test('connection actions are attached to the selected Bot in the center panel', 
 })
 
 test('right panel is scoped to the selected Bot and keeps chat and logs visible', () => {
-  for (const id of ['selectedFunctionBotName', 'inventoryModuleCard', 'inventoryList', 'inventorySelect', 'selectedBotModSummary', 'selectedModCount', 'botMovementMode', 'botModeDescription', 'modulePanel', 'openModCatalogDialogButton', 'chatMessages', 'chatInput', 'logList']) {
+  for (const id of ['selectedFunctionBotName', 'selectedFunctionBotState', 'inventoryModuleCard', 'inventoryList', 'inventorySelect', 'selectedBotModSummary', 'selectedModCount', 'modulePanel', 'openModCatalogDialogButton', 'chatMessages', 'chatInput', 'logList']) {
     assert.ok(elementIds(html).includes(id), 'Missing dashboard element: ' + id)
   }
   assert.ok(renderer.includes('function selectedBot ()'))
@@ -185,11 +185,44 @@ test('chunk-hold mode leaves inventory refresh enabled but prevents player actio
 test('selected Bot Mod workspace is readable, scrollable, and explains chunk-hold inventory limits', () => {
   const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
   assert.match(styles, /\.selected-bot-panel\s*\{[^}]*overflow-y:\s*auto;/s)
-  assert.match(styles, /\.selected-mod-summary\s*\{[^}]*display:\s*grid;/s)
+  assert.match(styles, /\.selected-mod-switcher\s*\{[^}]*display:\s*flex;/s)
+  assert.match(styles, /\.selected-mod-switcher \.selected-mod-row\s*\{[^}]*flex:\s*1 1 118px;/s)
   assert.match(styles, /\.selected-mod-operation-panel \.inventory-list\s*\{[^}]*min-height:\s*120px;/s)
   assert.match(html, /id="inventoryActionNote" class="inventory-action-note" hidden/)
   assert.match(renderer, /inventoryActionNote\.hidden = !connected \|\| playerMode/)
   assert.match(renderer, /inventorySelect\.disabled = !connected \|\| !items\.length/)
   assert.match(renderer, /inventorySelect\.disabled = !connected \|\| !hasInventoryItems/)
   assert.match(renderer, /dropItemCount\.disabled = !connected \|\| !hasInventoryItems/)
+})
+
+
+test('Bot movement mode control is inside Bot operations and uses matching control styling', () => {
+  const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
+  const controlStart = html.indexOf('data-panel-id="control"')
+  const modPanelStart = html.indexOf('data-panel-id="selected-bot"')
+  const movementMode = html.indexOf('id="botMovementMode"')
+  const modeDescription = html.indexOf('id="botModeDescription"')
+  assert.ok(movementMode > controlStart && movementMode < modPanelStart, 'Movement mode must be inside Bot operations')
+  assert.ok(modeDescription > controlStart && modeDescription < modPanelStart, 'Movement mode description must be inside Bot operations')
+  assert.match(html, /class="bot-mode-card"/)
+  assert.match(styles, /\.control-panel \.bot-mode-card\s*\{/)
+  assert.match(styles, /\.control-panel \.bot-mode-field select\s*\{/)
+  const controlRendererStart = renderer.indexOf('function renderControlPanel')
+  const modRendererStart = renderer.indexOf('function renderBotModulesPanel', controlRendererStart)
+  const controlRenderer = renderer.slice(controlRendererStart, modRendererStart)
+  const modRenderer = renderer.slice(modRendererStart)
+  assert.match(controlRenderer, /modeSelect\.value = playerMode \? 'player' : 'chunk-hold'/)
+  assert.match(controlRenderer, /modeDescription\.textContent/)
+  assert.doesNotMatch(modRenderer, /const modeSelect = document\.getElementById\('botMovementMode'\)/)
+})
+
+test('Mod operation panel appears above the installed-Mod switcher and add action', () => {
+  const operationPanel = html.indexOf('id="modulePanel"')
+  const switcher = html.indexOf('id="selectedBotModSummary"')
+  const addMod = html.indexOf('id="openModCatalogDialogButton"')
+  assert.ok(operationPanel >= 0 && switcher > operationPanel, 'Operation panel must precede Mod switch buttons')
+  assert.ok(addMod > switcher, 'Add Mod action must be below the switch buttons')
+  assert.match(html, /導入済みMod/)
+  assert.match(html, /class="selected-mod-summary selected-mod-switcher"/)
+  assert.match(renderer, /button\.addEventListener\('click', \(\) => \{[\s\S]*state\.selectedModId = entry\.id/)
 })
