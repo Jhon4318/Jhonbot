@@ -290,6 +290,19 @@ function renderControlPanel () {
   const connected = !!bot && bot.status === 'connected'
   const playerMode = bot?.movementMode === 'player'
   renderSelectedConnectionControls(bot)
+  const modeSelect = document.getElementById('botMovementMode')
+  const modeDescription = document.getElementById('botModeDescription')
+  if (modeSelect) {
+    modeSelect.value = playerMode ? 'player' : 'chunk-hold'
+    modeSelect.disabled = !bot
+  }
+  if (modeDescription) {
+    modeDescription.textContent = !bot
+      ? 'Botを選択してください。'
+      : playerMode
+        ? '通常のプレイヤー入力で移動・アイテム操作・各種操作Modを利用できます。'
+        : 'プレイヤー入力と定期的な物理更新を停止します。チャンク保持の効果はサーバー側の実装にも依存します。チャット・インベントリの受信は継続します。操作系Modやアイテム投棄にはプレイヤーモードが必要です。'
+  }
   selectedBotInfo.textContent = bot
     ? `${positionText(bot)}${bot.health != null ? `  ·  HP ${bot.health}` : ''}${bot.food != null ? `  ·  満腹度 ${bot.food}` : ''}`
     : 'Botを選択すると位置と状態が表示されます。'
@@ -466,19 +479,6 @@ function renderBotModulesPanel (refreshConfig = false) {
 
   const selectedName = descriptors.find(entry => entry.id === selectedId)?.name || 'インベントリ管理'
   moduleSelectedBot.textContent = bot ? bot.label + ' · ' + selectedName : 'Botを選択してください。'
-  const modeSelect = document.getElementById('botMovementMode')
-  const modeDescription = document.getElementById('botModeDescription')
-  if (modeSelect) {
-    modeSelect.value = bot?.movementMode === 'player' ? 'player' : 'chunk-hold'
-    modeSelect.disabled = !bot
-  }
-  if (modeDescription) {
-    modeDescription.textContent = !bot
-      ? 'Botを選択してください。'
-      : playerMode
-        ? 'プレイヤー入力を送信します。移動・アイテム使用・自動釣り・コンテナ補充などが利用できます。'
-        : 'プレイヤー入力と定期的な物理更新を停止します。チャンク保持の効果はサーバー側の実装にも依存します。チャット・インベントリの受信は継続します。操作系Modやアイテム投棄にはプレイヤーモードが必要です。'
-  }
   const inventoryActionNote = document.getElementById('inventoryActionNote')
   if (inventoryActionNote) inventoryActionNote.hidden = !connected || playerMode
 
@@ -682,7 +682,7 @@ function initializeDashboardLayout () {
       showToast(updated.movementMode === 'player' ? 'プレイヤーモードに切り替えました。' : 'チャンク保持モードに切り替えました。')
     } catch (error) {
       showToast(error.message || 'Botの動作モードを変更できませんでした。')
-      renderBotModulesPanel(false)
+      renderControlPanel()
     } finally {
       select.disabled = false
     }
