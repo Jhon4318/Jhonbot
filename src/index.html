@@ -78,9 +78,13 @@
             <p class="muted small">Bot一覧で選択した親Botと、そのゲストだけを切り替えて操作します。</p>
           </div>
           <span class="step-chip">02 / CONTROL</span>
-        </div><div class="selected-connection-card"><div class="connection-summary"><div class="connection-identity"><strong id="connectionBotName">Botを選択してください</strong><span id="connectionBotState">未選択</span></div><div id="connectionActionButtons" class="connection-action-buttons"></div><span id="connectionAutoReconnect" class="auto-reconnect-indicator"></span></div><div class="connection-target-row"><label class="field connection-target-field"><span>このBotの接続先</span><select id="controlTargetSelect" disabled><option value="">Botを選択してください</option></select></label><div id="connectionTargetTools" class="connection-target-tools"></div></div><div class="connection-bot-detail" id="selectedBotInfo">Botを選択すると位置と状態が表示されます。</div></div><div class="control-select-row control-select-mode-row">
-          <label class="field control-select-field"><span>操作するBot</span><select id="controlBotSelect" disabled><option value="">Botを追加してください</option></select></label>
-          <label class="field control-select-field bot-mode-field"><span>動作モード</span><select id="botMovementMode" disabled><option value="chunk-hold">チャンク保持</option><option value="player">プレイヤー</option></select></label>
+        </div><div class="selected-connection-card"><div class="connection-summary"><div class="connection-identity"><strong id="connectionBotName">Botを選択してください</strong><span id="connectionBotState">未選択</span></div><div id="connectionActionButtons" class="connection-action-buttons"></div><span id="connectionAutoReconnect" class="auto-reconnect-indicator"></span></div><div class="connection-target-row"><label class="field connection-target-field"><span>このBotの接続先</span><select id="controlTargetSelect" disabled><option value="">Botを選択してください</option></select></label><div id="connectionTargetTools" class="connection-target-tools"></div></div><div class="connection-bot-detail" id="selectedBotInfo">Botを選択すると位置と状態が表示されます。</div></div><div class="control-select-row"><label class="field control-select-field"><span>操作するBot（親Bot / ゲスト切替）</span><select id="controlBotSelect" disabled><option value="">Botを追加してください</option></select></label><div class="auto-reconnect-status" id="autoReconnectStatus">Botを選択してください。</div></div>
+        <div class="bot-mode-card">
+          <div class="bot-mode-card-header">
+            <div><strong>Botの動作モード</strong><span>選択中のBotごとに保存されます</span></div>
+            <span class="mode-card-kicker">MOVEMENT</span>
+          </div>
+          <label class="field bot-mode-field"><span>動作モード</span><select id="botMovementMode" disabled><option value="chunk-hold">チャンク保持モード（標準）</option><option value="player">プレイヤーモード</option></select></label>
           <p class="bot-mode-description" id="botModeDescription">Botを選択してください。</p>
         </div>
         <div class="control-layout">
@@ -223,7 +227,7 @@
     <p class="module-footnote">同じBotのインベントリ操作は同時実行しません。コンテナ補充は補充先への移動中、手動移動を開始できません。</p>
   </section>
   <div class="selected-mod-block">
-    <div class="management-section-heading"><strong>Mod切り替え</strong><span id="selectedModCount" class="muted tiny">0件</span></div>
+    <div class="management-section-heading"><strong>導入済みMod</strong><span id="selectedModCount" class="muted tiny">0件</span></div>
     <div id="selectedBotModSummary" class="selected-mod-summary selected-mod-switcher"><div class="server-empty">Botを選択してください。</div></div>
     <div class="selected-mod-actions"><button id="openModCatalogDialogButton" type="button" class="secondary-button">＋ Modを追加</button></div>
   </div>

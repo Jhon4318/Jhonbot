@@ -113,8 +113,8 @@ test('guest Bot naming dialog makes the name optional and previews the Tsukuyomi
 
 
 test('Bot operation panel exposes parent and guest selection plus guest connection actions', () => {
-  assert.match(html, /<div class="control-select-row">/)
-  assert.match(html, /操作するBot（親Bot \/ ゲスト切替）/)
+  assert.match(html, /<div class="control-select-row control-select-mode-row">/)
+  assert.match(html, /操作するBot/)
   assert.match(html, /id="controlBotSelect"/)
 
   const selectControlsStart = renderer.indexOf('function renderSelectedConnectionControls')

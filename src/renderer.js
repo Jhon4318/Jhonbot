@@ -300,13 +300,16 @@ function renderControlPanel () {
     modeDescription.textContent = !bot
       ? 'Botを選択してください。'
       : playerMode
-        ? '移動・アイテム操作・操作系Modを利用できます。'
-        : '入力を停止。チャット・インベントリ受信は継続（保持効果はサーバー依存）。'
+        ? '通常のプレイヤー入力で移動・アイテム操作・各種操作Modを利用できます。'
+        : 'プレイヤー入力と定期的な物理更新を停止します。チャンク保持の効果はサーバー側の実装にも依存します。チャット・インベントリの受信は継続します。操作系Modやアイテム投棄にはプレイヤーモードが必要です。'
   }
   selectedBotInfo.textContent = bot
     ? `${positionText(bot)}${bot.health != null ? `  ·  HP ${bot.health}` : ''}${bot.food != null ? `  ·  満腹度 ${bot.food}` : ''}`
     : 'Botを選択すると位置と状態が表示されます。'
   movementStatus.textContent = bot ? bot.movementStatus || '停止中' : '操作待機中'
+  const reconnectStatus = document.getElementById('autoReconnectStatus')
+  reconnectStatus.textContent = !bot ? 'Botを選択してください。' : (bot.isGuest ? '親Botの接続管理に連動します。' : (bot.autoReconnect?.status || '自動再接続は有効です。')) + (bot?.autoReconnect?.attempts ? ' · 再試行 ' + bot.autoReconnect.attempts + '回' : '')
+
   const diag = {
     startGame: document.getElementById('diagStartGame'),
     authority: document.getElementById('diagMovementAuthority'),
