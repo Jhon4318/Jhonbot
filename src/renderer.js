@@ -36,6 +36,7 @@ const inventoryList = document.getElementById('inventoryList')
 const inventoryStatus = document.getElementById('inventoryStatus')
 const inventorySelect = document.getElementById('inventorySelect')
 const dropItemCount = document.getElementById('dropItemCount')
+const dropAllItemsButton = document.getElementById('dropAllItemsButton')
 const dropItemForm = document.getElementById('dropItemForm')
 const refreshInventoryButton = document.getElementById('refreshInventoryButton')
 
@@ -369,6 +370,7 @@ function renderControlPanel () {
   inventorySelect.disabled = !connected || !hasInventoryItems
   dropItemCount.disabled = !connected || !hasInventoryItems
   document.getElementById('dropItemButton').disabled = !connected || !playerMode || !hasInventoryItems
+  dropAllItemsButton.disabled = !connected || !playerMode || !hasInventoryItems
   renderBotModulesPanel(false)
 }
 
@@ -453,6 +455,8 @@ function renderBotModulesPanel (refreshConfig = false) {
         const info = createElement('span', 'selected-mod-info')
         info.append(createElement('strong', '', entry.name), createElement('span', '', entry.state))
         const stateChip = createElement('span', entry.running ? 'mod-state running' : 'mod-state assigned', entry.running ? '実行中' : (entry.id === 'inventory' ? '標準搭載' : '割り当て済み'))
+        button.title = entry.name + ' · ' + entry.state
+        button.setAttribute('aria-label', entry.name + ' · ' + entry.state)
         button.append(info, stateChip)
         button.addEventListener('click', () => {
           if (state.selectedModId === entry.id) return
@@ -813,6 +817,7 @@ function renderInventoryPanel () {
   inventorySelect.disabled = !connected || !items.length
   dropItemCount.disabled = !connected || !items.length
   document.getElementById('dropItemButton').disabled = !connected || !items.length || !playerMode
+  dropAllItemsButton.disabled = !connected || !items.length || !playerMode
   const inventoryActionNote = document.getElementById('inventoryActionNote')
   if (inventoryActionNote) inventoryActionNote.hidden = !connected || playerMode
   refreshInventoryButton.disabled = !connected
@@ -1199,6 +1204,7 @@ dropItemForm.addEventListener('submit', async (event) => {
   if (!Number.isInteger(count) || count < 1 || count > item.count) return showToast('投げる個数を確認してください。')
   const button = document.getElementById('dropItemButton')
   button.disabled = true
+  dropAllItemsButton.disabled = true
   try {
     const snapshot = await api.tossItem({ botId: bot.id, slot, count })
     state.inventoryByBot.set(bot.id, snapshot.items || [])
@@ -1207,6 +1213,39 @@ dropItemForm.addEventListener('submit', async (event) => {
     showToast(`${item.displayName || item.name} を ${count} 個投げました。`)
   } catch (error) {
     showToast(error.message || 'アイテムを投げられませんでした。')
+  } finally {
+    renderInventoryPanel()
+  }
+})
+
+dropAllItemsButton.addEventListener('click', async () => {
+  const bot = selectedBot()
+  if (!bot) return showToast('操作するBotを選択してください。')
+  if (bot.status !== 'connected') return showToast('ワールド参加中のBotを選択してください。')
+  if (bot.movementMode !== 'player') return showToast('すべて投げる操作にはプレイヤーモードが必要です。')
+  const items = state.inventoryByBot.get(bot.id) || []
+  const totalCount = items.reduce((sum, item) => sum + (Number.isInteger(item.count) ? item.count : 0), 0)
+  if (!items.length || totalCount < 1) return showToast('投げるアイテムがありません。')
+  const confirmed = window.confirm(
+    `「${bot.label}」のメインインベントリとホットバーにあるすべてのアイテムを地面に投げます。\n\n対象：${items.length}スタック / ${totalCount}個\n防具・オフハンドは対象外です。\nこの操作は取り消せません。実行しますか？`
+  )
+  if (!confirmed) return
+
+  dropAllItemsButton.disabled = true
+  document.getElementById('dropItemButton').disabled = true
+  try {
+    const snapshot = await api.tossAllItems({ botId: bot.id })
+    state.inventoryByBot.set(bot.id, snapshot.items || [])
+    state.inventoryUpdatedAtByBot.set(bot.id, snapshot.updatedAt || '')
+    renderInventoryPanel()
+    showToast(`${snapshot.droppedStacks}スタック・${snapshot.droppedItems}個を投げました。`)
+  } catch (error) {
+    try {
+      const snapshot = await api.getInventory(bot.id)
+      state.inventoryByBot.set(bot.id, snapshot.items || [])
+      state.inventoryUpdatedAtByBot.set(bot.id, snapshot.updatedAt || '')
+    } catch {}
+    showToast(error.message || 'すべて投げる操作に失敗しました。')
   } finally {
     renderInventoryPanel()
   }

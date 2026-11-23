@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld('botApp', {
   getChatHistory: (id) => ipcRenderer.invoke('bot:get-chat-history', id),
   getInventory: (id) => ipcRenderer.invoke('bot:get-inventory', id),
   tossItem: (args) => ipcRenderer.invoke('bot:toss-item', args),
+  tossAllItems: (args) => ipcRenderer.invoke('bot:toss-all-items', args),
   openAuthUrl: (url) => ipcRenderer.invoke('auth:open-url', url),
   onBotUpdated: (callback) => subscribe('bot:updated', callback),
   onBotRemoved: (callback) => subscribe('bot:removed', callback),

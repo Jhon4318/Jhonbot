@@ -1812,6 +1812,7 @@ function startBotItemUse (botId, slot) {
   if (!(settings.installedMods || []).includes('itemUse')) throw new Error('アイテム使用 が導入されていません。')
   if (!isModuleAssigned(bot.modules, 'itemUse')) throw new Error('先にアイテム使用Modを割り当ててください。')
   const { agent } = getConnectedAgent(botId)
+  if (bot.inventoryDropBusy) throw new Error('アイテム投棄が終わるまで待ってください。')
   if (bot.containerSupplyRunning || bot.containerSupplyBusy || bot.autoFishingRunning || bot.autoFishingBusy) throw new Error('コンテナ補充または自動釣りの実行中はアイテムを使用できません。')
   if (bot.itemUseBusy || bot.itemUseRunning) throw new Error('このBotはすでにアイテム操作を実行中です。')
   const index = Number(slot)

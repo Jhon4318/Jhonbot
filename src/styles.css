@@ -1886,3 +1886,77 @@ main#dashboardGrid{flex:1 1 auto;width:100%;min-height:0;max-height:none;margin:
   .selected-mod-switcher .selected-mod-row { min-height: 26px; padding: 4px 7px; }
   .selected-mod-switcher .selected-mod-info strong { max-width: 128px; font-size: 8px; }
 }
+
+
+/* 0.8.17: Mod selector grid and clear inventory drop actions */
+#dashboardGrid .selected-mod-summary.selected-mod-switcher {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(78px, 1fr));
+  align-items: stretch;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+}
+#dashboardGrid .selected-mod-switcher .selected-mod-row {
+  display: flex;
+  flex: initial;
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 4px;
+  border-radius: 7px;
+}
+#dashboardGrid .selected-mod-switcher .selected-mod-info {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+}
+#dashboardGrid .selected-mod-switcher .selected-mod-info strong {
+  display: block;
+  width: 100%;
+  max-width: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+  line-height: 1.25;
+}
+#dashboardGrid .selected-mod-switcher .selected-mod-info span,
+#dashboardGrid .selected-mod-switcher .mod-state {
+  display: none !important;
+}
+.drop-item-actions {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+}
+.selected-mod-operation-panel .drop-item-actions button {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 7px;
+  font-size: 10px;
+  white-space: normal;
+}
+.selected-mod-operation-panel .drop-item-actions .danger-button {
+  border-color: rgba(220, 105, 116, .55);
+  color: #ffc0c4;
+  background: rgba(110, 43, 55, .35);
+}
+.selected-mod-operation-panel .drop-item-actions .danger-button:hover:not(:disabled) {
+  border-color: #ef8992;
+  background: rgba(140, 49, 64, .48);
+}
+.selected-mod-operation-panel .drop-item-actions button:disabled {
+  opacity: .42;
+  cursor: not-allowed;
+}
+@media (max-width: 400px) {
+  .drop-item-actions { grid-template-columns: minmax(0, 1fr); }
+}

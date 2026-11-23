@@ -185,8 +185,9 @@ test('chunk-hold mode leaves inventory refresh enabled but prevents player actio
 test('selected Bot Mod workspace is readable, scrollable, and explains chunk-hold inventory limits', () => {
   const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
   assert.match(styles, /\.selected-bot-panel\s*\{[^}]*overflow-y:\s*auto;/s)
-  assert.match(styles, /\.selected-mod-switcher\s*\{[^}]*display:\s*flex;/s)
-  assert.match(styles, /\.selected-mod-switcher \.selected-mod-row\s*\{[^}]*flex:\s*0 0 auto;/s)
+  assert.match(styles, /#dashboardGrid \.selected-mod-summary\.selected-mod-switcher\s*\{[^}]*display:\s*grid;/s)
+  assert.match(styles, /grid-template-columns:\s*repeat\(auto-fit, minmax\(78px, 1fr\)\)/)
+  assert.match(styles, /#dashboardGrid \.selected-mod-switcher \.selected-mod-row\s*\{[^}]*width:\s*100%;/s)
   assert.match(styles, /\.selected-mod-switcher \.selected-mod-info span,[\s\S]*display:\s*none !important;/)
   assert.match(styles, /\.selected-mod-operation-panel \.inventory-list\s*\{[^}]*min-height:\s*120px;/s)
   assert.match(html, /id="inventoryActionNote" class="inventory-action-note" hidden/)
@@ -228,4 +229,26 @@ test('Mod operation panel appears above the installed-Mod switcher and add actio
   assert.match(html, /Mod切り替え/)
   assert.match(html, /class="selected-mod-summary selected-mod-switcher"/)
   assert.match(renderer, /button\.addEventListener\('click', \(\) => \{[\s\S]*state\.selectedModId = entry\.id/)
+})
+
+
+test('inventory panel offers individual and confirmed full-inventory dropping', () => {
+  for (const id of ['dropItemButton', 'dropAllItemsButton', 'inventorySelect', 'dropItemCount']) {
+    assert.match(html, new RegExp('id="' + id + '"'))
+  }
+  assert.match(renderer, /api\.tossAllItems\(\{ botId: bot\.id \}\)/)
+  assert.match(renderer, /window\.confirm\([\s\S]*防具・オフハンドは対象外です/)
+  assert.match(renderer, /dropAllItemsButton\.disabled = !connected \|\| !items\.length \|\| !playerMode/)
+  assert.match(renderer, /dropAllItemsButton\.disabled = !connected \|\| !hasInventoryItems/)
+  assert.match(html, /class="drop-item-actions"/)
+})
+
+test('individual and full inventory drops wait for Bedrock stack request responses', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
+  const dropModule = fs.readFileSync(path.join(__dirname, '..', 'src', 'inventory-drop.js'), 'utf8')
+  assert.match(main, /await tossStackConfirmed\(agent, request\.item, request\.count\)/)
+  assert.match(main, /await tossStackConfirmed\(agent, item, item\.count\)/)
+  assert.match(dropModule, /itemStackResponse/)
+  assert.match(dropModule, /サーバーがアイテム投棄を拒否しました/)
+  assert.match(dropModule, /応答が届きませんでした/)
 })
