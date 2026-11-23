@@ -241,7 +241,7 @@ test('inventory panel offers individual and confirmed full-inventory dropping', 
   assert.match(renderer, /api\.tossAllItems\(\{ botId: bot\.id \}\)/)
   assert.match(renderer, /window\.confirm\([\s\S]*防具・オフハンドは対象外です/)
   assert.match(renderer, /dropAllItemsButton\.disabled = !connected \|\| !items\.length/)
-  assert.match(renderer, /dropAllItemsButton\.disabled = !connected \|\| !playerMode \|\| !hasInventoryItems/)
+  assert.match(renderer, /dropAllItemsButton\.disabled = !connected \|\| !hasInventoryItems/)
   assert.match(html, /class="drop-item-actions"/)
 })
 
