@@ -22,10 +22,12 @@ function createInventoryDropPlan (inventory) {
 function createItemStackResponseWaiter (agent, requestId, timeoutMs = 5000) {
   let timer = null
   let settled = false
+  let onResponse = null
+  let onEnd = null
   const cleanup = () => {
     if (timer) clearTimeout(timer)
-    agent.removeListener('itemStackResponse', onResponse)
-    agent.removeListener('end', onEnd)
+    if (onResponse) agent.removeListener('itemStackResponse', onResponse)
+    if (onEnd) agent.removeListener('end', onEnd)
   }
   const promise = new Promise((resolve, reject) => {
     const finish = (error, value) => {
@@ -35,7 +37,7 @@ function createItemStackResponseWaiter (agent, requestId, timeoutMs = 5000) {
       if (error) reject(error)
       else resolve(value)
     }
-    const onResponse = (status, responseId, response) => {
+    onResponse = (status, responseId, response) => {
       if (Number(responseId) !== requestId) return
       if (status !== 'ok') {
         finish(new Error(`サーバーがアイテム投棄を拒否しました（status=${String(status)}）。インベントリを更新して再試行してください。`))
@@ -43,7 +45,7 @@ function createItemStackResponseWaiter (agent, requestId, timeoutMs = 5000) {
       }
       finish(null, response)
     }
-    const onEnd = reason => finish(new Error('投棄応答を待っている間にBotが切断されました: ' + String(reason || 'disconnected')))
+    onEnd = reason => finish(new Error('投棄応答を待っている間にBotが切断されました: ' + String(reason || 'disconnected')))
     agent.on('itemStackResponse', onResponse)
     agent.once('end', onEnd)
     timer = setTimeout(() => {
