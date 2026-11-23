@@ -1,5 +1,12 @@
 'use strict'
 
+const ITEM_STACK_RESPONSE_STATUS_NAMES = {
+  49: 'FailedToValidateSrcSlot',
+  50: 'FailedToValidateDstSlot',
+  59: 'CannotDropItem',
+  61: 'InvalidSourceContainer'
+}
+
 function createInventoryDropPlan (inventory) {
   const items = typeof inventory?.items === 'function' ? inventory.items() : []
   if (!Array.isArray(items)) return []
@@ -40,7 +47,15 @@ function createItemStackResponseWaiter (agent, requestId, timeoutMs = 5000) {
     onResponse = (status, responseId, response) => {
       if (Number(responseId) !== requestId) return
       if (status !== 'ok') {
-        finish(new Error(`ã‚µãƒ¼ãƒãƒ¼ãŒã‚¢ã‚¤ãƒ†ãƒ æŠ•æ£„ã‚’æ‹’å¦ã—ã¾ã—ãŸï¼ˆstatus=${String(status)}ï¼‰ã€‚ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒªã‚’æ›´æ–°ã—ã¦å†è©¦è¡Œã—ã¦ãã ã•ã„ã€‚`))
+        const numericStatus = Number(status)
+        const statusName = ITEM_STACK_RESPONSE_STATUS_NAMES[numericStatus]
+        const description = numericStatus === 49
+          ? 'ã‚µãƒ¼ãƒãƒ¼ãŒæŠ•æ£„å…ƒã‚¹ãƒ­ãƒƒãƒˆã‚’æ¤œè¨¼ã§ãã¾ã›ã‚“ã§ã—ãŸ'
+          : 'ã‚µãƒ¼ãƒãƒ¼ãŒã‚¢ã‚¤ãƒ†ãƒ æŠ•æ£„ã‚’æ‹’å¦ã—ã¾ã—ãŸ'
+        const reason = statusName ? `${statusName} / status=${String(status)}` : `status=${String(status)}`
+        const error = new Error(`${description}ï¼ˆ${reason}ï¼‰ã€‚ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒªã‚’æ›´æ–°ã—ã¦å†è©¦è¡Œã—ã¦ãã ã•ã„ã€‚`)
+        error.status = Number.isFinite(numericStatus) ? numericStatus : status
+        finish(error)
         return
       }
       finish(null, response)
@@ -62,62 +77,120 @@ function createItemStackResponseWaiter (agent, requestId, timeoutMs = 5000) {
   }
 }
 
-async function tossStackConfirmed (agent, item, count, options = {}) {
-  if (!agent || typeof agent.tossStack !== 'function') {
-    throw new Error('Bedrockç”¨ã®ã‚¢ã‚¤ãƒ†ãƒ æŠ•æ£„APIãŒåˆ©ç”¨ã§ãã¾ã›ã‚“ã€‚')
-  }
-  if (typeof agent.on !== 'function' || typeof agent.removeListener !== 'function') {
-    throw new Error('Bedrockã®ã‚¢ã‚¤ãƒ†ãƒ æŠ•æ£„å¿œç­”ã‚’ç›£è¦–ã§ãã¾ã›ã‚“ã€‚')
-  }
-  const slot = Number(item?.slot)
-  if (!Number.isInteger(slot) || slot < 9 || slot > 44) {
-    throw new Error('æŠ•ã’ã‚‹ã‚¢ã‚¤ãƒ†ãƒ ã®ã‚¹ãƒ­ãƒƒãƒˆãŒä¸æ­£ã§ã™ã€‚')
-  }
-  const liveItem = agent.inventory?.slots?.[slot]
-  if (!liveItem || !Number.isInteger(liveItem.count) || liveItem.count < 1) {
-    throw new Error('é¸æŠã—ãŸã‚¹ãƒ­ãƒƒãƒˆã«ã‚¢ã‚¤ãƒ†ãƒ ãŒã‚ã‚Šã¾ã›ã‚“ã€‚')
-  }
-  if (liveItem.stackId == null) {
-    throw new Error('ã‚¢ã‚¤ãƒ†ãƒ ã®Bedrock Stack IDã‚’å–å¾—ã§ãã¾ã›ã‚“ã€‚ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒªã‚’æ›´æ–°ã—ã¦å†è©¦è¡Œã—ã¦ãã ã•ã„ã€‚')
-  }
-  const amount = count == null ? liveItem.count : Number(count)
-  if (!Number.isInteger(amount) || amount < 1 || amount > liveItem.count) {
-    throw new Error(`æŠ•ã’ã‚‹å€‹æ•°ã¯1ã€œ${liveItem.count}å€‹ã§å…¥åŠ›ã—ã¦ãã ã•ã„ã€‚`)
-  }
+function inventorySlotForBedrockSlot (bedrockSlot) {
+  return bedrockSlot < 9 ? bedrockSlot + 36 : bedrockSlot
+}
 
-  // The pinned Bedrock Mineflayer plugin decrements this shared request counter by two immediately
-  // before sending item_stack_request. Match its request ID to catch rejected and missing responses.
-  const currentRequestId = agent._stackRequest?.id
-  if (!Number.isSafeInteger(currentRequestId)) {
-    throw new Error('Bedrockã®ItemStackRequestç®¡ç†æƒ…å ±ã‚’å–å¾—ã§ãã¾ã›ã‚“ã€‚')
+function createInventorySlotChangeWaiter (agent, slot, expectedCount, itemType, timeoutMs = 5000) {
+  const client = agent?._client
+  if (!client || typeof client.on !== 'function' || typeof client.removeListener !== 'function') {
+    throw new Error('ã‚µãƒ¼ãƒãƒ¼å´ã®ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒªæ›´æ–°ã‚’ç›£è¦–ã§ãã¾ã›ã‚“ã€‚')
   }
-  const requestId = currentRequestId - 2
-  const beforeCount = liveItem.count
-  const waiter = createItemStackResponseWaiter(agent, requestId, options.timeoutMs || 5000)
-  const responseOutcome = waiter.promise.then(
-    response => ({ response }),
-    error => ({ error })
-  )
-  try {
-    await agent.tossStack(liveItem, amount)
-    const outcome = await responseOutcome
-    if (outcome.error) throw outcome.error
-    const remainingItem = agent.inventory?.slots?.[slot]
-    const remainingCount = remainingItem && Number.isInteger(remainingItem.count) ? remainingItem.count : 0
-    if (remainingCount > beforeCount - amount) {
-      throw new Error('Bedrockã‚µãƒ¼ãƒãƒ¼ã¯æŠ•æ£„è¦æ±‚ã‚’å—ç†ã—ã¾ã—ãŸãŒã€ãƒ­ãƒ¼ã‚«ãƒ«ã®ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒªãŒæ›´æ–°ã•ã‚Œã¾ã›ã‚“ã§ã—ãŸã€‚å†å–å¾—ã—ã¦ãã ã•ã„ã€‚')
+  const bedrockSlot = slot >= 36 ? slot - 36 : slot
+  let timer = null
+  let settled = false
+  let onSlot = null
+  let onContent = null
+  let onEnd = null
+  const currentCount = () => {
+    const current = agent.inventory?.slots?.[slot]
+    if (!current || current.type !== itemType) return 0
+    return Number.isInteger(current.count) ? current.count : 0
+  }
+  const cleanup = () => {
+    if (timer) clearTimeout(timer)
+    if (onSlot) client.removeListener('inventory_slot', onSlot)
+    if (onContent) client.removeListener('inventory_content', onContent)
+    if (onEnd) agent.removeListener('end', onEnd)
+  }
+  const promise = new Promise((resolve, reject) => {
+    const finish = (error, value) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      if (error) reject(error)
+      else resolve(value)
     }
-    return {
-      requestId,
-      slot,
-      requestedCount: amount,
-      droppedCount: beforeCount - remainingCount,
-      remainingCount,
-      response: outcome.response
+    const verify = () => {
+      const remainingCount = currentCount()
+      if (remainingCount <= expectedCount) {
+        finish(null, { remainingCount })
+      }
     }
-  } finally {
-    waiter.cancel()
+    onSlot = packet => {
+      if (packet?.window_id !== 'inventory' || Number(packet.slot) !== bedrockSlot) return
+      verify()
+    }
+    onContent = packet => {
+      if (packet?.window_id !== 'inventory') return
+      verify()
+    }
+    onEnd = reason => finish(new Error('ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒªæ›´æ–°ã‚’å¾…ã£ã¦ã„ã‚‹é–“ã«BotãŒåˆ‡æ–­ã•ã‚Œã¾ã—ãŸ: ' + String(reason || 'disconnected')))
+    client.on('inventory_slot', onSlot)
+    client.on('inventory_content', onContent)
+    agent.once('end', onEnd)
+    timer = setTimeout(() => {
+      const remainingCount = currentCount()
+      if (remainingCount <= expectedCount) {
+        finish(null, { remainingCount })
+      } else {
+        finish(new Error('å¾“æ¥ã®æŠ•æ£„è¦æ±‚ã‚’é€ä¿¡ã—ã¾ã—ãŸãŒã€ã‚µãƒ¼ãƒãƒ¼ã‹ã‚‰ã‚¤ãƒ³ãƒ™ãƒ³ãƒˆãƒªæ›´æ–°ãŒå±Šãã¾ã›ã‚“ã§ã—ãŸã€‚ã‚¢ã‚¤ãƒ†ãƒ ãŒæ®‹ã£ã¦ã„ã‚‹ã‹ç¢ºèªã—ã¦ãã ã•ã„ã€‚'))
+      }
+    }, timeoutMs)
+  })
+  return {
+    promise,
+    cancel () {
+      if (settled) return
+      settled = true
+      cleanup()
+    }
   }
 }
 
-module.exports = { createInventoryDropPlan, createItemStackResponseWaiter, tossStackConfirmed }
+function createLegacyInventoryDropPacket (agent, item, count) {
+  if (typeof agent?._bedrockItemToNotce !== 'function') {
+    throw new Error('Bedrockã®å¾“æ¥å‹ã‚¤ãƒ³ãƒ™ï#«š*Wš¯–ş¢š«
+‹
+“ƒ–’'š>mA'3
++ûo
+Oœ¤(€ô(€½¹ÍĞ‰•‘É½­M±½Ğ€ô¥Ñ•´¹Í±½Ğ€øô€ÌØ€ü¥Ñ•´¹Í±½Ğ€´€ÌØ€è¥Ñ•´¹Í±½Ğ(€½¹ÍĞ½±‘%Ñ•´€ô…•¹Ğ¹}‰•‘É½­%Ñ•µQ½9½Ñ ¡¥Ñ•´¤(€¥˜€ …½±‘%Ñ•´ñğ€…9Õµ‰•È¹¥Í%¹Ñ••È¡½±‘%Ñ•´¹¹•Ñİ½É­}¥¤ñğ½±‘%Ñ•´¹¹•Ñİ½É­}¥€ôôô€À¤ì(€€€Ñ¡É½Ü¹•ÜÉÉ½È Ÿš*Wš–¾û¢Æ‡¹	•‘É½¯
+‹
+“ƒš–‚Ç
+K–’'š>oŸ7ûo
+Oœ¤(€ô(€½¹ÍĞ•µÁÑå%Ñ•´€ô€ ¤€ôø€¡ì¹•Ñİ½É­}¥è€À°½Õ¹Ğè€À°µ•Ñ…‘…Ñ„è€À°¡…Í}ÍÑ…­}¥è™…±Í”°‰±½­}ÉÕ¹Ñ¥µ•}¥è€Àô¤(€½¹ÍĞ‘É½ÁÁ•‘%Ñ•´€ôì€¸¸¹½±‘%Ñ•´°½Õ¹Ğô(€½¹ÍĞÉ•µ…¥¹¥¹½Õ¹Ğ€ô¥Ñ•´¹½Õ¹Ğ€´½Õ¹Ğ(€½¹ÍĞÉ•µ…¥¹¥¹%Ñ•´€ôÉ•µ…¥¹¥¹½Õ¹Ğ€ø€À(€€€€üì€¸¸¹½±‘%Ñ•´°½Õ¹ĞèÉ•µ…¥¹¥¹½Õ¹Ğô(€€€€è•µÁÑå%Ñ•´ ¤((€É•ÑÕÉ¸ì(€€€ÑÉ…¹Í…Ñ¥½¸èì(€€€€€±•…äèì±•…å}É•ÅÕ•ÍÑ}¥è€Àô°(€€€€€ÑÉ…¹Í…Ñ¥½¹}ÑåÁ”è€¹½Éµ…°œ°(€€€€€…Ñ¥½¹Ìèl(€€€€€€€ì(€€€€€€€€€Í½ÕÉ•}ÑåÁ”è€İ½É±‘}¥¹Ñ•É…Ñ¥½¸œ°(€€€€€€€€€™±…}ÁÉ•Í•¹”èÑÉÕ”°(€€€€€€€€€™±…Ìè€À°(€€€€€€€€€Í±½Ğè€À°(€€€€€€€€€½±‘}¥Ñ•´è•µÁÑå%Ñ•´ ¤°(€€€€€€€€€¹•İ}¥Ñ•´è‘É½ÁÁ•‘%Ñ•´(€€€€€€€ô°(€€€€€€€ì(€€€€€€€€€Í½ÕÉ•}ÑåÁ”è€½¹Ñ…¥¹•Èœ°(€€€€€€€€€½¹Ñ…¥¹•É}ÁÉ•Í•¹”èÑÉÕ”°(€€€€€€€€€İ¥¹‘½İ}¥è€À°(€€€€€€€€€™±…}ÁÉ•Í•¹”èÑÉÕ”°(€€€€€€€€€Í±½Ğè‰•‘É½­M±½Ğ°(€€€€€€€€€½±‘}¥Ñ•´è½±‘%Ñ•´°(€€€€€€€€€¹•İ}¥Ñ•´èÉ•µ…¥¹¥¹%Ñ•´(€€€€€€€ô(€€€€€t(€€€ô(€ô)ô()…Íå¹Œ™Õ¹Ñ¥½¸Ñ½ÍÍY¥…1•…å%¹Ù•¹Ñ½ÉåQÉ…¹Í…Ñ¥½¸€¡…•¹Ğ°Í±½Ğ°½Õ¹Ğ°‰•™½É•½Õ¹Ğ°¥Ñ•µQåÁ”°½ÁÑ¥½¹Ì€ôíô¤ì(€½¹ÍĞ±¥Ù•%Ñ•´€ô…•¹Ğ¹¥¹Ù•¹Ñ½Éäü¹Í±½ÑÌü¹mÍ±½Ñt(€¥˜€ …±¥Ù•%Ñ•´ñğ±¥Ù•%Ñ•´¹ÑåÁ”€„ôô¥Ñ•µQåÁ”ñğ±¥Ù•%Ñ•´¹½Õ¹Ğ€„ôô‰•™½É•½Õ¹Ğ¤ì(€€€Ñ¡É½Ü¹•ÜÉÉ½È Ÿš*Wš¢ššÆ3š.K–B›W
+3–ú3¯
+“ÏgÏ#«3–’'–2[_û_–º'–£»
+–7¢¦›¢†3
+K’â·š¶‹_û_œ¤(€ô(€½¹ÍĞÁ…­•Ğ€ôÉ•…Ñ•1•…å%¹Ù•¹Ñ½ÉåÉ½ÁA…­•Ğ¡…•¹Ğ°±¥Ù•%Ñ•´°½Õ¹Ğ¤(€½¹ÍĞ•áÁ•Ñ•‘½Õ¹Ğ€ô‰•™½É•½Õ¹Ğ€´½Õ¹Ğ(€½¹ÍĞİ…¥Ñ•È€ôÉ•…Ñ•%¹Ù•¹Ñ½ÉåM±½Ñ¡…¹•]…¥Ñ•È (€€€…•¹Ğ°(€€€Í±½Ğ°(€€€•áÁ•Ñ•‘½Õ¹Ğ°(€€€¥Ñ•µQåÁ”°(€€€½ÁÑ¥½¹Ì¹Ñ¥µ•½ÕÑ5Ìñğ€ÔÀÀÀ(€€¤(€ÑÉäì(€€€½¹ÍĞ±¥•¹Ğ€ô…•¹Ğ¹}±¥•¹Ğ(€€€¥˜€¡ÑåÁ•½˜±¥•¹Ğ¹ÅÕ•Õ”€ôôô€™Õ¹Ñ¥½¸œ¤±¥•¹Ğ¹ÅÕ•Õ” ¥¹Ù•¹Ñ½Éå}ÑÉ…¹Í…Ñ¥½¸œ°Á…­•Ğ¤(€€€•±Í”±¥•¹Ğ¹İÉ¥Ñ” ¥¹Ù•¹Ñ½Éå}ÑÉ…¹Í…Ñ¥½¸œ°Á…­•Ğ¤(€€€½¹ÍĞÕÁ‘…Ñ”€ô…İ…¥Ğİ…¥Ñ•È¹ÁÉ½µ¥Í”(€€€É•ÑÕÉ¸ì(€€€€€Í±½Ğ°(€€€€€É•ÅÕ•ÍÑ•‘½Õ¹Ğè½Õ¹Ğ°(€€€€€‘É½ÁÁ•‘½Õ¹Ğè‰•™½É•½Õ¹Ğ€´ÕÁ‘…Ñ”¹É•µ…¥¹¥¹½Õ¹Ğ°(€€€€€É•µ…¥¹¥¹½Õ¹ĞèÕÁ‘…Ñ”¹É•µ…¥¹¥¹½Õ¹Ğ°(€€€€€µ•Ñ¡½è€¥¹Ù•¹Ñ½Éå}ÑÉ…¹Í…Ñ¥½¸œ(€€€ô(€ô™¥¹…±±äì(€€€İ…¥Ñ•È¹…¹•° ¤(€ô)ô()…Íå¹Œ™Õ¹Ñ¥½¸Ñ½ÍÍMÑ…­½¹™¥Éµ•€¡…•¹Ğ°¥Ñ•´°½Õ¹Ğ°½ÁÑ¥½¹Ì€ôíô¤ì(€¥˜€ ……•¹ĞñğÑåÁ•½˜…•¹Ğ¹Ñ½ÍÍMÑ…¬€„ôô€™Õ¹Ñ¥½¸œ¤ì(€€€Ñ¡É½Ü¹•ÜÉÉ½È 	•‘É½¯R£»
+‹
+“ƒš*WšA'3–"§R£Ÿ7ûo
+Oœ¤(€ô(€¥˜€¡ÑåÁ•½˜…•¹Ğ¹½¸€„ôô€™Õ¹Ñ¥½¸œñğÑåÁ•½˜…•¹Ğ¹É•µ½Ù•1¥ÍÑ•¹•È€„ôô€™Õ¹Ñ¥½¸œ¤ì(€€€Ñ¡É½Ü¹•ÜÉÉ½È 	•‘É½¯»
+‹
+“ƒš*Wš–şs¶S
+Kn¢š[Ÿ7ûo
+Oœ¤(€ô(€½¹ÍĞÍ±½Ğ€ô9Õµ‰•È¡¥Ñ•´ü¹Í±½Ğ¤(€¥˜€ …9Õµ‰•È¹¥Í%¹Ñ••È¡Í±½Ğ¤ñğÍ±½Ğ€ğ€äñğÍ±½Ğ€ø€ĞĞ¤ì(€€€Ñ¡É½Ü¹•ÜÉÉ½È Ÿš*WK
+/
+‹
+“ƒ»
+ç·#3’â7š¶Ÿgœ¤(€ô(€½¹ÍĞ±¥Ù•%Ñ•´€ô…•¹Ğ¹¥¹Ù•¹Ñ½Éäü¹Í±½ÑÌü¹mÍ±½Ñt(€¥˜€ …±¥Ù•%Ñ•´ñğ€…9Õµ‰•È¹¥Í%¹Ñ••È¡±¥Ù•%Ñ•´¹½Õ¹Ğ¤ñğ±¥Ù•%Ñ•´¹½Õ¹Ğ€ğ€Ä¤ì(€€€Ñ¡É½Ü¹•ÜÉÉ½È Ÿ¦ãš*{_
+ç·#¯
+‹
+“ƒ3
++ûo
+Oœ¤(€ô(€¥˜€¡±¥Ù•%Ñ•´¹ÍÑ…­%€ôô¹Õ±°¤ì(€€€Ñ¡É½Ü¹•ÜÉÉ½È Ÿ
+‹
+“ƒ¹	•‘É½¬MÑ…¬%
+K–>[–ú_Ÿ7ûo
+O
+“ÏgÏ#«
+KšnÓšZÃ_›–7¢¦›¢†3_›?ƒWœ¤(€ô(€½¹ÍĞ…µ½Õ¹Ğ€ô½Õ¹Ğ€ôô¹Õ±°€ü±¥Ù•%Ñ•´¹½Õ¹Ğ€è9Õµ‰•È¡½Õ¹Ğ¤(€¥˜€ …9Õµ‰•È¹¥Í%¹Ñ••È¡…µ½Õ¹Ğ¤ñğ…µ½Õ¹Ğ€ğ€Äñğ…µ½Õ¹Ğ€ø±¥Ù•%Ñ•´¹½Õ¹Ğ¤ì(€€€Ñ¡É½Ü¹•ÜÉÉ½È¡ƒš*WK
+/–/šVÃ¼Çp‘í±¥Ù•%Ñ•´¹½Õ¹Ñ÷–/Ÿ–—–*o_›?ƒW	€¤(€ô((€€¼¼Q¡”Á¥¹¹•	•‘É½¬5¥¹•™±…å•ÈÁ±Õ¥¸‘•É•µ•¹ÑÌÑ¡¥ÌÍ¡…É•É•ÅÕ•ÍĞ½Õ¹Ñ•È‰äÑİ¼¥µµ•‘¥…Ñ•±ä(€€¼¼‰•™½É”Í•¹‘¥¹œ¥Ñ•µ}ÍÑ…­}É•ÅÕ•ÍĞ¸5…Ñ ¥ÑÌÉ•ÅÕ•ÍĞ%Ñ¼…Ñ É•©•Ñ•…¹µ¥ÍÍ¥¹œÉ•ÍÁ½¹Í•Ì¸(€½¹ÍĞÕÉÉ•¹ÑI•ÅÕ•ÍÑ%€ô…•¹Ğ¹}ÍÑ…­I•ÅÕ•ÍĞü¹¥(€¥˜€ …9Õµ‰•È¹¥ÍM…™•%¹Ñ••È¡ÕÉÉ•¹ÑI•ÅÕ•ÍÑ%¤¤ì(€€€Ñ¡É½Ü¹•ÜÉÉ½È 	•‘É½¯¹%Ñ•µMÑ…­I•ÅÕ•ÍÓº‡Bš–‚Ç
+K–>[–ú_Ÿ7ûo
+Oœ¤(€ô(€½¹ÍĞÉ•ÅÕ•ÍÑ%€ôÕÉÉ•¹ÑI•ÅÕ•ÍÑ%€´€È(€½¹ÍĞ‰•™½É•½Õ¹Ğ€ô±¥Ù•%Ñ•´¹½Õ¹Ğ(€½¹ÍĞİ…¥Ñ•È€ôÉ•…Ñ•%Ñ•µMÑ…­I•ÍÁ½¹Í•]…¥Ñ•È¡…•¹Ğ°É•ÅÕ•ÍÑ%°½ÁÑ¥½¹Ì¹Ñ¥µ•½ÕÑ5Ìñğ€ÔÀÀÀ¤(€½¹ÍĞÉ•ÍÁ½¹Í•=ÕÑ½µ”€ôİ…¥Ñ•È¹ÁÉ½µ¥Í”¹Ñ¡•¸ (€€€É•ÍÁ½¹Í”€ôø€¡ìÉ•ÍÁ½¹Í”ô¤°(€€€•ÉÉ½È€ôø€¡ì•ÉÉ½Èô¤(€€¤(€ÑÉäì(€€€…İ…¥Ğ…•¹Ğ¹Ñ½ÍÍMÑ…¬¡±¥Ù•%Ñ•´°…µ½Õ¹Ğ¤(€€€½¹ÍĞ½ÕÑ½µ”€ô…İ…¥ĞÉ•ÍÁ½¹Í•=ÕÑ½µ”(€€€¥˜€¡½ÕÑ½µ”¹•ÉÉ½È¤ì(€€€€€€¼¼	•‘É½¬‘•™¥¹•Ì%Ñ•µMÑ…­I•ÅÕ•ÍÑÑ¥½¹QåÁ”¹É½À™½ÈÑ¡”¥¹Ù•¹Ñ½ÉäÍÉ••¸¸DµÍÑå±”İ½É±‘É½ÁÌÕÍ”(€€€€€€¼¼%¹Ù•¹Ñ½ÉåQÉ…¹Í…Ñ¥½¸¥¹ÍÑ•…¸M½µ”‰½ĞÍ•ÉÙ•ÉÌÉ•©•ĞÑ¡”U$µ½¹±äÉ•ÅÕ•ÍĞİ¥Ñ ÍÑ…ÑÕÌ€Ğä¸(€€€€€¥˜€¡9Õµ‰•È¡½ÕÑ½µ”¹•ÉÉ½È¹ÍÑ…ÑÕÌ¤€„ôô€Ğä¤Ñ¡É½Ü½ÕÑ½µ”¹•ÉÉ½È(€€€€€½¹ÍĞ™…±±‰…¬€ô…İ…¥ĞÑ½ÍÍY¥…1•…å%¹Ù•¹Ñ½ÉåQÉ…¹Í…Ñ¥½¸ (€€€€€€€…•¹Ğ°(€€€€€€€Í±½Ğ°(€€€€€€€…µ½Õ¹Ğ°(€€€€€€€‰•™½É•½Õ¹Ğ°(€€€€€€€±¥Ù•%Ñ•´¹ÑåÁ”°(€€€€€€€½ÁÑ¥½¹Ì(€€€€€€¤(€€€€€É•ÑÕÉ¸ìÉ•ÅÕ•ÍÑ%°€¸¸¹™…±±‰…¬ô(€€€ô(€€€½¹ÍĞÉ•µ…¥¹¥¹%Ñ•´€ô…•¹Ğ¹¥¹Ù•¹Ñ½Éäü¹Í±½ÑÌü¹mÍ±½Ñt(€€€½¹ÍĞÉ•µ…¥¹¥¹½Õ¹Ğ€ôÉ•µ…¥¹¥¹%Ñ•´€˜˜9Õµ‰•È¹¥Í%¹Ñ••È¡É•µ…¥¹¥¹%Ñ•´¹½Õ¹Ğ¤€üÉ•µ…¥¹%Ñ•´¹½Õ¹Ğ€è€À(€€€¥˜€¡É•µ…¥¹¥¹½Õ¹Ğ€ø‰•™½É•½Õ¹Ğ€´…µ½Õ¹Ğ¤ì(€€€€€Ñ¡É½Ü¹•ÜÉÉ½È 	•‘É½¯ŠsR£»–úOšv—3
+‹
+“ƒš*Wš»–şs¶S3–Æ+7ûo
+OŸW¦Z/g–º'–£»
+–7¢¦›¢†3
+K’â·š¶‹Ÿûo
+Oœ¤(€€€ô(€€€É•ÑÕÉ¸ì(€€€€€É•ÅÕ•ÍÑ%°(€€€€€Í±½Ğ°(€€€€€É•ÅÕ•ÍÑ•‘½Õ¹Ğè…µ½Õ¹Ğ°(€€€€€‘É½ÁÁ•‘½Õ¹Ğè‰•™½É•½Õ¹Ğ€´É•µ…¥¹¥¹½Õ¹Ğ°(€€€€€É•µ…¥¹¥¹½Õ¹Ğ°(€€€€€µ•Ñ¡½è€¥Ñ•µ}ÍÑ…­}É•ÅÕ•ÍĞœ(€€€ô(€ô™¥¹…±±äì(€€€İ…¥Ñ•È¹…¹•° ¤(€ô)ô()µ½‘Õ±”¹•áÁ½ÉÑÌ€ôì(€É•…Ñ•%¹Ù•¹Ñ½ÉåÉ½ÁA±…¸°(€É•…Ñ•%Ñ•µMÑ…­I•ÍÁ½¹Í•]…¥Ñ•È°(€É•…Ñ•%¹Ù•¹Ñ½ÉåM±½Ñ¡…¹•]…¥Ñ•È°(€É•…Ñ•1•…å%¹Ù•¹Ñ½ÉåÉ½ÁA…­•Ğ°(€Ñ½ÍÍMÑ…­½¹™¥Éµ•)ô
