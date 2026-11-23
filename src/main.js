@@ -24,6 +24,7 @@ const { createEncryptedAuthCacheFactory, hasEncryptedAuthCache } = require('./au
 const { restoreSavedAuthflow } = require('./auth-restore')
 const { isFishingHookSpawn, isFishingHookBite, findFishingRod, runtimeEntityId } = require('./auto-fishing')
 const { normalizeChatMessage, normalizeDropRequest, createInventorySnapshot } = require('./bot-actions')
+const { createInventoryDropPlan, tossStackConfirmed } = require('./inventory-drop')
 const { installSubClientSupport, createGuestLoginTokens, createSubClientLoginDispatcher, MAX_SUB_CLIENTS } = require('./subclients')
 const { nextGuestSubClientId, resolveGuestLabel } = require('./guest-naming')
 const { installBedrockDimensionSync } = require('./bedrock-dimension-sync')
@@ -269,6 +270,7 @@ function createBotRecord (saved) {
     lastServerTick: '',
     chatHistory: [],
     inventoryPublishTimer: null,
+    inventoryDropBusy: false,
     itemUseTimer: null,
     itemUseRunning: false,
     itemUseBusy: false,
@@ -1496,6 +1498,7 @@ function applyBotMovementMode (bot, agent = bot?.agent) {
 async function setBotMovementMode (botId, inputMode) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
+  if (bot.inventoryDropBusy) throw new Error('アイテム投棄中は動作モードを変更できません。')
   const next = normalizeBotMovementMode(inputMode)
   if (bot.movementMode === next) return publicBot(bot)
 
@@ -1579,16 +1582,62 @@ function queueBotInventoryPublish (bot, agent) {
   }, 80)
 }
 
+function assertInventoryDropAvailable (bot) {
+  if (bot.inventoryDropBusy) throw new Error('別のアイテム投棄処理が実行中です。')
+  if (bot.itemUseBusy || bot.itemUseRunning || bot.containerSupplyBusy || bot.containerSupplyRunning || bot.autoFishingBusy || bot.autoFishingRunning) {
+    throw new Error('別のModがインベントリを操作中です。')
+  }
+}
+
 async function tossBotItem (botId, input) {
   const { bot, agent } = getConnectedAgent(botId)
   requirePlayerMode(bot, 'アイテムを投げる操作')
-  if (bot.itemUseBusy || bot.itemUseRunning || bot.containerSupplyBusy || bot.containerSupplyRunning || bot.autoFishingBusy || bot.autoFishingRunning) throw new Error('別のModがインベントリを操作中です。')
+  assertInventoryDropAvailable(bot)
   const request = normalizeDropRequest(input, agent.inventory)
-  if (typeof agent.tossStack !== 'function') throw new Error('Bedrock用のアイテム投棄APIが利用できません。')
-  await agent.tossStack(request.item, request.count)
-  if (bot.agent !== agent) throw new Error('投棄処理中にBotが切断されました。')
-  pushLog(`${bot.label}: ${request.item.displayName || request.item.name} x ${request.count} を投げました。`, 'success', bot.id)
-  return publishBotInventory(bot)
+  bot.inventoryDropBusy = true
+  try {
+    const result = await tossStackConfirmed(agent, request.item, request.count)
+    if (bot.agent !== agent) throw new Error('投棄処理中にBotが切断されました。')
+    pushLog(`${bot.label}: ${request.item.displayName || request.item.name} x ${result.droppedCount} を投げました。`, 'success', bot.id)
+    return publishBotInventory(bot)
+  } finally {
+    bot.inventoryDropBusy = false
+  }
+}
+
+async function tossAllBotItems (botId) {
+  const { bot, agent } = getConnectedAgent(botId)
+  requirePlayerMode(bot, 'すべて投げる操作')
+  assertInventoryDropAvailable(bot)
+  const plan = createInventoryDropPlan(agent.inventory)
+  if (!plan.length) throw new Error('投げるアイテムがありません。')
+
+  bot.inventoryDropBusy = true
+  let droppedStacks = 0
+  let droppedItems = 0
+  try {
+    for (const entry of plan) {
+      if (bot.agent !== agent) throw new Error('一括投棄中にBotが切断されました。')
+      requirePlayerMode(bot, 'すべて投げる操作')
+      const item = agent.inventory?.slots?.[entry.slot]
+      if (!item || !Number.isInteger(item.count) || item.count < 1) continue
+      const result = await tossStackConfirmed(agent, item, item.count)
+      droppedStacks++
+      droppedItems += result.droppedCount
+    }
+    if (bot.agent !== agent) throw new Error('一括投棄中にBotが切断されました。')
+    pushLog(`${bot.label}: インベントリの ${droppedStacks} スタック・${droppedItems} 個を投げました。`, 'success', bot.id)
+    return { ...publishBotInventory(bot), droppedStacks, droppedItems }
+  } catch (error) {
+    if (droppedStacks > 0) {
+      pushLog(`${bot.label}: 一括投棄を中断しました（${droppedStacks}スタック・${droppedItems}個は投棄済み）: ${safeErrorMessage(error)}`, 'warning', bot.id)
+      throw new Error(`一括投棄を中断しました。${droppedStacks}スタック・${droppedItems}個は投棄済みです。残りのアイテムは保持されています。原因：${safeErrorMessage(error)}`)
+    }
+    throw error
+  } finally {
+    bot.inventoryDropBusy = false
+    if (bot.agent === agent) publishBotInventory(bot)
+  }
 }
 
 function publishModuleStatus (bot) {
@@ -1739,7 +1788,7 @@ async function useBotItemOnce (botId, slot, options = {}) {
   requirePlayerMode(bot, 'アイテム使用')
   if (!(settings.installedMods || []).includes('itemUse')) throw new Error('アイテム使用 が導入されていません。')
   if (!isModuleAssigned(bot.modules, 'itemUse')) throw new Error('このBotにアイテム使用Modが割り当てられていません。')
-  if (bot.containerSupplyRunning || bot.containerSupplyBusy || bot.autoFishingRunning || bot.autoFishingBusy) throw new Error('コンテナ補充または自動釣りの実行中はインベントリ操作できません。')
+  if (bot.inventoryDropBusy || bot.containerSupplyRunning || bot.containerSupplyBusy || bot.autoFishingRunning || bot.autoFishingBusy) throw new Error('投棄・コンテナ補充・自動釣りの実行中はアイテム操作できません。')
   if ((bot.itemUseBusy || bot.itemUseRunning) && !options.fromCycle) throw new Error('このBotはすでにアイテム操作を実行中です。')
   if (!options.fromCycle) bot.itemUseBusy = true
   const generation = bot.itemUseGeneration
@@ -1953,6 +2002,7 @@ function startContainerSupply (botId) {
   if (!isModuleAssigned(bot.modules, 'containerSupply')) throw new Error('先にコンテナ補充Modを割り当ててください。')
   if (!moduleConfigComplete(bot.modules.containerSupply)) throw new Error('補充先のX/Y/Z、アイテム名、目標個数を設定してください。')
   getConnectedAgent(botId)
+  if (bot.inventoryDropBusy) throw new Error('アイテム投棄が終わるまで待ってください。')
   if (bot.containerSupplyBusy) throw new Error('現在のコンテナ処理が終わるまで待ってください。')
   if (bot.itemUseBusy || bot.itemUseRunning || bot.autoFishingBusy || bot.autoFishingRunning) throw new Error('アイテム使用または自動釣りの実行中はコンテナ補充を開始できません。')
   if (bot.movementStatus.startsWith('手動操作中')) throw new Error('手動移動を停止してからコンテナ補充を開始してください。')
@@ -2086,6 +2136,7 @@ function startAutoFishing (botId) {
   if (!(settings.installedMods || []).includes('autoFishing')) throw new Error('自動釣りが導入されていません。')
   if (!isModuleAssigned(bot.modules, 'autoFishing')) throw new Error('先に自動釣りModを割り当ててください。')
   const { agent } = getConnectedAgent(botId)
+  if (bot.inventoryDropBusy) throw new Error('アイテム投棄が終わるまで待ってください。')
   if (bot.itemUseBusy || bot.itemUseRunning || bot.containerSupplyBusy || bot.containerSupplyRunning) {
     throw new Error('アイテム使用またはコンテナ補充の実行中は自動釣りを開始できません。')
   }
@@ -2399,6 +2450,7 @@ ipcMain.handle('bot:send-chat', (_event, args) => sendBotChat(args?.botId, args?
 ipcMain.handle('bot:get-chat-history', (_event, botId) => getBotChatHistory(botId))
 ipcMain.handle('bot:get-inventory', (_event, botId) => getBotInventory(botId))
 ipcMain.handle('bot:toss-item', (_event, args) => tossBotItem(args?.botId, args))
+ipcMain.handle('bot:toss-all-items', (_event, args) => tossAllBotItems(args?.botId))
 ipcMain.handle('auth:open-url', async (_event, rawUrl) => {
   const url = isAllowedAuthUrl(rawUrl)
   if (!url) throw new Error('許可されていない認証URLです。')
