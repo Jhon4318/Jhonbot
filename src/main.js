@@ -1591,7 +1591,6 @@ function assertInventoryDropAvailable (bot) {
 
 async function tossBotItem (botId, input) {
   const { bot, agent } = getConnectedAgent(botId)
-  requirePlayerMode(bot, 'アイテムを投げる操作')
   assertInventoryDropAvailable(bot)
   const request = normalizeDropRequest(input, agent.inventory)
   bot.inventoryDropBusy = true
@@ -1607,7 +1606,6 @@ async function tossBotItem (botId, input) {
 
 async function tossAllBotItems (botId) {
   const { bot, agent } = getConnectedAgent(botId)
-  requirePlayerMode(bot, 'すべて投げる操作')
   assertInventoryDropAvailable(bot)
   const plan = createInventoryDropPlan(agent.inventory)
   if (!plan.length) throw new Error('投げるアイテムがありません。')
@@ -1618,7 +1616,6 @@ async function tossAllBotItems (botId) {
   try {
     for (const entry of plan) {
       if (bot.agent !== agent) throw new Error('一括投棄中にBotが切断されました。')
-      requirePlayerMode(bot, 'すべて投げる操作')
       const item = agent.inventory?.slots?.[entry.slot]
       if (!item || !Number.isInteger(item.count) || item.count < 1) continue
       const result = await tossStackConfirmed(agent, item, item.count)

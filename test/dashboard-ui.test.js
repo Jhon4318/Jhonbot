@@ -174,11 +174,13 @@ test('Bot Mods are selected inline and operation panel switches without assignme
   assert.doesNotMatch(renderer, /renderModAssignmentDialog|saveModAssignments|modAssignmentDrafts/)
 })
 
-test('chunk-hold mode leaves inventory refresh enabled but prevents player actions', () => {
-  assert.match(renderer, /document\.getElementById\('dropItemButton'\)\.disabled = !connected \|\| !playerMode/)
+test('chunk-hold mode still allows inventory dropping while preventing player-input actions', () => {
+  assert.match(renderer, /document\.getElementById\('dropItemButton'\)\.disabled = !connected \|\| !hasInventoryItems/)
+  assert.match(renderer, /dropAllItemsButton\.disabled = !connected \|\| !hasInventoryItems/)
   assert.match(renderer, /refreshInventoryButton\.disabled = !connected/)
   assert.match(renderer, /button\.disabled = !connected \|\| !playerMode/)
   assert.match(renderer, /input\.disabled = !connected \|\| !playerMode \|\| !bot\.pathfinderReady/)
+  assert.match(html, /チャンク保持モードでもアイテムの投棄は利用できます/)
 })
 
 
@@ -238,7 +240,7 @@ test('inventory panel offers individual and confirmed full-inventory dropping', 
   }
   assert.match(renderer, /api\.tossAllItems\(\{ botId: bot\.id \}\)/)
   assert.match(renderer, /window\.confirm\([\s\S]*防具・オフハンドは対象外です/)
-  assert.match(renderer, /dropAllItemsButton\.disabled = !connected \|\| !items\.length \|\| !playerMode/)
+  assert.match(renderer, /dropAllItemsButton\.disabled = !connected \|\| !items\.length/)
   assert.match(renderer, /dropAllItemsButton\.disabled = !connected \|\| !playerMode \|\| !hasInventoryItems/)
   assert.match(html, /class="drop-item-actions"/)
 })
@@ -251,4 +253,17 @@ test('individual and full inventory drops wait for Bedrock stack request respons
   assert.match(dropModule, /itemStackResponse/)
   assert.match(dropModule, /サーバーがアイテム投棄を拒否しました/)
   assert.match(dropModule, /応答が届きませんでした/)
+})
+
+
+test('Bedrock inventory drops do not require player movement mode', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
+  const singleStart = main.indexOf('async function tossBotItem')
+  const bulkStart = main.indexOf('async function tossAllBotItems')
+  const bulkEnd = main.indexOf('function publishModuleStatus', bulkStart)
+  const singleDrop = main.slice(singleStart, bulkStart)
+  const bulkDrop = main.slice(bulkStart, bulkEnd)
+  assert.ok(singleStart >= 0 && bulkStart > singleStart && bulkEnd > bulkStart)
+  assert.doesNotMatch(singleDrop, /requirePlayerMode/)
+  assert.doesNotMatch(bulkDrop, /requirePlayerMode/)
 })

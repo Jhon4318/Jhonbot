@@ -369,8 +369,8 @@ function renderControlPanel () {
   const hasInventoryItems = !!(state.inventoryByBot.get(bot?.id) || []).length
   inventorySelect.disabled = !connected || !hasInventoryItems
   dropItemCount.disabled = !connected || !hasInventoryItems
-  document.getElementById('dropItemButton').disabled = !connected || !playerMode || !hasInventoryItems
-  dropAllItemsButton.disabled = !connected || !playerMode || !hasInventoryItems
+  document.getElementById('dropItemButton').disabled = !connected || !hasInventoryItems
+  dropAllItemsButton.disabled = !connected || !hasInventoryItems
   renderBotModulesPanel(false)
 }
 
@@ -816,8 +816,8 @@ function renderInventoryPanel () {
   // Selecting items in the UI is allowed in either mode; throwing still requires player mode.
   inventorySelect.disabled = !connected || !items.length
   dropItemCount.disabled = !connected || !items.length
-  document.getElementById('dropItemButton').disabled = !connected || !items.length || !playerMode
-  dropAllItemsButton.disabled = !connected || !items.length || !playerMode
+  document.getElementById('dropItemButton').disabled = !connected || !items.length
+  dropAllItemsButton.disabled = !connected || !items.length
   const inventoryActionNote = document.getElementById('inventoryActionNote')
   if (inventoryActionNote) inventoryActionNote.hidden = !connected || playerMode
   refreshInventoryButton.disabled = !connected
@@ -1222,7 +1222,6 @@ dropAllItemsButton.addEventListener('click', async () => {
   const bot = selectedBot()
   if (!bot) return showToast('操作するBotを選択してください。')
   if (bot.status !== 'connected') return showToast('ワールド参加中のBotを選択してください。')
-  if (bot.movementMode !== 'player') return showToast('すべて投げる操作にはプレイヤーモードが必要です。')
   const items = state.inventoryByBot.get(bot.id) || []
   const totalCount = items.reduce((sum, item) => sum + (Number.isInteger(item.count) ? item.count : 0), 0)
   if (!items.length || totalCount < 1) return showToast('投げるアイテムがありません。')
