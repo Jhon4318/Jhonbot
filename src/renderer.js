@@ -452,7 +452,8 @@ function renderBotModulesPanel (refreshConfig = false) {
     { id: 'itemUse', name: 'アイテム使用', state: status.itemUse || '未実行', cardId: 'itemUseModuleCard', running: status.itemUseRunning === true },
     { id: 'containerSupply', name: 'コンテナ補充', state: status.containerSupply || '未実行', cardId: 'containerSupplyModuleCard', running: status.containerSupplyRunning === true },
     { id: 'autoFishing', name: '自動釣り', state: status.autoFishing || '未実行', cardId: 'autoFishingModuleCard', running: status.autoFishingRunning === true },
-    { id: 'lookDirection', name: '視点変更', state: status.lookDirection || '未実行', cardId: 'lookDirectionModuleCard', running: false }
+    { id: 'lookDirection', name: '視点変更', state: status.lookDirection || '未実行', cardId: 'lookDirectionModuleCard', running: false },
+    { id: 'skin', name: 'スキン変更', state: bot?.skin?.name ? '適用素材：' + bot.skin.name : 'スキン素材未設定', cardId: 'skinModuleCard', running: false }
   ]
   const entries = descriptors.filter(entry => assigned(entry.id))
   if (!entries.some(entry => entry.id === state.selectedModId)) state.selectedModId = 'inventory'
@@ -493,7 +494,8 @@ function renderBotModulesPanel (refreshConfig = false) {
   document.getElementById('containerSupplyModuleCard').hidden = selectedId !== 'containerSupply' || !assigned('containerSupply')
   document.getElementById('autoFishingModuleCard').hidden = selectedId !== 'autoFishing' || !assigned('autoFishing')
   document.getElementById('lookDirectionModuleCard').hidden = selectedId !== 'lookDirection' || !assigned('lookDirection')
-  document.getElementById('moduleSaveButton').hidden = selectedId === 'inventory' || !bot
+  document.getElementById('skinModuleCard').hidden = selectedId !== 'skin' || !assigned('skin')
+  document.getElementById('moduleSaveButton').hidden = selectedId === 'inventory' || selectedId === 'skin' || !bot
 
   const selectedName = descriptors.find(entry => entry.id === selectedId)?.name || 'インベントリ管理'
   moduleSelectedBot.textContent = bot ? bot.label + ' · ' + selectedName : 'Botを選択してください。'
@@ -504,6 +506,7 @@ function renderBotModulesPanel (refreshConfig = false) {
   const containerSupplyAssigned = assigned('containerSupply')
   const autoFishingAssigned = assigned('autoFishing')
   const lookDirectionAssigned = assigned('lookDirection')
+  importSkinButton.disabled = !bot || !assigned('skin')
   document.getElementById('itemUseStatus').textContent = status.itemUse || '未実行'
   document.getElementById('containerSupplyStatus').textContent = status.containerSupply || '未実行'
   document.getElementById('autoFishingStatus').textContent = status.autoFishing || '未実行'
@@ -744,7 +747,8 @@ async function saveModulesFromForm () {
       assigned: savedModules.lookDirection?.assigned === true,
       yawDeg: document.getElementById('lookDirectionYaw').value,
       pitchDeg: document.getElementById('lookDirectionPitch').value
-    }
+    },
+    skin: { assigned: savedModules.skin?.assigned === true }
   }
   const updated = await api.updateModules({ botId: bot.id, modules })
   state.bots.set(updated.id, updated)
@@ -969,7 +973,7 @@ async function chooseHotbarSlot (slot) {
 
 function renderSkinPanel (bot) {
   const skin = bot?.skin
-  importSkinButton.disabled = !bot
+  importSkinButton.disabled = !bot || bot.modules?.skin?.assigned !== true
   if (!skin) {
     skinPreviewImage.hidden = true
     skinPreviewPlaceholder.hidden = false
