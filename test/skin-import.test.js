@@ -125,3 +125,89 @@ test('PlayerSkin wire format decodes all base64 strings and converts animated im
   assert.equal(wire.animations[0].animation_frames, 4)
   assert.equal(wire.animations[0].expression_type, 1)
 })
+
+
+function varInt (value) {
+  const bytes = []
+  let remaining = value >>> 0
+  do {
+    let byte = remaining & 0x7f
+    remaining >>>= 7
+    if (remaining) byte |= 0x80
+    bytes.push(byte)
+  } while (remaining)
+  return Buffer.from(bytes)
+}
+
+function syntheticTsukuyomiPersonaBin () {
+  const skinId = Buffer.from('persona-test-skin-4d')
+  const resourcePatch = {
+    geometry: {
+      default: 'geometry.persona_test',
+      animated_face: 'geometry.animated_face_persona_test'
+    }
+  }
+  const geometry = {
+    format_version: '1.14.0',
+    'minecraft:geometry': [
+      { description: { identifier: 'geometry.persona_test', texture_width: 256, texture_height: 256 }, bones: [] },
+      { description: { identifier: 'geometry.animated_face_persona_test', texture_width: 32, texture_height: 64 }, bones: [] }
+    ]
+  }
+  const geometryBytes = Buffer.from(JSON.stringify(geometry))
+  const pixels = Buffer.alloc(256 * 256 * 4)
+  for (let i = 0; i < pixels.length; i += 4) {
+    pixels[i] = 180
+    pixels[i + 1] = 90
+    pixels[i + 2] = 40
+    pixels[i + 3] = 255
+  }
+  const version = Buffer.from('1.14.0')
+  return {
+    buffer: Buffer.concat([
+      Buffer.from([skinId.length]), skinId,
+      varInt(Buffer.byteLength(JSON.stringify(resourcePatch))), Buffer.from(JSON.stringify(resourcePatch)),
+      Buffer.from([0, 1, 0, 0, 0, 1, 0, 0]), // 256 x 256, little-endian uint32
+      varInt(pixels.length), pixels,
+      Buffer.alloc(512), // SkinStealer padding before its length-prefixed geometry record
+      varInt(geometryBytes.length), geometryBytes,
+      Buffer.from([version.length]), version
+    ]),
+    pixels,
+    geometry,
+    resourcePatch
+  }
+}
+
+test('imports the actual Tsukuyomi Persona BIN layout including its 4D geometry and animated-face ResourcePatch', () => {
+  const sample = syntheticTsukuyomiPersonaBin()
+  const imported = importSkinEntries([{ name: 'skin.bin', data: sample.buffer }])
+  assert.equal(imported.skinData.SkinImageWidth, 256)
+  assert.equal(imported.skinData.SkinImageHeight, 256)
+  assert.equal(Buffer.from(imported.skinData.SkinData, 'base64').length, 256 * 256 * 4)
+  assert.deepEqual(Buffer.from(imported.skinData.SkinData, 'base64'), sample.pixels)
+  assert.equal(imported.meta.geometryId, 'geometry.persona_test')
+  assert.equal(imported.meta.hasGeometry, true)
+  assert.equal(imported.meta.sourceFormat, 'Tsukuyomi Persona BIN')
+  assert.equal(imported.skinData.PersonaSkin, true)
+  assert.deepEqual(JSON.parse(Buffer.from(imported.skinData.SkinResourcePatch, 'base64').toString()), sample.resourcePatch)
+  assert.deepEqual(JSON.parse(Buffer.from(imported.skinData.SkinGeometryData, 'base64').toString()), sample.geometry)
+  assert.equal(Buffer.from(imported.skinData.SkinGeometryDataEngineVersion, 'base64').toString(), '1.14.0')
+  assert.match(imported.previewDataUrl, /^data:image\/png;base64,/)
+  const wire = clientSkinToPlayerSkin(imported.skinData)
+  assert.deepEqual(JSON.parse(wire.skin_resource_pack), sample.resourcePatch)
+  assert.deepEqual(JSON.parse(wire.geometry_data), sample.geometry)
+})
+
+test('Persona BIN wins over a companion preview PNG so its original RGBA and 4D metadata are retained', () => {
+  const sample = syntheticTsukuyomiPersonaBin()
+  const wrongPreview = pngBuffer(64, 64)
+  const imported = importSkinEntries([
+    { name: 'skin.png', data: wrongPreview },
+    { name: 'skin.bin', data: sample.buffer }
+  ])
+  assert.equal(imported.skinData.SkinImageWidth, 256)
+  assert.equal(imported.skinData.SkinImageHeight, 256)
+  assert.deepEqual(Buffer.from(imported.skinData.SkinData, 'base64'), sample.pixels)
+  assert.equal(imported.meta.geometryId, 'geometry.persona_test')
+})
