@@ -302,3 +302,28 @@ test('world chat and connection logs retain scrollable history rather than rende
   assert.ok(main.includes("agent.on('chat'"))
   assert.ok(main.includes("recordBotChatMessage(bot, 'incoming'"))
 })
+
+
+test('Skin Change is a selectable Mod inside the operation panel, not a separate card', () => {
+  const moduleGrid = html.indexOf('class="module-grid"')
+  const skinCard = html.indexOf('id="skinModuleCard"')
+  assert.ok(moduleGrid >= 0 && skinCard > moduleGrid, 'Skin operation card must live inside the Mod operation grid')
+  assert.ok(renderer.includes("{ id: 'skin', name: 'スキン変更'"))
+  assert.ok(renderer.includes("skinModuleCard').hidden = selectedId !== 'skin'"))
+  assert.ok(renderer.includes("moduleSaveButton').hidden = selectedId === 'inventory' || selectedId === 'skin'"))
+  const registry = fs.readFileSync(path.join(__dirname, '..', 'src', 'mod-registry.js'), 'utf8')
+  const modules = fs.readFileSync(path.join(__dirname, '..', 'src', 'modules.js'), 'utf8')
+  assert.ok(registry.includes("id: 'skin', name: 'スキン変更'"))
+  assert.ok(modules.includes("skin: Object.freeze({ assigned: false })"))
+})
+
+test('dashboard fit keeps inventory actions and chat composer visible while logs stay compact and scrollable', () => {
+  const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
+  const fit = styles.slice(styles.lastIndexOf('0.9.1 screenshot fit'))
+  assert.ok(fit.includes('height: clamp(72px, 10vh, 96px)'))
+  assert.ok(fit.includes('.chat-panel .chat-form'))
+  assert.ok(fit.includes('min-height: 35px'))
+  assert.ok(fit.includes('overflow-y: auto !important'))
+  assert.ok(fit.includes('min-height: 0 !important'))
+  assert.ok(fit.includes('gap: 1px'))
+})
