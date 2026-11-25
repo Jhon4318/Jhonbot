@@ -134,3 +134,48 @@ test('invalid source is rejected before opening a temporary inventory window', a
   await assert.rejects(moveInventorySlotConfirmed(agent, 36, 9), /アイテムがありません/)
   assert.equal(agent.didOpenInventory, undefined)
 })
+
+
+test('same-container moves do not open the player inventory window', async () => {
+  const agent = createAgent({ type: 7, count: 10 })
+  agent.inventory.slots[10] = null
+  await moveInventorySlotConfirmed(agent, 9, 10)
+  assert.equal(agent.didOpenInventory, undefined)
+  assert.equal(agent.inventory.slots[9], null)
+  assert.equal(agent.inventory.slots[10].type, 1)
+})
+
+test('hotbar-to-hotbar moves do not open the player inventory window', async () => {
+  const agent = createAgent({ type: 7, count: 10 })
+  agent.inventory.slots[37] = null
+  await moveInventorySlotConfirmed(agent, 36, 37)
+  assert.equal(agent.didOpenInventory, undefined)
+  assert.equal(agent.inventory.slots[36], null)
+  assert.equal(agent.inventory.slots[37].type, 7)
+})
+
+test('cross-container move waits for a delayed container_open event', async () => {
+  const agent = createAgent({ type: 7, count: 10 })
+  agent.currentWindow = null
+  agent._stack.withInventoryOpen = async () => {
+    setTimeout(() => { agent.currentWindow = {} }, 85)
+    return () => {
+      agent.didCloseInventory = true
+      agent.currentWindow = null
+    }
+  }
+  const result = await moveInventorySlotConfirmed(agent, 36, 9, undefined, { windowTimeoutMs: 400, pollIntervalMs: 10 })
+  assert.equal(result.itemsMoved, 10)
+  assert.equal(agent.didCloseInventory, true)
+})
+
+test('cross-container move reports an inventory-window timeout and still calls close cleanup', async () => {
+  const agent = createAgent({ type: 7, count: 10 })
+  agent.currentWindow = null
+  agent._stack.withInventoryOpen = async () => () => { agent.didCloseInventory = true }
+  await assert.rejects(
+    moveInventorySlotConfirmed(agent, 36, 9, undefined, { windowTimeoutMs: 30, pollIntervalMs: 5 }),
+    /container_open|インベントリ画面/
+  )
+  assert.equal(agent.didCloseInventory, true)
+})
