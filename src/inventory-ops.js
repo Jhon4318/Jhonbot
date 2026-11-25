@@ -38,6 +38,19 @@ async function moveInventorySlotConfirmed (agent, fromSlot, toSlot, count, optio
   const bedrockTo = toBedrockInventorySlot(to)
   if (from === to) throw new Error('移動元と移動先が同じです。')
 
+  const crossesHotbarBoundary = (from >= 36) !== (to >= 36)
+  let closeInventory = () => {}
+  if (crossesHotbarBoundary && !agent.currentWindow) {
+    if (typeof agent._stack?.withInventoryOpen !== 'function') {
+      throw new Error('メインインベントリとホットバーをまたぐ移動には、Bedrockのインベントリ画面を開く機能が必要です。')
+    }
+    closeInventory = await agent._stack.withInventoryOpen()
+    if (!agent.currentWindow) {
+      try { closeInventory() } catch {}
+      throw new Error('Bedrockのインベントリ画面を開けませんでした。')
+    }
+  }
+
   const inventory = agent.inventory?.slots
   const source = inventory?.[from]
   const destination = inventory?.[to]
@@ -86,6 +99,7 @@ async function moveInventorySlotConfirmed (agent, fromSlot, toSlot, count, optio
     return { requestId, response, itemsMoved: amount, fromSlot: from, toSlot: to }
   } finally {
     waiter.cancel()
+    try { closeInventory() } catch {}
   }
 }
 
