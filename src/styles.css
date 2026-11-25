@@ -2366,9 +2366,9 @@ main#dashboardGrid{flex:1 1 auto;width:100%;min-height:0;max-height:none;margin:
 /* Compact, readable log rows; keep the list scrollable. */
 .log-panel .log-list {
   flex: 1 1 0;
-  min-height: 0;
-  max-height: none;
-  height: auto;
+  min-height: 0 !important;
+  max-height: none !important;
+  height: auto !important;
   margin-top: 4px;
   padding: 4px 6px;
   justify-content: flex-start;
