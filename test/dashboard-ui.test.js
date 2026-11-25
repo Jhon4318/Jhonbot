@@ -352,7 +352,7 @@ test('Bedrock world chat formats translation messages instead of showing raw tra
 test('log history follows new entries unless the user has scrolled away, and long rows are clamped', () => {
   const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
   assert.ok(renderer.includes('state.logAutoFollow'))
-  assert.ok(renderer.includes('logList.addEventListener(\\'scroll\\''))
+  assert.ok(renderer.includes("logList.addEventListener('scroll'"))
   assert.ok(renderer.includes('requestAnimationFrame'))
   assert.ok(renderer.includes('scheduleLogScroll(true)'))
   assert.ok(renderer.includes('fullMessage.length > 240'))
