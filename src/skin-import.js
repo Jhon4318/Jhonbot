@@ -100,23 +100,56 @@ function isAnimationJson (value) {
   return !!(value && typeof value === 'object' && (value.animations || value.animation_controllers || value['minecraft:animations']))
 }
 
+function decodeBase64Text (value) {
+  if (typeof value !== 'string' || !value) return ''
+  try {
+    return Buffer.from(value, 'base64').toString('utf8')
+  } catch {
+    return value
+  }
+}
+
 function clientSkinToPlayerSkin (clientSkin) {
   if (!clientSkin || typeof clientSkin !== 'object') throw new TypeError('スキンデータがありません。')
   const image = (width, height, encoded) => ({
     width: Number(width) || 0,
     height: Number(height) || 0,
-    data: encoded ? Buffer.from(encoded, 'base64') : Buffer.alloc(0)
+    data: Buffer.isBuffer(encoded)
+      ? Buffer.from(encoded)
+      : encoded
+        ? Buffer.from(encoded, 'base64')
+        : Buffer.alloc(0)
+  })
+  const enumValue = (value, names) => {
+    if (Number.isInteger(value)) return value
+    const normalized = String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+    const index = names.findIndex(name => name.toLowerCase().replace(/[^a-z0-9]/g, '') === normalized)
+    return index >= 0 ? index : 0
+  }
+  const animations = (Array.isArray(clientSkin.AnimatedImageData) ? clientSkin.AnimatedImageData : []).map(entry => {
+    const frame = entry && typeof entry === 'object' ? entry : {}
+    const sourceImage = frame.skin_image || frame.image || frame.Image || frame.SkinImage || {}
+    return {
+      skin_image: image(
+        sourceImage.width ?? sourceImage.Width ?? frame.SkinImageWidth,
+        sourceImage.height ?? sourceImage.Height ?? frame.SkinImageHeight,
+        sourceImage.data ?? sourceImage.Data ?? frame.SkinData
+      ),
+      animation_type: enumValue(frame.animation_type ?? frame.Type ?? frame.AnimationType, ['None', 'Face', 'Body32x32', 'Body128x128']),
+      animation_frames: Number(frame.animation_frames ?? frame.Frames ?? frame.AnimationFrames) || 0,
+      expression_type: enumValue(frame.expression_type ?? frame.AnimationExpression ?? frame.ExpressionType, ['Linear', 'Blinking'])
+    }
   })
   return {
     skin_id: String(clientSkin.SkinId || ''),
     play_fab_id: String(clientSkin.PlayFabId || ''),
-    skin_resource_pack: String(clientSkin.SkinResourcePatch || ''),
+    skin_resource_pack: decodeBase64Text(clientSkin.SkinResourcePatch || ''),
     skin_data: image(clientSkin.SkinImageWidth, clientSkin.SkinImageHeight, clientSkin.SkinData),
-    animations: Array.isArray(clientSkin.AnimatedImageData) ? clientSkin.AnimatedImageData : [],
+    animations,
     cape_data: image(clientSkin.CapeImageWidth, clientSkin.CapeImageHeight, clientSkin.CapeData),
-    geometry_data: String(clientSkin.SkinGeometryData || ''),
-    geometry_data_version: String(clientSkin.SkinGeometryDataEngineVersion || ''),
-    animation_data: String(clientSkin.SkinAnimationData || ''),
+    geometry_data: decodeBase64Text(clientSkin.SkinGeometryData || ''),
+    geometry_data_version: decodeBase64Text(clientSkin.SkinGeometryDataEngineVersion || ''),
+    animation_data: decodeBase64Text(clientSkin.SkinAnimationData || ''),
     cape_id: String(clientSkin.CapeId || ''),
     full_skin_id: String(clientSkin.SkinId || ''),
     arm_size: String(clientSkin.ArmSize || 'wide'),
@@ -130,7 +163,6 @@ function clientSkinToPlayerSkin (clientSkin) {
     overriding_player_appearance: clientSkin.OverrideSkin !== false
   }
 }
-
 function importSkinEntries (inputEntries) {
   if (!Array.isArray(inputEntries) || !inputEntries.length) throw new Error('スキン素材が選択されていません。')
   const entries = []
@@ -263,4 +295,4 @@ function importSkinEntries (inputEntries) {
   }
 }
 
-module.exports = { importSkinEntries, clientSkinToPlayerSkin, extractGeometryIdentifier, decodeRawSkinBin, decodeEmbeddedJson }
+module.exports = { importSkinEntries, clientSkinToPlayerSkin, extractGeometryIdentifier, decodeRawSkinBin, decodeEmbeddedJson, decodeBase64Text }
