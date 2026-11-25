@@ -21,7 +21,7 @@ function createInventoryDropPlan (inventory) {
     }))
 }
 
-function createItemStackResponseWaiter (agent, requestId, timeoutMs = 5000) {
+function createItemStackResponseWaiter (agent, requestId, timeoutMs = 5000, actionLabel = 'アイテム操作') {
   let timer = null
   let settled = false
   let onResponse = null
@@ -44,8 +44,8 @@ function createItemStackResponseWaiter (agent, requestId, timeoutMs = 5000) {
       if (status !== 'ok') {
         const numericStatus = Number(status)
         const description = numericStatus === 49
-          ? 'サーバーが投棄元スロットを検証できませんでした'
-          : 'サーバーがアイテム投棄を拒否しました'
+          ? 'サーバーが' + actionLabel + '元スロットを検証できませんでした'
+          : 'サーバーが' + actionLabel + '要求を拒否しました'
         const error = new Error(`${description}（status=${String(status)}）。インベントリを更新して再試行してください。`)
         error.status = Number.isFinite(numericStatus) ? numericStatus : status
         finish(error)
@@ -57,7 +57,7 @@ function createItemStackResponseWaiter (agent, requestId, timeoutMs = 5000) {
     agent.on('itemStackResponse', onResponse)
     agent.once('end', onEnd)
     timer = setTimeout(() => {
-      finish(new Error('サーバーからアイテム投棄の応答が届きませんでした。インベントリを更新して再試行してください。'))
+      finish(new Error('サーバーから' + actionLabel + 'の応答が届きませんでした。インベントリを更新して再試行してください。'))
     }, timeoutMs)
   })
   return {
@@ -101,7 +101,7 @@ async function tossStackConfirmed (agent, item, count, options = {}) {
   }
   const requestId = currentRequestId - 2
   const beforeCount = liveItem.count
-  const waiter = createItemStackResponseWaiter(agent, requestId, options.timeoutMs || 5000)
+  const waiter = createItemStackResponseWaiter(agent, requestId, options.timeoutMs || 5000, 'アイテム投棄')
   const responseOutcome = waiter.promise.then(
     response => ({ response }),
     error => ({ error })
