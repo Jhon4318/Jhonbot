@@ -1558,7 +1558,7 @@ function applyBotMovementMode (bot, agent = bot?.agent) {
 async function setBotMovementMode (botId, inputMode) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
-  if (bot.inventoryDropBusy) throw new Error('アイテム投棄中は動作モードを変更できません。')
+  if (bot.inventoryDropBusy || bot.inventoryMoveBusy) throw new Error('インベントリ操作中は動作モードを変更できません。')
   const next = normalizeBotMovementMode(inputMode)
   if (bot.movementMode === next) return publicBot(bot)
 
@@ -1663,13 +1663,7 @@ function publishBotInventory (bot) {
   return payload
 }
 
-function assertInventoryDropAvailable (bot) {
-  if (bot.inventoryDropBusy) throw new Error('別のアイテム投棄処理が実行中です。')
-  if (bot.inventoryMoveBusy) throw new Error('別のインベントリ操作が実行中です。')
-  if (bot.itemUseBusy || bot.itemUseRunning || bot.containerSupplyBusy || bot.containerSupplyRunning || bot.autoFishingBusy || bot.autoFishingRunning) {
-    throw new Error('別のModがインベントリを操作中です。')
-  }
-}
+
 
 async function moveBotInventoryItem (botId, input) {
   const { bot, agent } = getConnectedAgent(botId)
@@ -1786,6 +1780,7 @@ function queueBotInventoryPublish (bot, agent) {
 
 function assertInventoryDropAvailable (bot) {
   if (bot.inventoryDropBusy) throw new Error('別のアイテム投棄処理が実行中です。')
+  if (bot.inventoryMoveBusy) throw new Error('別のインベントリ操作が実行中です。')
   if (bot.itemUseBusy || bot.itemUseRunning || bot.containerSupplyBusy || bot.containerSupplyRunning || bot.autoFishingBusy || bot.autoFishingRunning) {
     throw new Error('別のModがインベントリを操作中です。')
   }
@@ -1987,7 +1982,7 @@ async function useBotItemOnce (botId, slot, options = {}) {
   requirePlayerMode(bot, 'アイテム使用')
   if (!(settings.installedMods || []).includes('itemUse')) throw new Error('アイテム使用 が導入されていません。')
   if (!isModuleAssigned(bot.modules, 'itemUse')) throw new Error('このBotにアイテム使用Modが割り当てられていません。')
-  if (bot.inventoryDropBusy || bot.containerSupplyRunning || bot.containerSupplyBusy || bot.autoFishingRunning || bot.autoFishingBusy) throw new Error('投棄・コンテナ補充・自動釣りの実行中はアイテム操作できません。')
+  if (bot.inventoryDropBusy || bot.inventoryMoveBusy || bot.containerSupplyRunning || bot.containerSupplyBusy || bot.autoFishingRunning || bot.autoFishingBusy) throw new Error('投棄・インベントリ移動・コンテナ補充・自動釣りの実行中はアイテム操作できません。')
   if ((bot.itemUseBusy || bot.itemUseRunning) && !options.fromCycle) throw new Error('このBotはすでにアイテム操作を実行中です。')
   if (!options.fromCycle) bot.itemUseBusy = true
   const generation = bot.itemUseGeneration
@@ -2060,7 +2055,7 @@ function startBotItemUse (botId, slot) {
   if (!(settings.installedMods || []).includes('itemUse')) throw new Error('アイテム使用 が導入されていません。')
   if (!isModuleAssigned(bot.modules, 'itemUse')) throw new Error('先にアイテム使用Modを割り当ててください。')
   const { agent } = getConnectedAgent(botId)
-  if (bot.inventoryDropBusy) throw new Error('アイテム投棄が終わるまで待ってください。')
+  if (bot.inventoryDropBusy || bot.inventoryMoveBusy) throw new Error('投棄またはインベントリ移動が終わるまで待ってください。')
   if (bot.containerSupplyRunning || bot.containerSupplyBusy || bot.autoFishingRunning || bot.autoFishingBusy) throw new Error('コンテナ補充または自動釣りの実行中はアイテムを使用できません。')
   if (bot.itemUseBusy || bot.itemUseRunning) throw new Error('このBotはすでにアイテム操作を実行中です。')
   const index = Number(slot)
@@ -2201,7 +2196,7 @@ function startContainerSupply (botId) {
   if (!isModuleAssigned(bot.modules, 'containerSupply')) throw new Error('先にコンテナ補充Modを割り当ててください。')
   if (!moduleConfigComplete(bot.modules.containerSupply)) throw new Error('補充先のX/Y/Z、アイテム名、目標個数を設定してください。')
   getConnectedAgent(botId)
-  if (bot.inventoryDropBusy) throw new Error('アイテム投棄が終わるまで待ってください。')
+  if (bot.inventoryDropBusy || bot.inventoryMoveBusy) throw new Error('投棄またはインベントリ移動が終わるまで待ってください。')
   if (bot.containerSupplyBusy) throw new Error('現在のコンテナ処理が終わるまで待ってください。')
   if (bot.itemUseBusy || bot.itemUseRunning || bot.autoFishingBusy || bot.autoFishingRunning) throw new Error('アイテム使用または自動釣りの実行中はコンテナ補充を開始できません。')
   if (bot.movementStatus.startsWith('手動操作中')) throw new Error('手動移動を停止してからコンテナ補充を開始してください。')
@@ -2335,7 +2330,7 @@ function startAutoFishing (botId) {
   if (!(settings.installedMods || []).includes('autoFishing')) throw new Error('自動釣りが導入されていません。')
   if (!isModuleAssigned(bot.modules, 'autoFishing')) throw new Error('先に自動釣りModを割り当ててください。')
   const { agent } = getConnectedAgent(botId)
-  if (bot.inventoryDropBusy) throw new Error('アイテム投棄が終わるまで待ってください。')
+  if (bot.inventoryDropBusy || bot.inventoryMoveBusy) throw new Error('投棄またはインベントリ移動が終わるまで待ってください。')
   if (bot.itemUseBusy || bot.itemUseRunning || bot.containerSupplyBusy || bot.containerSupplyRunning) {
     throw new Error('アイテム使用またはコンテナ補充の実行中は自動釣りを開始できません。')
   }
