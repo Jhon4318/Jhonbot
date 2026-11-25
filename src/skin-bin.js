@@ -1,5 +1,9 @@
 'use strict'
 
+function asBuffer (value) {
+  return Buffer.isBuffer(value) ? value : Buffer.from(value || [])
+}
+
 function readVarInt (data, offset) {
   let value = 0
   let shift = 0
