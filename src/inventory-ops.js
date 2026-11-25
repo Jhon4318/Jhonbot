@@ -25,6 +25,19 @@ function selectHotbarSlot (agent, slot) {
   return index
 }
 
+async function waitForInventoryWindow (agent, options = {}) {
+  const timeoutMs = options.timeoutMs || 2500
+  const intervalMs = options.intervalMs || 50
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (agent.currentWindow) return agent.currentWindow
+    if (options.isConnected && !options.isConnected()) throw new Error('インベントリ画面を開く前にBotが切断されました。')
+    await new Promise(resolve => setTimeout(resolve, intervalMs))
+  }
+  if (agent.currentWindow) return agent.currentWindow
+  throw new Error('Bedrockサーバーからインベントリ画面の応答が届きませんでした。Botがワールドに参加しているか確認してください。')
+}
+
 async function moveInventorySlotConfirmed (agent, fromSlot, toSlot, count, options = {}) {
   if (!agent || typeof agent.moveInventoryItem !== 'function') {
     throw new Error('Bedrock用のインベントリ移動APIが利用できません。')
@@ -66,9 +79,11 @@ async function moveInventorySlotConfirmed (agent, fromSlot, toSlot, count, optio
         throw new Error('メインインベントリとホットバーをまたぐ移動には、Bedrockのインベントリ画面を開く機能が必要です。')
       }
       closeInventory = await agent._stack.withInventoryOpen()
-      if (!agent.currentWindow) {
-        throw new Error('Bedrockのインベントリ画面を開けませんでした。')
-      }
+      await waitForInventoryWindow(agent, {
+        timeoutMs: options.windowTimeoutMs || 2500,
+        intervalMs: options.pollIntervalMs || 50,
+        isConnected: () => agent.entity != null || agent._client?.connected !== false
+      })
     }
 
     // Opening the Bedrock inventory may resync slots. Always capture the
@@ -116,4 +131,4 @@ async function moveInventorySlotConfirmed (agent, fromSlot, toSlot, count, optio
     try { closeInventory() } catch {}
   }
 }
-module.exports = { toBedrockInventorySlot, selectHotbarSlot, moveInventorySlotConfirmed }
+module.exports = { toBedrockInventorySlot, selectHotbarSlot, waitForInventoryWindow, moveInventorySlotConfirmed }
