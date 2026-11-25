@@ -35,8 +35,8 @@ function createPersonaBin () {
   const version = Buffer.from('1.14.0')
   const tintColors = [
     ['mouth', [0x0e2245ff, 0x00000000, 0x19192aff, 0x00000000]],
-    ['eyes', [0x191514ff, 0x0e182eff, 0xecece9ff]],
-    ['hair', [0x0d111bff, 0x00000000, 0x00000000]]
+    ['eyes', [0x191514ff, 0x0e182eff, 0xecece9ff, 0x00000000]],
+    ['hair', [0x0d111bff, 0x00000000, 0x00000000, 0x00000000]]
   ]
   const piece = (pieceId, pieceType, packBytes, isDefault = true, productId = '') => {
     const id = Buffer.from(pieceId)
@@ -114,6 +114,14 @@ test('decoder restores the Persona texture, full ResourcePatch and both 4D geome
   assert.deepEqual(decoded.pieceTintColors[0], {
     PieceType: 'persona_mouth',
     Colors: ['#ff0e2245', '#0', '#ff19192a', '#0']
+  })
+  assert.deepEqual(decoded.pieceTintColors[1], {
+    PieceType: 'persona_eyes',
+    Colors: ['#ff191514', '#ff0e182e', '#ffecece9', '#0']
+  })
+  assert.deepEqual(decoded.pieceTintColors[2], {
+    PieceType: 'persona_hair',
+    Colors: ['#ff0d111b', '#0', '#0', '#0']
   })
 })
 
