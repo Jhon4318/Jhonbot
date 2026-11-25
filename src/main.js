@@ -24,6 +24,7 @@ const { createEncryptedAuthCacheFactory, hasEncryptedAuthCache } = require('./au
 const { restoreSavedAuthflow } = require('./auth-restore')
 const { isFishingHookSpawn, isFishingHookBite, findFishingRod, runtimeEntityId } = require('./auto-fishing')
 const { normalizeChatMessage, normalizeDropRequest, createInventorySnapshot } = require('./bot-actions')
+const { formatBedrockChatMessage } = require('./chat-format')
 const { createInventoryDropPlan, tossStackConfirmed } = require('./inventory-drop')
 const { moveInventorySlotConfirmed, selectHotbarSlot } = require('./inventory-ops')
 const { buildFriendWorldIdentity, findMatchingFriendWorldSession } = require('./friend-world-selection')
@@ -1181,11 +1182,12 @@ async function connectBot (botId, options = {}) {
       pushLog(`${bot.label}: ゲストBotの再参加処理に失敗しました: ${safeErrorMessage(error)}`, 'warning', bot.id)
     })
   })
-  agent.on('chat', (username, message) => {
+  agent.on('chat', (username, message, translate, messageObject) => {
     if (bot.agent !== agent) return
     const sender = String(username || '')
     if (sender && sender === String(agent.username || bot.playerName || '')) return
-    recordBotChatMessage(bot, 'incoming', sender, message)
+    const source = messageObject || (translate ? { translate } : message)
+    recordBotChatMessage(bot, 'incoming', sender, source, message)
   })
   agent.on('whisper', (username, message) => {
     if (bot.agent !== agent) return
@@ -1195,7 +1197,7 @@ async function connectBot (botId, options = {}) {
   })
   agent.on('message', (message, position, source) => {
     if (bot.agent !== agent || position !== 'system') return
-    recordBotChatMessage(bot, 'system', String(source || 'System'), message?.toString?.() ?? message)
+    recordBotChatMessage(bot, 'system', String(source || 'System'), message, message?.toString?.() ?? message)
   })
   agent.on('heldItemChanged', () => {
     if (bot.agent === agent) queueBotInventoryPublish(bot, agent)
@@ -1396,11 +1398,12 @@ async function joinGuestBot (parent, guest) {
   })
   agent._client.on('level_chunk', () => { if (guest.agent === agent) guest.levelChunkPackets++ })
   agent._client.on('subchunk', () => { if (guest.agent === agent) guest.subchunkPackets++ })
-  agent.on('chat', (username, message) => {
+  agent.on('chat', (username, message, translate, messageObject) => {
     if (guest.agent !== agent) return
     const sender = String(username || '')
     if (sender && sender === String(agent.username || guest.playerName || '')) return
-    recordBotChatMessage(guest, 'incoming', sender, message)
+    const source = messageObject || (translate ? { translate } : message)
+    recordBotChatMessage(guest, 'incoming', sender, source, message)
   })
   agent.on('whisper', (username, message) => {
     if (guest.agent !== agent) return
@@ -1410,7 +1413,7 @@ async function joinGuestBot (parent, guest) {
   })
   agent.on('message', (message, position, source) => {
     if (guest.agent !== agent || position !== 'system') return
-    recordBotChatMessage(guest, 'system', String(source || 'System'), message?.toString?.() ?? message)
+    recordBotChatMessage(guest, 'system', String(source || 'System'), message, message?.toString?.() ?? message)
   })
   for (const packetName of ['inventory_content', 'inventory_slot', 'inventory_transaction', 'item_stack_response']) {
     agent._client.on(packetName, () => queueBotInventoryPublish(guest, agent))
@@ -1587,14 +1590,14 @@ async function setBotMovementMode (botId, inputMode) {
   return publicBot(bot)
 }
 
-function recordBotChatMessage (bot, direction, username, message) {
+function recordBotChatMessage (bot, direction, username, message, fallback = '') {
   const entry = {
     id: randomUUID(),
     botId: bot.id,
     at: new Date().toISOString(),
     direction,
     username: String(username || ''),
-    message: String(message?.toString?.() ?? message ?? '').slice(0, 1000)
+    message: formatBedrockChatMessage(message, fallback)
   }
   bot.chatHistory ||= []
   bot.chatHistory.push(entry)
