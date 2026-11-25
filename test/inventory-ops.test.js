@@ -138,6 +138,7 @@ test('invalid source is rejected before opening a temporary inventory window', a
 
 test('same-container moves do not open the player inventory window', async () => {
   const agent = createAgent({ type: 7, count: 10 })
+  agent.inventory.slots[9] = { type: 1, count: 10, stackId: 41 }
   agent.inventory.slots[10] = null
   await moveInventorySlotConfirmed(agent, 9, 10)
   assert.equal(agent.didOpenInventory, undefined)
