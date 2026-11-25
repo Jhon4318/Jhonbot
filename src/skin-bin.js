@@ -14,7 +14,12 @@ function readVarInt (data, offset) {
 }
 
 function parseLengthPrefixedJson (data, offset, expectedKey) {
-  const lengthInfo = readVarInt(data, offset)
+  let lengthInfo
+  try {
+    lengthInfo = readVarInt(data, offset)
+  } catch {
+    return null
+  }
   const length = lengthInfo.value
   const start = lengthInfo.offset
   const end = start + length
