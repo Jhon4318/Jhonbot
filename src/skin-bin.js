@@ -89,7 +89,7 @@ function parsePersonaMetadataTail (data, start, expectedSkinId) {
   if (offset >= data.length) return { skinColor, personaPieces, pieceTintColors: [] }
   const tintCount = data[offset++]
   if (tintCount > 16) return { skinColor, personaPieces, pieceTintColors: [] }
-  const tintColorCounts = { mouth: 4, eyes: 3, hair: 3 }
+  const tintColorCounts = { mouth: 4, eyes: 4, hair: 4 }
   const pieceTintColors = []
   for (let index = 0; index < tintCount; index++) {
     if (offset >= data.length) break
