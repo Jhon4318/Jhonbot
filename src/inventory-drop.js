@@ -45,7 +45,9 @@ function createItemStackResponseWaiter (agent, requestId, timeoutMs = 5000, acti
         const numericStatus = Number(status)
         const description = numericStatus === 49
           ? 'サーバーが' + actionLabel + '元スロットを検証できませんでした'
-          : 'サーバーが' + actionLabel + '要求を拒否しました'
+          : actionLabel === 'アイテム投棄'
+            ? 'サーバーがアイテム投棄を拒否しました'
+            : 'サーバーが' + actionLabel + 'を拒否しました'
         const error = new Error(`${description}（status=${String(status)}）。インベントリを更新して再試行してください。`)
         error.status = Number.isFinite(numericStatus) ? numericStatus : status
         finish(error)
