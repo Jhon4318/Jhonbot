@@ -1322,6 +1322,7 @@ function clearToggledControls (botId, sendRelease = true) {
 }
 
 function releaseAllHeldInputs () {
+  state.toggleControlsPressed.clear()
   for (const source of Array.from(state.heldInputs.keys())) endControl(source)
 }
 
@@ -1800,9 +1801,9 @@ serverKeyDialog.addEventListener('cancel', (event) => {
 api.onBotUpdated((bot) => {
   const previous = state.bots.get(bot.id)
   state.bots.set(bot.id, bot)
+  if (previous?.status === 'connected' && bot.status !== 'connected') clearToggledControls(bot.id, false)
   renderBots()
   if (bot.id === state.selectedBotId) {
-    if (previous?.status === 'connected' && bot.status !== 'connected') clearToggledControls(bot.id, false)
     renderBotModulesPanel(false)
     renderControlPanel()
     if (previous?.status !== bot.status) loadSelectedBotData()
