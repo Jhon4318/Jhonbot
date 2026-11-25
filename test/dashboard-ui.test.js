@@ -292,6 +292,17 @@ test('custom skins expose PNG, geometry, animation and SkinStealer import action
   assert.match(main, /findMatchingFriendWorldSession/)
 })
 
+test('skin import uses separate file and folder dialogs so Windows can open individual files', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
+  const picker = fs.readFileSync(path.join(__dirname, '..', 'src', 'skin-import-dialog.js'), 'utf8')
+  assert.ok(main.includes('dialog.showMessageBox(mainWindow, skinImportChoiceOptions())'))
+  assert.ok(main.includes('skinImportFileDialogOptions()'))
+  assert.ok(main.includes('skinImportFolderDialogOptions()'))
+  assert.doesNotMatch(main, /properties:\s*\['openFile',\s*'openDirectory'/)
+  assert.ok(picker.includes("properties: ['openFile', 'multiSelections']"))
+  assert.ok(picker.includes("properties: ['openDirectory', 'multiSelections']"))
+})
+
 test('world chat and connection logs retain scrollable history rather than rendering only the newest few lines', () => {
   const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
   assert.ok(renderer.includes('entries.slice(-150)'))
