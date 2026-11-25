@@ -41,6 +41,9 @@ test('4D geometry and animation JSON are included in the skin packet payload', (
   assert.equal(wire.geometry_data_version, '1.12.0')
   assert.equal(wire.skin_data.width, 64)
   assert.equal(wire.skin_data.data.length, 64 * 64 * 4)
+  assert.equal(wire.arm_size, 1)
+  assert.equal(wire.skin_color, 0)
+  assert.equal(wire.trusted_skin_flag, 'True')
 })
 
 test('MCpack ZIP archive is read without extracting untrusted paths to disk', () => {
