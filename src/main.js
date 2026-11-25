@@ -29,6 +29,7 @@ const { createInventoryDropPlan, tossStackConfirmed } = require('./inventory-dro
 const { moveInventorySlotConfirmed, selectHotbarSlot } = require('./inventory-ops')
 const { buildFriendWorldIdentity, findMatchingFriendWorldSession } = require('./friend-world-selection')
 const { importSkinEntries } = require('./skin-import')
+const { reconnectWithSavedSkin } = require('./skin-reconnect')
 const { skinImportChoiceOptions, skinImportFileDialogOptions, skinImportFolderDialogOptions } = require('./skin-import-dialog')
 const { installSubClientSupport, createGuestLoginTokens, createSubClientLoginDispatcher, MAX_SUB_CLIENTS } = require('./subclients')
 const { nextGuestSubClientId, resolveGuestLabel } = require('./guest-naming')
@@ -1731,11 +1732,30 @@ async function collectSkinImportFiles (selectedPaths) {
 }
 
 
+async function waitForBotAgentRelease (bot, previousAgent, timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (bot.agent !== previousAgent && !bot.client && !bot.connectionStarting) return
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
+  throw new Error('古いBot接続が終了しませんでした。スキンは保存済みです。手動で切断してから再接続してください。')
+}
+
+async function waitForBotSpawn (bot, previousAgent, timeoutMs = 90000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (bot.agent && bot.agent !== previousAgent && bot.status === 'connected') return
+    if (bot.status === 'error' && bot.hadError && !bot.connectionStarting) {
+      throw new Error(bot.lastError || 'スキン適用のための再接続に失敗しました。')
+    }
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  throw new Error('再接続後のワールド参加を確認できませんでした。スキンは保存済みで、次回接続時に適用されます。')
+}
+
 async function importSkinForBot (botId) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
-  // Windows/Linux Electron dialogs cannot select files and directories at once.
-  // Ask for the mode first, then open a file-only or folder-only picker.
   const choice = await dialog.showMessageBox(mainWindow, skinImportChoiceOptions())
   if (choice.response === 2 || (choice.response !== 0 && choice.response !== 1)) {
     return { cancelled: true, bot: publicBot(bot), appliedLive: false }
@@ -1750,14 +1770,32 @@ async function importSkinForBot (botId) {
   bot.skinData = imported.skinData
   bot.skinMeta = { ...imported.meta, previewDataUrl: imported.previewDataUrl }
   await saveSettings()
-  // The pinned Bedrock protocol schema is behind Mojang's 1.26.60
-  // SerializedSkin changes. Persist and apply through login skinData instead
-  // of sending an unverified live PlayerSkin packet.
-  const appliedLive = false
-  const message = `${bot.label}: カスタムスキン「${bot.skinMeta.name}」を保存しました。次回接続時にログインスキンとして適用します。`
-  pushLog(message, 'info', bot.id)
+
+  let appliedLive = false
+  let reconnectError = ''
+  if (bot.status === 'connected' && bot.agent) {
+    try {
+      const result = await reconnectWithSavedSkin(bot, {
+        disconnect: disconnectBot,
+        waitForRelease: waitForBotAgentRelease,
+        connect: connectBot,
+        waitForSpawn: waitForBotSpawn
+      })
+      appliedLive = result.reconnected
+    } catch (error) {
+      reconnectError = safeErrorMessage(error)
+    }
+  }
+
+  if (appliedLive) {
+    pushLog(`${bot.label}: カスタムスキン「${bot.skinMeta.name}」をログインデータに含めて再接続しました。表示可否は参加先サーバーに依存します。`, 'success', bot.id)
+  } else if (reconnectError) {
+    pushLog(`${bot.label}: スキン「${bot.skinMeta.name}」は保存しましたが、自動再接続に失敗しました: ${reconnectError}`, 'warning', bot.id)
+  } else {
+    pushLog(`${bot.label}: カスタムスキン「${bot.skinMeta.name}」を保存しました。次回接続時にログインデータへ適用します。`, 'info', bot.id)
+  }
   publishBot(bot)
-  return { cancelled: false, bot: publicBot(bot), appliedLive }
+  return { cancelled: false, bot: publicBot(bot), appliedLive, reconnectError }
 }
 
 function queueBotInventoryPublish (bot, agent) {
