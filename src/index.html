@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data: https://raw.githubusercontent.com;">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bedrock Bot Console</title>
   <link rel="stylesheet" href="styles.css">
@@ -136,7 +136,7 @@
   <section class="module-panel selected-mod-operation-panel" id="modulePanel" hidden>
     <div class="module-selected" id="moduleSelectedBot">Botを選択してください。</div>
     <section class="inventory-card module-card" id="inventoryModuleCard">
-            <div class="subheading">インベントリ <button id="refreshInventoryButton" type="button" class="secondary-button" disabled>再取得</button></div>
+            <div class="subheading">インベントリ <span class="inventory-heading-actions"><button id="openInventoryDialogButton" type="button" class="secondary-button" disabled>画像で開く</button><button id="refreshInventoryButton" type="button" class="secondary-button" disabled>再取得</button></span></div>
             <div id="inventoryStatus" class="inventory-status">Botを選択してください。</div>
             <p id="inventoryActionNote" class="inventory-action-note" hidden>チャンク保持モードでもアイテムの投棄は利用できます。アイテム使用など、プレイヤー入力が必要なModにはプレイヤーモードへ切り替えてください。</p>
             <div id="inventoryList" class="inventory-list">
@@ -156,6 +156,16 @@
                 <button id="dropAllItemsButton" class="secondary-button danger-button" type="button" disabled>すべて投げる</button>
               </div>
             </form>
+          </section>
+          <section class="module-card skin-module-card" id="skinModuleCard">
+            <div class="module-card-heading"><h3>スキン / 4Dスキン</h3></div>
+            <div class="skin-preview-row">
+              <img id="skinPreviewImage" class="skin-preview-image" alt="読み込み済みスキン" hidden>
+              <div id="skinPreviewPlaceholder" class="skin-preview-placeholder">SKIN</div>
+              <div class="skin-preview-info"><strong id="skinName">スキン未設定</strong><span id="skinDetails">PNG・Geometry JSON・Animation JSON・SkinSteal BIN・MCpackに対応</span></div>
+            </div>
+            <div class="module-actions"><button id="importSkinButton" type="button" class="secondary-button" disabled>スキン素材を読み込む / 適用</button></div>
+            <div id="skinStatus" class="module-status">Botを選択してください。</div>
           </section>
     <div class="module-grid">
           <section class="module-card" id="itemUseModuleCard">
@@ -252,6 +262,16 @@
       </section></main>
   </div>
 
+  <dialog id="inventoryDialog" class="panel-dialog inventory-dialog">
+    <div class="dialog-header"><div><div class="dialog-kicker">BOT INVENTORY</div><h2 id="inventoryDialogTitle">インベントリ</h2></div><button id="closeInventoryDialogButton" type="button" class="icon-button">閉じる</button></div>
+    <p class="muted tiny">左クリックでスタックを持つ／置く／交換、右クリックで半分に分割して持つ／1個ずつ置く、ドラッグ＆ドロップでも移動できます。部分移動先は空きスロットにしてください。</p>
+    <div id="inventoryDialogStatus" class="inventory-dialog-status">Botを選択してください。</div>
+    <div class="inventory-equipment-row" id="inventoryGearSlots"></div>
+    <div class="inventory-dialog-section"><strong>メインインベントリ</strong><div id="inventoryMainGrid" class="inventory-grid inventory-main-grid"></div></div>
+    <div class="inventory-dialog-section"><strong>ホットバー</strong><div id="inventoryHotbarGrid" class="inventory-grid inventory-hotbar-grid"></div><div class="hotbar-select-label">選択中のホットバー</div><div id="inventoryHotbarSelect" class="hotbar-select-grid"></div></div>
+    <div id="inventoryCursorStatus" class="inventory-cursor-status">アイテムを選択してください。</div>
+    <p class="muted tiny">防具・オフハンドは現在表示のみです。メインインベントリとホットバーの移動はBedrockサーバーの応答を確認して反映します。サーバーが操作を拒否した場合は変更しません。</p>
+  </dialog>
   <dialog id="modCatalogDialog" class="panel-dialog mod-catalog-dialog"><div class="dialog-header"><div><div class="dialog-kicker">MOD CATALOG</div><h2>Modを追加</h2></div><button id="closeModCatalogDialogButton" type="button" class="icon-button">閉じる</button></div><section class="panel mod-store-panel">
         <div class="panel-heading">
           <div><h2>Mod管理</h2><p class="muted small">Modを追加すると、選択中のBotに導入・割り当てされ、すぐに操作できます。</p></div>
