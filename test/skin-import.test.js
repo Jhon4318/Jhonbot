@@ -213,3 +213,56 @@ test('Persona BIN wins over a companion preview PNG so its original RGBA and 4D 
   assert.deepEqual(Buffer.from(imported.skinData.SkinData, 'base64'), sample.pixels)
   assert.equal(imported.meta.geometryId, 'geometry.persona_test')
 })
+
+
+test('SkinStealer Persona BIN import forwards Persona pieces and tint colors into the saved login skin', () => {
+  const skinId = Buffer.from('persona-import-integration')
+  const patch = Buffer.from(JSON.stringify({ geometry: { default: 'geometry.import_test' } }))
+  const geometry = Buffer.from(JSON.stringify({
+    format_version: '1.14.0',
+    'minecraft:geometry': [{ description: { identifier: 'geometry.import_test' }, bones: [] }]
+  }))
+  const pixels = Buffer.alloc(64 * 64 * 4, 0x66)
+  const pieceId = Buffer.from('01234567-89ab-cdef-0123-456789abcdef')
+  const packId = Buffer.from('00112233445566778899aabbccddeeff', 'hex')
+  const piece = Buffer.concat([
+    Buffer.from([pieceId.length]), pieceId,
+    Buffer.from([7, 0, 0, 0]),
+    packId,
+    Buffer.from([1, 0])
+  ])
+  const tail = Buffer.concat([
+    Buffer.from([0, 0, skinId.length]), skinId, Buffer.from([0, 0x11, 0x22, 0x33, 0xff, 1]),
+    piece,
+    Buffer.from([1, 5]), Buffer.from('mouth'),
+    Buffer.from([0x0e, 0x22, 0x45, 0xff, 0, 0, 0, 0, 0x19, 0x19, 0x2a, 0xff, 0, 0, 0, 0])
+  ])
+  const bin = Buffer.concat([
+    Buffer.from([skinId.length]), skinId,
+    varInt(patch.length), patch,
+    Buffer.from([64, 0, 0, 0, 64, 0, 0, 0]),
+    varInt(pixels.length), pixels,
+    Buffer.alloc(0x200, 0x80),
+    varInt(geometry.length), geometry,
+    Buffer.from([6]), Buffer.from('1.14.0'),
+    tail
+  ])
+  const imported = importSkinEntries([{ name: 'skin.bin', data: bin }])
+  assert.equal(imported.skinData.SkinId, 'persona-import-integration')
+  assert.equal(imported.skinData.PersonaSkin, true)
+  assert.equal(imported.skinData.SkinColor, '#ff112233')
+  assert.deepEqual(imported.skinData.PersonaPieces, [{
+    PieceId: '01234567-89ab-cdef-0123-456789abcdef',
+    PieceType: 7,
+    PackId: '77665544-3322-1100-eedd-ccbb aa998877'.replace(' ', ''),
+    IsDefaultPiece: true,
+    ProductId: ''
+  }])
+  assert.deepEqual(imported.skinData.PieceTintColors, [{
+    PieceType: 'persona_mouth',
+    Colors: ['#ff0e2245', '#0', '#ff19192a', '#0']
+  }])
+  const wire = clientSkinToPlayerSkin(imported.skinData)
+  assert.deepEqual(wire.personal_pieces, imported.skinData.PersonaPieces)
+  assert.deepEqual(wire.piece_tint_colors, imported.skinData.PieceTintColors)
+})
