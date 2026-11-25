@@ -1190,11 +1190,12 @@ async function connectBot (botId, options = {}) {
     const source = messageObject || (translate ? { translate } : message)
     recordBotChatMessage(bot, 'incoming', sender, source, message)
   })
-  agent.on('whisper', (username, message) => {
+  agent.on('whisper', (username, message, translate, messageObject) => {
     if (bot.agent !== agent) return
     const sender = String(username || '')
     if (sender && sender === String(agent.username || bot.playerName || '')) return
-    recordBotChatMessage(bot, 'incoming', sender ? sender + ' (whisper)' : 'Whisper', message)
+    const source = messageObject || (translate ? { translate } : message)
+    recordBotChatMessage(bot, 'incoming', sender ? sender + ' (whisper)' : 'Whisper', source, message)
   })
   agent.on('message', (message, position, source) => {
     if (bot.agent !== agent || position !== 'system') return
@@ -1406,11 +1407,12 @@ async function joinGuestBot (parent, guest) {
     const source = messageObject || (translate ? { translate } : message)
     recordBotChatMessage(guest, 'incoming', sender, source, message)
   })
-  agent.on('whisper', (username, message) => {
+  agent.on('whisper', (username, message, translate, messageObject) => {
     if (guest.agent !== agent) return
     const sender = String(username || '')
     if (sender && sender === String(agent.username || guest.playerName || '')) return
-    recordBotChatMessage(guest, 'incoming', sender ? sender + ' (whisper)' : 'Whisper', message)
+    const source = messageObject || (translate ? { translate } : message)
+    recordBotChatMessage(guest, 'incoming', sender ? sender + ' (whisper)' : 'Whisper', source, message)
   })
   agent.on('message', (message, position, source) => {
     if (guest.agent !== agent || position !== 'system') return
