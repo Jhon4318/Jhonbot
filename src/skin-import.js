@@ -67,7 +67,8 @@ function decodeRawSkinBin (buffer, name) {
 }
 
 function jsonEntries (entries) {
-  return entries.filter(entry => /\.json$/i.test(entry.name)).map(entry => {
+  return entries.filter(entry => /\.json$/i.test(entry.name) ||
+    (/\.bin$/i.test(entry.name) && entry.data[0] === 0x7B)).map(entry => {
     try { return { name: entry.name, value: JSON.parse(entry.data.toString('utf8')) } } catch { return null }
   }).filter(Boolean)
 }
