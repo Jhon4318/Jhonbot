@@ -5,7 +5,8 @@ const MOD_CATALOG = Object.freeze([
   Object.freeze({ id: 'itemUse', name: 'アイテム使用', version: '1.0.0', category: 'インベントリ', description: '選択したアイテムを1回または連続で使用します。食べる・飲む動作にも対応します。' }),
   Object.freeze({ id: 'containerSupply', name: 'コンテナ補充', version: '1.1.0', category: '自動化', description: '指定したコンテナに複数種類のアイテムを、それぞれ設定した目標数まで補充します。' }),
   Object.freeze({ id: 'autoFishing', name: '自動釣り', version: '1.0.0', category: '自動化', description: '釣り針イベントでアタリを検出し、釣竿の回収と再キャストを自動で繰り返します。' }),
-  Object.freeze({ id: 'lookDirection', name: '視点変更', version: '1.0.0', category: '操作', description: 'Yaw（水平角）とPitch（上下角）を度数で指定し、Botの視線をその角度へ向けます。' })
+  Object.freeze({ id: 'lookDirection', name: '視点変更', version: '1.0.0', category: '操作', description: 'Yaw（水平角）とPitch（上下角）を度数で指定し、Botの視線をその角度へ向けます。' }),
+  Object.freeze({ id: 'skin', name: 'スキン変更', version: '1.0.0', category: '外観', description: 'PNG・Geometry JSON・Animation JSON・SkinStealer BIN・MCpackを読み込み、Botのログインスキンへ適用します。4Dスキン素材にも対応します。' })
 ])
 
 const MOD_BY_ID = new Map(MOD_CATALOG.map(mod => [mod.id, mod]))
