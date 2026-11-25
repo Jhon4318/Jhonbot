@@ -326,4 +326,4 @@ function importSkinEntries (inputEntries) {
   }
 }
 
-module.exports = { importSkinEntries, clientSkinToPlayerSkin, extractGeometryIdentifier, decodeRawSkinBin, decodeEmbeddedJson, decodeBase64Text, decodeTsukuyomiPersonaSkinBin, readVarInt }
+module.exports = { importSkinEntries, clientSkinToPlayerSkin, extractGeometryIdentifier, decodeRawSkinBin, decodeEmbeddedJson, decodeBase64Text, decodeTsukuyomiPersonaSkinBin }
