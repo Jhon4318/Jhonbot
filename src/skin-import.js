@@ -66,6 +66,109 @@ function decodeRawSkinBin (buffer, name) {
   return { width: pair[0], height: pair[1], data }
 }
 
+
+function readVarInt (data, offset) {
+  let value = 0
+  let shift = 0
+  const start = offset
+  while (offset < data.length && shift <= 28) {
+    const byte = data[offset++]
+    value |= (byte & 0x7f) << shift
+    if ((byte & 0x80) === 0) return { value: value >>> 0, offset, bytes: offset - start }
+    shift += 7
+  }
+  throw new Error('BIN内の可変長整数を読み取れませんでした。')
+}
+
+function parseLengthPrefixedJson (data, offset, expectedKey) {
+  const lengthInfo = readVarInt(data, offset)
+  const length = lengthInfo.value
+  const start = lengthInfo.offset
+  const end = start + length
+  if (length < 2 || end > data.length || data[start] !== 0x7b) return null
+  try {
+    const value = JSON.parse(data.subarray(start, end).toString('utf8'))
+    if (!value || typeof value !== 'object' || !Object.prototype.hasOwnProperty.call(value, expectedKey)) return null
+    return { value, start, end, length, nextOffset: end }
+  } catch {
+    return null
+  }
+}
+
+function decodeTsukuyomiPersonaSkinBin (buffer, name = 'skin.bin') {
+  const data = asBuffer(buffer)
+  if (data.length < 32) return null
+  const idLength = data[0]
+  if (!idLength || idLength > 128 || 1 + idLength >= data.length) return null
+  const skinId = data.subarray(1, 1 + idLength).toString('utf8')
+  if (!/^(persona-|customskin-|[a-f0-9-]{20,})/i.test(skinId)) return null
+
+  let offset = 1 + idLength
+  let resourceInfo
+  try {
+    const info = readVarInt(data, offset)
+    offset = info.offset
+    if (info.value < 2 || info.value > 65536 || offset + info.value > data.length) return null
+    resourceInfo = JSON.parse(data.subarray(offset, offset + info.value).toString('utf8'))
+    offset += info.value
+  } catch {
+    return null
+  }
+  if (!resourceInfo || typeof resourceInfo !== 'object' || !resourceInfo.geometry || typeof resourceInfo.geometry !== 'object') return null
+  if (offset + 8 > data.length) return null
+
+  const width = data.readUInt32LE(offset)
+  const height = data.readUInt32LE(offset + 4)
+  offset += 8
+  if (![32, 64, 128, 256].includes(width) || ![32, 64, 128, 256].includes(height)) {
+    throw new Error(name + ' のスキン画像サイズが不正です（' + width + '×' + height + '）。')
+  }
+  const imageInfo = readVarInt(data, offset)
+  offset = imageInfo.offset
+  const expectedBytes = width * height * 4
+  if (imageInfo.value !== expectedBytes || offset + imageInfo.value > data.length) {
+    throw new Error(name + ' のRGBAデータ長が画像サイズと一致しません。')
+  }
+  const imageData = Buffer.from(data.subarray(offset, offset + imageInfo.value))
+  const imageEnd = offset + imageInfo.value
+
+  // Tsukuyomi SkinStealer appends zero padding before the varint-prefixed
+  // geometry JSON. Find a valid JSON record instead of assuming a fixed gap.
+  const scanEnd = Math.min(data.length - 8, imageEnd + 65536)
+  let geometryRecord = null
+  for (let position = imageEnd; position < scanEnd; position++) {
+    if (data[position] !== 0x00 && data[position] !== 0x7b && data[position] > 0x7f) continue
+    const record = parseLengthPrefixedJson(data, position, 'minecraft:geometry')
+    if (record && Array.isArray(record.value['minecraft:geometry']) && record.value['minecraft:geometry'].length) {
+      geometryRecord = record
+      break
+    }
+  }
+  if (!geometryRecord) throw new Error(name + ' に4D Geometry JSONが見つかりませんでした。')
+  const geometry = geometryRecord.value
+  let geometryVersion = String(geometry.format_version || '')
+  const versionOffset = geometryRecord.nextOffset
+  if (versionOffset < data.length) {
+    const versionLength = data[versionOffset]
+    if (versionLength > 0 && versionLength <= 32 && versionOffset + 1 + versionLength <= data.length) {
+      const candidate = data.subarray(versionOffset + 1, versionOffset + 1 + versionLength).toString('utf8')
+      if (/^\d+\.\d+(?:\.\d+)?$/.test(candidate)) geometryVersion = candidate
+    }
+  }
+  if (!geometryVersion) throw new Error(name + ' のGeometryエンジンバージョンを判別できませんでした。')
+
+  return {
+    skinId,
+    width,
+    height,
+    data: imageData,
+    resourcePatch: resourceInfo,
+    geometry,
+    geometryVersion,
+    personaSkin: skinId.toLowerCase().startsWith('persona-')
+  }
+}
+
 function jsonEntries (entries) {
   return entries.filter(entry => /\.json$/i.test(entry.name) ||
     (/\.bin$/i.test(entry.name) && entry.data[0] === 0x7B)).map(entry => {
@@ -193,6 +296,7 @@ function importSkinEntries (inputEntries) {
   let embeddedSkin = null
   let geometry = null
   let animation = null
+  let personaBin = null
   for (const entry of jsons) {
     const value = entry.value
     if (!embeddedSkin && (value.SkinData || value.skinData || value.SkinImageWidth || value.SkinResourcePatch)) embeddedSkin = value
@@ -234,7 +338,13 @@ function importSkinEntries (inputEntries) {
       texture = decodePng(bin.data)
       previewPng = bin.data
     } else {
-      texture = decodeRawSkinBin(bin.data, bin.name)
+      personaBin = decodeTsukuyomiPersonaSkinBin(bin.data, bin.name)
+      if (personaBin) {
+        texture = { width: personaBin.width, height: personaBin.height, data: personaBin.data }
+        geometry = personaBin.geometry
+      } else {
+        texture = decodeRawSkinBin(bin.data, bin.name)
+      }
     }
   }
 
@@ -242,20 +352,25 @@ function importSkinEntries (inputEntries) {
   const capeEntry = entries.find(entry => /cape.*\.png$/i.test(entry.name))
   if (capeEntry) cape = decodePng(capeEntry.data)
 
-  const embeddedResourcePatch = decodeEmbeddedJson(embeddedSkin?.SkinResourcePatch || embeddedSkin?.skinResourcePatch)
+  const embeddedResourcePatchValue = embeddedSkin?.SkinResourcePatch || embeddedSkin?.skinResourcePatch
+  const embeddedResourcePatch = personaBin?.resourcePatch ||
+    (embeddedResourcePatchValue && typeof embeddedResourcePatchValue === 'object'
+      ? embeddedResourcePatchValue
+      : decodeEmbeddedJson(embeddedResourcePatchValue))
   const geometryId = extractGeometryIdentifier(geometry) || embeddedResourcePatch?.geometry?.default || 'geometry.humanoid.custom'
   const geometryString = geometry
     ? JSON.stringify(geometry)
     : (embeddedSkin?.SkinGeometryData || embeddedSkin?.skinGeometryData || Buffer.from('null').toString('base64'))
   const animationString = animation ? JSON.stringify(animation) : ''
   const existingAnimationData = embeddedSkin?.SkinAnimationData || embeddedSkin?.skinAnimationData || ''
-  const geometryVersion = geometry?.format_version || (embeddedSkin?.SkinGeometryDataEngineVersion
+  const geometryVersion = personaBin?.geometryVersion || geometry?.format_version || (embeddedSkin?.SkinGeometryDataEngineVersion
     ? Buffer.from(embeddedSkin.SkinGeometryDataEngineVersion, 'base64').toString('utf8')
     : '0.0.0')
+  const resourcePatch = embeddedResourcePatch || { geometry: { default: geometryId } }
   const clientSkin = {
-    SkinId: 'jhonbot.' + randomUUID(),
-    PlayFabId: '',
-    SkinResourcePatch: Buffer.from(JSON.stringify({ geometry: { default: geometryId } })).toString('base64'),
+    SkinId: personaBin?.skinId || embeddedSkin?.SkinId || ('jhonbot.' + randomUUID()),
+    PlayFabId: String(embeddedSkin?.PlayFabId || ''),
+    SkinResourcePatch: Buffer.from(JSON.stringify(resourcePatch)).toString('base64'),
     SkinImageWidth: texture.width,
     SkinImageHeight: texture.height,
     SkinData: texture.data.toString('base64'),
@@ -271,8 +386,8 @@ function importSkinEntries (inputEntries) {
     SkinColor: '#0',
     PersonaPieces: [],
     PieceTintColors: [],
-    PersonaSkin: false,
-    PremiumSkin: false,
+    PersonaSkin: personaBin?.personaSkin === true || embeddedSkin?.PersonaSkin === true,
+    PremiumSkin: embeddedSkin?.PremiumSkin === true,
     CapeOnClassicSkin: false,
     TrustedSkin: true,
     OverrideSkin: true
@@ -290,9 +405,10 @@ function importSkinEntries (inputEntries) {
       hasGeometry: !!geometry,
       hasAnimation: !!animation,
       hasCape: !!cape,
+      sourceFormat: personaBin ? 'Tsukuyomi Persona BIN' : (pngCandidates.length ? 'PNG / JSON' : 'Skin package'),
       sourceFiles: entries.map(entry => entry.name.split('/').pop()).filter(Boolean).slice(0, 20)
     }
   }
 }
 
-module.exports = { importSkinEntries, clientSkinToPlayerSkin, extractGeometryIdentifier, decodeRawSkinBin, decodeEmbeddedJson, decodeBase64Text }
+module.exports = { importSkinEntries, clientSkinToPlayerSkin, extractGeometryIdentifier, decodeRawSkinBin, decodeEmbeddedJson, decodeBase64Text, decodeTsukuyomiPersonaSkinBin, readVarInt }
