@@ -72,13 +72,23 @@ function jsonEntries (entries) {
   }).filter(Boolean)
 }
 
+function decodeEmbeddedJson (value) {
+  if (typeof value !== 'string' || !value) return null
+  try {
+    const decoded = Buffer.from(value, 'base64').toString('utf8').trim()
+    return decoded ? JSON.parse(decoded) : null
+  } catch {
+    return null
+  }
+}
+
 function extractGeometryIdentifier (geometry) {
   const root = geometry && typeof geometry === 'object' ? geometry : {}
   const first = Array.isArray(root['minecraft:geometry']) ? root['minecraft:geometry'][0] : null
   return first?.description?.identifier ||
     root.geometry?.default ||
     root.description?.identifier ||
-    'geometry.humanoid.custom'
+    ''
 }
 
 function isGeometryJson (value) {
@@ -157,6 +167,17 @@ function importSkinEntries (inputEntries) {
     if (!animation && isAnimationJson(value)) animation = value
   }
 
+  if (embeddedSkin) {
+    if (!geometry) {
+      const embeddedGeometry = decodeEmbeddedJson(embeddedSkin.SkinGeometryData || embeddedSkin.skinGeometryData)
+      if (isGeometryJson(embeddedGeometry)) geometry = embeddedGeometry
+    }
+    if (!animation) {
+      const embeddedAnimation = decodeEmbeddedJson(embeddedSkin.SkinAnimationData || embeddedSkin.skinAnimationData)
+      if (isAnimationJson(embeddedAnimation)) animation = embeddedAnimation
+    }
+  }
+
   let texture = null
   let previewPng = null
   const pngCandidates = entries.filter(entry => /\.png$/i.test(entry.name) && !/(cape|elytra)/i.test(entry.name))
@@ -188,9 +209,16 @@ function importSkinEntries (inputEntries) {
   const capeEntry = entries.find(entry => /cape.*\.png$/i.test(entry.name))
   if (capeEntry) cape = decodePng(capeEntry.data)
 
-  const geometryId = extractGeometryIdentifier(geometry)
-  const geometryString = geometry ? JSON.stringify(geometry) : 'null'
+  const embeddedResourcePatch = decodeEmbeddedJson(embeddedSkin?.SkinResourcePatch || embeddedSkin?.skinResourcePatch)
+  const geometryId = extractGeometryIdentifier(geometry) || embeddedResourcePatch?.geometry?.default || 'geometry.humanoid.custom'
+  const geometryString = geometry
+    ? JSON.stringify(geometry)
+    : (embeddedSkin?.SkinGeometryData || embeddedSkin?.skinGeometryData || Buffer.from('null').toString('base64'))
   const animationString = animation ? JSON.stringify(animation) : ''
+  const existingAnimationData = embeddedSkin?.SkinAnimationData || embeddedSkin?.skinAnimationData || ''
+  const geometryVersion = geometry?.format_version || (embeddedSkin?.SkinGeometryDataEngineVersion
+    ? Buffer.from(embeddedSkin.SkinGeometryDataEngineVersion, 'base64').toString('utf8')
+    : '0.0.0')
   const clientSkin = {
     SkinId: 'jhonbot.' + randomUUID(),
     PlayFabId: '',
@@ -198,13 +226,13 @@ function importSkinEntries (inputEntries) {
     SkinImageWidth: texture.width,
     SkinImageHeight: texture.height,
     SkinData: texture.data.toString('base64'),
-    AnimatedImageData: [],
-    CapeImageWidth: cape?.width || 0,
-    CapeImageHeight: cape?.height || 0,
-    CapeData: cape ? cape.data.toString('base64') : '',
-    SkinGeometryData: Buffer.from(geometryString).toString('base64'),
-    SkinGeometryDataEngineVersion: Buffer.from('1.12.0').toString('base64'),
-    SkinAnimationData: animationString ? Buffer.from(animationString).toString('base64') : '',
+    AnimatedImageData: Array.isArray(embeddedSkin?.AnimatedImageData) ? embeddedSkin.AnimatedImageData : [],
+    CapeImageWidth: cape?.width || Number(embeddedSkin?.CapeImageWidth) || 0,
+    CapeImageHeight: cape?.height || Number(embeddedSkin?.CapeImageHeight) || 0,
+    CapeData: cape ? cape.data.toString('base64') : String(embeddedSkin?.CapeData || ''),
+    SkinGeometryData: geometry ? Buffer.from(geometryString).toString('base64') : geometryString,
+    SkinGeometryDataEngineVersion: Buffer.from(geometryVersion).toString('base64'),
+    SkinAnimationData: animationString ? Buffer.from(animationString).toString('base64') : existingAnimationData,
     CapeId: '',
     ArmSize: 'wide',
     SkinColor: '#0',
@@ -234,4 +262,4 @@ function importSkinEntries (inputEntries) {
   }
 }
 
-module.exports = { importSkinEntries, clientSkinToPlayerSkin, extractGeometryIdentifier, decodeRawSkinBin }
+module.exports = { importSkinEntries, clientSkinToPlayerSkin, extractGeometryIdentifier, decodeRawSkinBin, decodeEmbeddedJson }
