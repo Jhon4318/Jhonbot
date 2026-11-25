@@ -254,7 +254,7 @@ test('SkinStealer Persona BIN import forwards Persona pieces and tint colors int
   assert.deepEqual(imported.skinData.PersonaPieces, [{
     PieceId: '01234567-89ab-cdef-0123-456789abcdef',
     PieceType: 7,
-    PackId: '77665544-3322-1100-eedd-ccbb aa998877'.replace(' ', ''),
+    PackId: '77665544-3322-1100-ffee-ddccbbaa9988',
     IsDefaultPiece: true,
     ProductId: ''
   }])
