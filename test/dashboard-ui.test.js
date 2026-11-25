@@ -251,7 +251,7 @@ test('individual and full inventory drops wait for Bedrock stack request respons
   assert.match(main, /await tossStackConfirmed\(agent, request\.item, request\.count\)/)
   assert.match(main, /await tossStackConfirmed\(agent, item, item\.count\)/)
   assert.match(dropModule, /itemStackResponse/)
-  assert.match(dropModule, /サーバーがアイテム投棄を拒否しました/)
+  assert.ok(dropModule.includes("'アイテム投棄'"))
   assert.match(dropModule, /応答が届きませんでした/)
 })
 
@@ -337,4 +337,72 @@ test('dashboard fit keeps inventory actions and chat composer visible while logs
   assert.ok(fit.includes('overflow-y: auto !important'))
   assert.ok(fit.includes('min-height: 0 !important'))
   assert.ok(fit.includes('gap: 1px'))
+})
+
+
+test('Bedrock world chat formats translation messages instead of showing raw translation keys', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
+  const formatter = fs.readFileSync(path.join(__dirname, '..', 'src', 'chat-format.js'), 'utf8')
+  assert.ok(main.includes('formatBedrockChatMessage(message, fallback)'))
+  assert.ok(main.includes('messageObject || (translate ? { translate } : message)'))
+  assert.ok(formatter.includes('multiplayer.player.joined'))
+  assert.ok(formatter.includes('multiplayer.player.left'))
+})
+
+test('log history follows new entries unless the user has scrolled away, and long rows are clamped', () => {
+  const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
+  assert.ok(renderer.includes('state.logAutoFollow'))
+  assert.ok(renderer.includes('logList.addEventListener(\\'scroll\\''))
+  assert.ok(renderer.includes('requestAnimationFrame'))
+  assert.ok(renderer.includes('scheduleLogScroll(true)'))
+  assert.ok(renderer.includes('fullMessage.length > 240'))
+  assert.ok(styles.includes('.log-panel .log-message'))
+  assert.ok(styles.includes('text-overflow: ellipsis'))
+  assert.ok(styles.includes('white-space: nowrap !important'))
+})
+
+test('inventory icons use the Bedrock atlas and show a text fallback after image download failure', () => {
+  const icons = fs.readFileSync(path.join(__dirname, '..', 'src', 'item-textures.js'), 'utf8')
+  const inventory = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer.js'), 'utf8')
+  assert.ok(html.includes('<script src="item-textures.js"></script>'))
+  assert.ok(inventory.includes('window.bedrockItemTextures?.getTextureUrls(item)'))
+  assert.ok(inventory.includes("image.addEventListener('error'"))
+  assert.ok(inventory.includes('fallback.hidden = false'))
+  assert.ok(icons.includes('textures/items/apple'))
+  assert.ok(icons.includes('textures/blocks/stone'))
+})
+
+test('inventory transfers wait for the Bedrock inventory window and the matching stack response', () => {
+  const operations = fs.readFileSync(path.join(__dirname, '..', 'src', 'inventory-ops.js'), 'utf8')
+  assert.ok(operations.includes('await agent._stack.withInventoryOpen()'))
+  assert.ok(operations.includes('await waitForInventoryWindow(agent'))
+  assert.ok(operations.includes('createItemStackResponseWaiter(agent, requestId'))
+  assert.ok(operations.includes('await waiter.promise'))
+  assert.ok(operations.includes('try { closeInventory() } catch {}'))
+})
+
+test('Control is the sprint latch and Shift is the sneak latch', () => {
+  const keyboard = fs.readFileSync(path.join(__dirname, '..', 'src', 'control-keys.js'), 'utf8')
+  const rendererSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer.js'), 'utf8')
+  assert.ok(html.includes('data-toggle-control="sprint"'))
+  assert.ok(html.includes('data-toggle-control="sneak"'))
+  assert.ok(html.includes('<kbd>Ctrl</kbd>'))
+  assert.ok(html.includes('<kbd>Shift</kbd>'))
+  assert.ok(keyboard.includes("ControlLeft: 'sprint'"))
+  assert.ok(keyboard.includes("ShiftLeft: 'sneak'"))
+  assert.ok(rendererSource.includes('state.toggleControlsPressed'))
+  assert.ok(rendererSource.includes('toggleBotControl(state.selectedBotId, toggleControl)'))
+  assert.ok(rendererSource.includes('clearToggledControls(bot.id, false)'))
+})
+
+test('importing a Persona BIN reconnects an active Bot through saved login skinData', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
+  const importer = fs.readFileSync(path.join(__dirname, '..', 'src', 'skin-import.js'), 'utf8')
+  const parser = fs.readFileSync(path.join(__dirname, '..', 'src', 'skin-bin.js'), 'utf8')
+  assert.ok(importer.includes('decodeTsukuyomiPersonaSkinBin'))
+  assert.ok(importer.includes('personaBin?.resourcePatch'))
+  assert.ok(parser.includes('animated_face'))
+  assert.ok(main.includes('reconnectWithSavedSkin(bot'))
+  assert.ok(main.includes('waitForBotSpawn'))
+  assert.ok(main.includes('skinData: bot.skinData || undefined'))
 })
