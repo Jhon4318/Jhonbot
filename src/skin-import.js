@@ -137,7 +137,6 @@ function decodeTsukuyomiPersonaSkinBin (buffer, name = 'skin.bin') {
   const scanEnd = Math.min(data.length - 8, imageEnd + 65536)
   let geometryRecord = null
   for (let position = imageEnd; position < scanEnd; position++) {
-    if (data[position] !== 0x00 && data[position] !== 0x7b && data[position] > 0x7f) continue
     const record = parseLengthPrefixedJson(data, position, 'minecraft:geometry')
     if (record && Array.isArray(record.value['minecraft:geometry']) && record.value['minecraft:geometry'].length) {
       geometryRecord = record
