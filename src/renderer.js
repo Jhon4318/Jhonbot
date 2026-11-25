@@ -878,7 +878,7 @@ function renderInventoryDialog () {
     select.addEventListener('click', () => chooseHotbarSlot(index))
     inventoryHotbarSelect.append(select)
   }
-  if (state.inventoryCursor && connected) {
+  if (state.inventoryCursor?.botId === bot?.id && connected) {
     const source = itemAt(state.inventoryCursor.fromSlot)
     const name = source?.displayName || source?.name || 'アイテム'
     inventoryCursorStatus.textContent = `持っているアイテム：${name} × ${state.inventoryCursor.count} · 置くスロットをクリック（Escでキャンセル）`
@@ -897,7 +897,7 @@ async function handleInventorySlotClick (slot, rightClick) {
   if (!cursor) {
     if (!item) return
     const amount = rightClick ? Math.max(1, Math.ceil(item.count / 2)) : item.count
-    state.inventoryCursor = { fromSlot: slot, count: amount }
+    state.inventoryCursor = { botId: bot.id, fromSlot: slot, count: amount }
     renderInventoryDialog()
     return
   }
@@ -907,7 +907,7 @@ async function handleInventorySlotClick (slot, rightClick) {
     return
   }
   const source = items.find(entry => entry.slot === cursor.fromSlot)
-  if (!source || cursor.count < 1 || cursor.count > source.count) {
+  if (cursor.botId !== bot.id || !source || cursor.count < 1 || cursor.count > source.count) {
     state.inventoryCursor = null
     renderInventoryDialog()
     showToast('移動元インベントリが更新されました。もう一度選択してください。')
@@ -922,9 +922,9 @@ async function handleInventorySlotClick (slot, rightClick) {
     const snapshot = await api.moveInventoryItem({ botId: bot.id, fromSlot: cursor.fromSlot, toSlot: slot, count: amount })
     storeInventorySnapshot(bot.id, snapshot)
     if (item && cursor.count === source.count) {
-      state.inventoryCursor = { fromSlot: cursor.fromSlot, count: item.count }
+      state.inventoryCursor = { botId: bot.id, fromSlot: cursor.fromSlot, count: item.count }
     } else if (rightClick && cursor.count > 1) {
-      state.inventoryCursor = { fromSlot: cursor.fromSlot, count: cursor.count - 1 }
+      state.inventoryCursor = { botId: bot.id, fromSlot: cursor.fromSlot, count: cursor.count - 1 }
     } else {
       state.inventoryCursor = null
     }
@@ -1154,7 +1154,7 @@ function renderServerProfiles () {
 
 function selectBot (botId) {
   if (!botId || botId === state.selectedBotId) return
-  releaseAllHeldInputs(); state.selectedBotId=botId; state.selectedModId='inventory'; renderBots(); renderBotModulesPanel(true); renderModStore(); loadSelectedBotData()
+  releaseAllHeldInputs(); state.inventoryCursor = null; state.selectedBotId=botId; state.selectedModId='inventory'; renderBots(); renderBotModulesPanel(true); renderModStore(); loadSelectedBotData()
 }
 function renderBots () {
   botList.replaceChildren()
