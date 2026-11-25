@@ -55,7 +55,7 @@ const skinName = document.getElementById('skinName')
 const skinDetails = document.getElementById('skinDetails')
 const skinStatus = document.getElementById('skinStatus')
 
-const state = { bots: new Map(), servers: [], installedMods: [], modCatalog: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map(), inventoryGearByBot: new Map(), inventoryQuickBarByBot: new Map(), inventoryCursor: null, selectedModId: 'inventory', botPage: 0, serverPage: 0 }
+const state = { bots: new Map(), servers: [], installedMods: [], modCatalog: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), toggledControlsByBot: new Map(), toggleControlsPressed: new Set(), logAutoFollow: true, pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map(), inventoryGearByBot: new Map(), inventoryQuickBarByBot: new Map(), inventoryCursor: null, selectedModId: 'inventory', botPage: 0, serverPage: 0 }
 const statusLabels = {
   disconnected: '未参加',
   authenticating: '認証処理中',
@@ -72,15 +72,8 @@ const accountStatusLabels = {
   authenticated: 'Xbox認証済み',
   error: 'Xbox認証エラー'
 }
-const keyControls = {
-  KeyW: 'forward',
-  KeyA: 'left',
-  KeyS: 'back',
-  KeyD: 'right',
-  Space: 'jump',
-  ShiftLeft: 'sprint',
-  ShiftRight: 'sprint'
-}
+const keyControls = window.botControlKeys?.HOLD_KEYS || { KeyW: 'forward', KeyA: 'left', KeyS: 'back', KeyD: 'right', Space: 'jump' }
+const toggleKeyControls = window.botControlKeys?.TOGGLE_KEYS || { ControlLeft: 'sprint', ControlRight: 'sprint', ShiftLeft: 'sneak', ShiftRight: 'sneak' }
 
 function showToast (message) {
   toast.textContent = message
@@ -157,16 +150,49 @@ function positionText (bot) {
   return `X ${p.x}  /  Y ${p.y}  /  Z ${p.z}`
 }
 
+let logScrollScheduled = false
+let forceLogScrollScheduled = false
+
+function scheduleLogScroll (force = false) {
+  if (force) forceLogScrollScheduled = true
+  if (logScrollScheduled) return
+  logScrollScheduled = true
+  requestAnimationFrame(() => {
+    logScrollScheduled = false
+    const shouldFollow = forceLogScrollScheduled || state.logAutoFollow
+    forceLogScrollScheduled = false
+    if (shouldFollow) logList.scrollTop = logList.scrollHeight
+  })
+}
+
+logList.addEventListener('scroll', () => {
+  const distance = logList.scrollHeight - logList.scrollTop - logList.clientHeight
+  state.logAutoFollow = distance <= 44
+})
+
+function formatLogLine (value) {
+  return String(value ?? '')
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
+    .replace(/\r?\n+/g, '  ·  ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
 function appendLog (entry) {
-  const wasAtBottom = logList.scrollHeight - logList.scrollTop - logList.clientHeight < 36
+  const distance = logList.scrollHeight - logList.scrollTop - logList.clientHeight
+  if (distance <= 44) state.logAutoFollow = true
   const empty = logList.querySelector('.log-empty')
   if (empty) empty.remove()
+  const fullMessage = formatLogLine(entry.message)
+  const message = fullMessage.length > 240 ? fullMessage.slice(0, 237) + '…' : fullMessage
   const row = createElement('div', `log-entry ${entry.level || 'info'}`)
   const time = new Date(entry.at).toLocaleTimeString('ja-JP', { hour12: false })
-  row.append(createElement('span', 'log-time', time), createElement('span', 'log-message', entry.message))
+  row.append(createElement('span', 'log-time', time), createElement('span', 'log-message', message))
+  if (fullMessage.length > message.length) row.title = fullMessage
   logList.append(row)
   while (logList.children.length > 300) logList.firstElementChild.remove()
-  if (wasAtBottom) logList.scrollTop = logList.scrollHeight
+  scheduleLogScroll()
 }
 
 function openWorldChoices (bot,choices,description,targetFactory){
@@ -376,9 +402,10 @@ function renderControlPanel () {
     pathfinderNote.textContent = '周囲のチャンクを読み込み中です。座標移動は地形情報の準備後に利用できます。'
   }
 
-  for (const button of document.querySelectorAll('[data-control], #stopMovementButton, #clearControlsButton')) {
+  for (const button of document.querySelectorAll('[data-control], [data-toggle-control], #stopMovementButton, #clearControlsButton')) {
     button.disabled = !connected || !playerMode
   }
+  renderControlToggleButtons()
   for (const input of gotoForm.querySelectorAll('input, button')) input.disabled = !connected || !playerMode || !bot.pathfinderReady || !bot.worldSupport
   chatInput.disabled = !connected
   sendChatButton.disabled = !connected || !chatInput.value.trim()
@@ -792,10 +819,8 @@ function storeInventorySnapshot (botId, snapshot) {
   state.inventoryUpdatedAtByBot.set(botId, snapshot?.updatedAt || '')
 }
 
-function itemIconUrl (item) {
-  const name = String(item?.name || '').replace(/^minecraft:/i, '').toLowerCase()
-  if (!/^[a-z0-9_]+$/.test(name)) return ''
-  return 'https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/textures/items/' + name + '.png'
+function itemIconUrls (item) {
+  return window.bedrockItemTextures?.getTextureUrls(item) || []
 }
 
 function makeInventorySlot (slot, item, options = {}) {
@@ -813,16 +838,23 @@ function makeInventorySlot (slot, item, options = {}) {
   button.title = item ? `${item.displayName || item.name} × ${shownCount} (slot ${slot})` : (options.label || `空きスロット ${slot}`)
   if (hotbar) button.append(createElement('span', 'inventory-slot-number', String(slot - 35)))
   if (item && shownCount > 0) {
-    const icon = itemIconUrl(item)
-    if (icon) {
+    const icons = itemIconUrls(item)
+    if (icons.length) {
       const image = document.createElement('img')
-      image.alt = ''
-      image.src = icon
+      const fallback = createElement('span', 'inventory-empty-label', String(item.displayName || item.name).slice(0, 7))
+      image.alt = String(item.displayName || item.name)
       image.loading = 'lazy'
-      image.addEventListener('error', () => image.remove(), { once: true })
-      button.append(image)
+      let candidate = 0
+      image.src = icons[candidate]
+      image.addEventListener('error', () => {
+        candidate++
+        if (candidate < icons.length) image.src = icons[candidate]
+        else { image.remove(); fallback.hidden = false }
+      })
+      fallback.hidden = true
+      button.append(image, fallback)
     } else {
-      button.append(createElement('span', 'inventory-empty-label', String(item.displayName || item.name).slice(0, 6)))
+      button.append(createElement('span', 'inventory-empty-label', String(item.displayName || item.name).slice(0, 7)))
     }
     button.append(createElement('span', 'inventory-stack-count', shownCount > 1 ? String(shownCount) : ''))
   } else if (options.label) {
@@ -1158,7 +1190,7 @@ function renderServerProfiles () {
 
 function selectBot (botId) {
   if (!botId || botId === state.selectedBotId) return
-  releaseAllHeldInputs(); state.inventoryCursor = null; state.selectedBotId=botId; state.selectedModId='inventory'; renderBots(); renderBotModulesPanel(true); renderModStore(); loadSelectedBotData()
+  releaseAllHeldInputs(); clearToggledControls(state.selectedBotId, true); state.inventoryCursor = null; state.selectedBotId=botId; state.selectedModId='inventory'; renderBots(); renderBotModulesPanel(true); renderModStore(); loadSelectedBotData()
 }
 function renderBots () {
   botList.replaceChildren()
@@ -1243,6 +1275,47 @@ async function endControl (source) {
   state.heldInputs.delete(source)
   try { await api.controlBot({ botId: held.botId, control: held.control, active: false }) } catch (error) {
     if (!String(error.message).includes('ワールドに参加していません')) showToast(error.message)
+  }
+}
+
+function renderControlToggleButtons () {
+  const active = state.toggledControlsByBot.get(state.selectedBotId) || {}
+  for (const button of document.querySelectorAll('[data-toggle-control]')) {
+    const control = button.dataset.toggleControl
+    const enabled = active[control] === true
+    button.classList.toggle('active', enabled)
+    button.setAttribute('aria-pressed', String(enabled))
+  }
+}
+
+async function toggleBotControl (botId, control) {
+  if (!botId) return showToast('操作するBotを選択してください。')
+  const bot = state.bots.get(botId)
+  if (!bot || bot.status !== 'connected' || bot.movementMode !== 'player') {
+    return showToast('Botをワールドに参加させ、プレイヤーモードにしてください。')
+  }
+  const current = { ...(state.toggledControlsByBot.get(botId) || {}) }
+  const nextValue = current[control] !== true
+  const next = { ...current, [control]: nextValue }
+  state.toggledControlsByBot.set(botId, next)
+  renderControlToggleButtons()
+  try {
+    await api.controlBot({ botId, control, active: nextValue })
+  } catch (error) {
+    state.toggledControlsByBot.set(botId, current)
+    renderControlToggleButtons()
+    showToast(error.message || 'トグル操作を変更できませんでした。')
+  }
+}
+
+function clearToggledControls (botId, sendRelease = true) {
+  if (!botId) return
+  const active = state.toggledControlsByBot.get(botId) || {}
+  state.toggledControlsByBot.delete(botId)
+  renderControlToggleButtons()
+  if (!sendRelease) return
+  for (const control of ['sprint', 'sneak']) {
+    if (active[control] === true) api.controlBot({ botId, control, active: false }).catch(() => {})
   }
 }
 
@@ -1342,20 +1415,38 @@ async function stopSelectedBot () {
   releaseAllHeldInputs()
   const bot = selectedBot()
   if (!bot) return showToast('操作するBotを選択してください。')
+  clearToggledControls(bot.id, false)
   try { await api.stopBot(bot.id) } catch (error) { showToast(error.message) }
 }
 document.getElementById('stopMovementButton').addEventListener('click', stopSelectedBot)
 document.getElementById('clearControlsButton').addEventListener('click', stopSelectedBot)
+for (const button of document.querySelectorAll('[data-toggle-control]')) {
+  button.addEventListener('click', () => toggleBotControl(state.selectedBotId, button.dataset.toggleControl))
+}
 
 window.addEventListener('keydown', (event) => {
-  const control = keyControls[event.code]
-  if (!control || event.repeat) return
   const target = event.target
   if (target instanceof HTMLElement && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)) return
+  const toggleControl = toggleKeyControls[event.code]
+  if (toggleControl) {
+    event.preventDefault()
+    if (event.repeat || state.toggleControlsPressed.has(toggleControl)) return
+    state.toggleControlsPressed.add(toggleControl)
+    toggleBotControl(state.selectedBotId, toggleControl)
+    return
+  }
+  const control = keyControls[event.code]
+  if (!control || event.repeat) return
   event.preventDefault()
   startControl(`key:${event.code}`, state.selectedBotId, control)
 })
 window.addEventListener('keyup', (event) => {
+  const toggleControl = toggleKeyControls[event.code]
+  if (toggleControl) {
+    state.toggleControlsPressed.delete(toggleControl)
+    event.preventDefault()
+    return
+  }
   if (!keyControls[event.code]) return
   event.preventDefault()
   endControl(`key:${event.code}`)
@@ -1705,7 +1796,9 @@ api.onBotUpdated((bot) => {
   state.bots.set(bot.id, bot)
   renderBots()
   if (bot.id === state.selectedBotId) {
+    if (previous?.status === 'connected' && bot.status !== 'connected') clearToggledControls(bot.id, false)
     renderBotModulesPanel(false)
+    renderControlPanel()
     if (previous?.status !== bot.status) loadSelectedBotData()
   }
 })
@@ -1713,6 +1806,7 @@ api.onBotRemoved((botId) => {
   const removedBot = state.bots.get(botId)
   state.bots.delete(botId)
   state.chatMessagesByBot.delete(botId)
+  state.toggledControlsByBot.delete(botId)
   state.inventoryByBot.delete(botId)
   state.inventoryUpdatedAtByBot.delete(botId)
   state.inventoryGearByBot.delete(botId)
@@ -1791,6 +1885,7 @@ async function initialise () {
   state.modCatalog = initial.modCatalog || []
   for (const bot of initial.bots) state.bots.set(bot.id, bot)
   for (const entry of initial.logs) appendLog(entry)
+  scheduleLogScroll(true)
   const pendingAuth = (initial.pendingAuthCodes || [])[0]
   if (pendingAuth) {
     state.authUrl = pendingAuth.verificationUri
