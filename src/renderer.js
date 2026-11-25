@@ -1018,8 +1018,10 @@ function renderSkinPanel (bot) {
   skinPreviewImage.src = skin.previewDataUrl || ''
   skinPreviewPlaceholder.hidden = !!skin.previewDataUrl
   skinName.textContent = skin.name || 'カスタムスキン'
-  skinDetails.textContent = `${skin.width}×${skin.height} · ${skin.geometryId || '標準モデル'}${skin.hasAnimation ? ' · Animationあり' : ''}${skin.hasCape ? ' · Capeあり' : ''}`
-  skinStatus.textContent = '保存済み。4Dジオメトリ／アニメーションの描画可否は参加先サーバーに依存します。'
+  skinDetails.textContent = `${skin.width}×${skin.height} · ${skin.geometryId || '標準モデル'}${skin.hasAnimation ? ' · Animationあり' : ''}${skin.hasCape ? ' · Capeあり' : ''}${skin.sourceFormat ? ' · ' + skin.sourceFormat : ''}`
+  skinStatus.textContent = bot.status === 'connected'
+    ? '素材保存済み。適用時はBotを再接続し、ログインデータにスキンを含めます。4D表示は参加先サーバーに依存します。'
+    : '素材保存済み。次回ワールド接続時のログインデータに適用します。'
 }
 
 function renderInventoryPanel () {
@@ -1533,9 +1535,13 @@ importSkinButton.addEventListener('click', async () => {
       renderBotModulesPanel(false)
       renderSkinPanel(result.bot)
     }
-    showToast(result?.appliedLive
-      ? 'スキン素材を保存し、接続中のBotへ送信しました。サーバーでの適用表示を確認してください。'
-      : 'スキン素材を保存しました。次回接続時にログインスキンとして適用します。')
+    if (result?.appliedLive) {
+      showToast('Botを再接続し、カスタムスキンを含むログイン処理が完了しました。4D表示はサーバー側の対応に依存します。')
+    } else if (result?.reconnectError) {
+      showToast('スキンは保存されましたが、自動再接続に失敗しました: ' + result.reconnectError)
+    } else {
+      showToast('スキン素材を保存しました。次回ワールド接続時に適用します。')
+    }
   } catch (error) {
     showToast(error.message || 'スキン素材を読み込めませんでした。')
   } finally {
