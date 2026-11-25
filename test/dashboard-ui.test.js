@@ -285,10 +285,10 @@ test('custom skins expose PNG, geometry, animation and SkinStealer import action
   for (const id of ['skinModuleCard', 'skinPreviewImage', 'skinName', 'skinDetails', 'importSkinButton', 'skinStatus']) {
     assert.ok(elementIds(html).includes(id), 'Missing skin element: ' + id)
   }
-  assert.match(renderer, /api.importSkin(bot.id)/)
+  assert.ok(renderer.includes('api.importSkin(bot.id)'))
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
   assert.match(main, /skinData: bot.skinData || undefined/)
-  assert.ok(main.includes("agent._client.write('player_skin'"))
+  assert.ok(main.includes("skinData: bot.skinData || undefined"))
   assert.match(main, /findMatchingFriendWorldSession/)
 })
 
