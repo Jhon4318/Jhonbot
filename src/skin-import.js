@@ -284,7 +284,6 @@ function importSkinEntries (inputEntries) {
   const resourcePatch = embeddedResourcePatch || { geometry: { default: geometryId } }
   const clientSkin = {
     SkinId: personaBin?.skinId || embeddedSkin?.SkinId || ('jhonbot.' + randomUUID()),
-    PlayFabId: String(embeddedSkin?.PlayFabId || ''),
     SkinResourcePatch: Buffer.from(JSON.stringify(resourcePatch)).toString('base64'),
     SkinImageWidth: texture.width,
     SkinImageHeight: texture.height,
