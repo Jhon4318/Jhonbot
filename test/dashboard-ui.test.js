@@ -267,3 +267,38 @@ test('Bedrock inventory drops do not require player movement mode', () => {
   assert.doesNotMatch(singleDrop, /requirePlayerMode/)
   assert.doesNotMatch(bulkDrop, /requirePlayerMode/)
 })
+
+
+test('graphical inventory exposes equipment, 27 main slots, 9 hotbar slots and server-backed move controls', () => {
+  for (const id of ['openInventoryDialogButton', 'inventoryDialog', 'inventoryGearSlots', 'inventoryMainGrid', 'inventoryHotbarGrid', 'inventoryHotbarSelect', 'inventoryCursorStatus']) {
+    assert.ok(elementIds(html).includes(id), 'Missing graphical inventory element: ' + id)
+  }
+  assert.match(renderer, /for (let slot = 9; slot <= 35; slot++)/)
+  assert.match(renderer, /for (let slot = 36; slot <= 44; slot++)/)
+  assert.match(renderer, /api.moveInventoryItem({ botId: bot.id, fromSlot, toSlot/)
+  assert.match(renderer, /api.selectHotbarSlot({ botId: bot.id, slot })/)
+  assert.match(renderer, /contextmenu/)
+  assert.match(renderer, /event.dataTransfer.setData('text/plain'/)
+})
+
+test('custom skins expose PNG, geometry, animation and SkinStealer import actions', () => {
+  for (const id of ['skinModuleCard', 'skinPreviewImage', 'skinName', 'skinDetails', 'importSkinButton', 'skinStatus']) {
+    assert.ok(elementIds(html).includes(id), 'Missing skin element: ' + id)
+  }
+  assert.match(renderer, /api.importSkin(bot.id)/)
+  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
+  assert.match(main, /skinData: bot.skinData || undefined/)
+  assert.match(main, /agent._client.write('player_skin'/)
+  assert.match(main, /findMatchingFriendWorldSession/)
+})
+
+test('world chat and connection logs retain scrollable history rather than rendering only the newest few lines', () => {
+  const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
+  assert.match(renderer, /entries.slice(-150)/)
+  assert.match(renderer, /logList.children.length > 300/)
+  assert.match(styles, /.chat-panel .chat-messagess*{[^}]*overflow-y:s*auto/s)
+  assert.match(styles, /.log-panel .log-lists*{[^}]*overflow-y:s*auto/s)
+  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
+  assert.match(main, /agent.on('chat'/)
+  assert.match(main, /recordBotChatMessage(bot, 'incoming'/)
+})
