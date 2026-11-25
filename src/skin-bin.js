@@ -33,6 +33,82 @@ function parseLengthPrefixedJson (data, offset, expectedKey) {
   }
 }
 
+function uuidFromMceBytes (data, offset) {
+  const msb = Buffer.from(data.subarray(offset, offset + 8)).reverse()
+  const lsb = Buffer.from(data.subarray(offset + 8, offset + 16)).reverse()
+  const hex = Buffer.concat([msb, lsb]).toString('hex')
+  return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-' + hex.slice(16, 20) + '-' + hex.slice(20)
+}
+
+function formatArgbColor (data, offset) {
+  const r = data[offset].toString(16).padStart(2, '0')
+  const g = data[offset + 1].toString(16).padStart(2, '0')
+  const b = data[offset + 2].toString(16).padStart(2, '0')
+  const a = data[offset + 3].toString(16).padStart(2, '0')
+  return a === '00' && r === '00' && g === '00' && b === '00' ? '#0' : '#' + a + r + g + b
+}
+
+function parsePersonaMetadataTail (data, start, expectedSkinId) {
+  let offset = start
+  if (offset + 3 > data.length || data[offset] !== 0 || data[offset + 1] !== 0) return null
+  offset += 2
+  const idLength = data[offset++]
+  if (!idLength || idLength > 128 || offset + idLength + 6 > data.length) return null
+  const skinId = data.subarray(offset, offset + idLength).toString('utf8')
+  if (skinId !== expectedSkinId) return null
+  offset += idLength
+  if (data[offset++] !== 0) return null
+
+  const skinColorBytes = data.subarray(offset, offset + 4)
+  if (skinColorBytes.length !== 4) return null
+  const skinColor = formatArgbColor(data, offset)
+  offset += 4
+
+  const pieceCount = data[offset++]
+  if (pieceCount > 64) return null
+  const personaPieces = []
+  for (let index = 0; index < pieceCount; index++) {
+    if (offset >= data.length) return null
+    const pieceIdLength = data[offset++]
+    if (!pieceIdLength || pieceIdLength > 128 || offset + pieceIdLength + 22 > data.length) return null
+    const pieceId = data.subarray(offset, offset + pieceIdLength).toString('utf8')
+    offset += pieceIdLength
+    const pieceType = data.readUInt32LE(offset)
+    offset += 4
+    const packId = uuidFromMceBytes(data, offset)
+    offset += 16
+    const isDefaultPiece = data[offset++] !== 0
+    const productIdLength = data[offset++]
+    if (productIdLength > 128 || offset + productIdLength > data.length) return null
+    const productId = data.subarray(offset, offset + productIdLength).toString('utf8')
+    offset += productIdLength
+    if (!/^[a-f0-9-]{36}$/i.test(pieceId) || pieceType > 29) return null
+    personaPieces.push({ PieceId: pieceId, PieceType: pieceType, PackId: packId, IsDefaultPiece: isDefaultPiece, ProductId: productId })
+  }
+
+  if (offset >= data.length) return { skinColor, personaPieces, pieceTintColors: [] }
+  const tintCount = data[offset++]
+  if (tintCount > 16) return { skinColor, personaPieces, pieceTintColors: [] }
+  const tintColorCounts = { mouth: 4, eyes: 3, hair: 3 }
+  const pieceTintColors = []
+  for (let index = 0; index < tintCount; index++) {
+    if (offset >= data.length) break
+    const keyLength = data[offset++]
+    if (!keyLength || keyLength > 32 || offset + keyLength > data.length) break
+    const key = data.subarray(offset, offset + keyLength).toString('utf8').toLowerCase()
+    offset += keyLength
+    const colorCount = tintColorCounts[key]
+    if (!colorCount || offset + colorCount * 4 > data.length) break
+    const colors = []
+    for (let colorIndex = 0; colorIndex < colorCount; colorIndex++) {
+      colors.push(formatArgbColor(data, offset))
+      offset += 4
+    }
+    pieceTintColors.push({ PieceType: 'persona_' + key, Colors: colors })
+  }
+  return { skinColor, personaPieces, pieceTintColors }
+}
+
 function decodeTsukuyomiPersonaSkinBin (buffer, name = 'skin.bin') {
   const data = asBuffer(buffer)
   if (data.length < 32) return null
@@ -85,15 +161,20 @@ function decodeTsukuyomiPersonaSkinBin (buffer, name = 'skin.bin') {
   const geometry = geometryRecord.value
   let geometryVersion = String(geometry.format_version || '')
   const versionOffset = geometryRecord.nextOffset
+  let tailOffset = versionOffset
   if (versionOffset < data.length) {
     const versionLength = data[versionOffset]
     if (versionLength > 0 && versionLength <= 32 && versionOffset + 1 + versionLength <= data.length) {
       const candidate = data.subarray(versionOffset + 1, versionOffset + 1 + versionLength).toString('utf8')
-      if (/^\d+\.\d+(?:\.\d+)?$/.test(candidate)) geometryVersion = candidate
+      if (/^\d+\.\d+(?:\.\d+)?$/.test(candidate)) {
+        geometryVersion = candidate
+        tailOffset = versionOffset + 1 + versionLength
+      }
     }
   }
   if (!geometryVersion) throw new Error(name + ' のGeometryエンジンバージョンを判別できませんでした。')
 
+  const personaMetadata = parsePersonaMetadataTail(data, tailOffset, skinId)
   return {
     skinId,
     width,
@@ -102,7 +183,10 @@ function decodeTsukuyomiPersonaSkinBin (buffer, name = 'skin.bin') {
     resourcePatch: resourceInfo,
     geometry,
     geometryVersion,
-    personaSkin: skinId.toLowerCase().startsWith('persona-')
+    personaSkin: skinId.toLowerCase().startsWith('persona-'),
+    skinColor: personaMetadata?.skinColor || '#0',
+    personaPieces: personaMetadata?.personaPieces || [],
+    pieceTintColors: personaMetadata?.pieceTintColors || []
   }
 }
 
