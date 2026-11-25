@@ -145,7 +145,6 @@ function clientSkinToPlayerSkin (clientSkin) {
   })
   return {
     skin_id: String(clientSkin.SkinId || ''),
-    play_fab_id: String(clientSkin.PlayFabId || ''),
     skin_resource_pack: decodeBase64Text(clientSkin.SkinResourcePatch || ''),
     skin_data: image(clientSkin.SkinImageWidth, clientSkin.SkinImageHeight, clientSkin.SkinData),
     animations,
