@@ -107,7 +107,7 @@ async function moveInventorySlotConfirmed (agent, fromSlot, toSlot, count, optio
     const requestId = currentRequestId - 2
     const beforeSourceCount = source.count
     const beforeDestination = destination ? { type: destination.type, count: destination.count } : null
-    waiter = createItemStackResponseWaiter(agent, requestId, options.timeoutMs || 5000)
+    waiter = createItemStackResponseWaiter(agent, requestId, options.timeoutMs || 5000, 'インベントリ移動')
     const returnedId = agent.moveInventoryItem(bedrockFrom, bedrockTo, amount)
     if (Number(returnedId) !== requestId) {
       throw new Error('インベントリ移動要求IDが一致しません。別のインベントリ操作と競合した可能性があります。')
