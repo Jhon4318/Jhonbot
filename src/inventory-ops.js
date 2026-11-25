@@ -38,47 +38,61 @@ async function moveInventorySlotConfirmed (agent, fromSlot, toSlot, count, optio
   const bedrockTo = toBedrockInventorySlot(to)
   if (from === to) throw new Error('移動元と移動先が同じです。')
 
-  const crossesHotbarBoundary = (from >= 36) !== (to >= 36)
-  let closeInventory = () => {}
-  if (crossesHotbarBoundary && !agent.currentWindow) {
-    if (typeof agent._stack?.withInventoryOpen !== 'function') {
-      throw new Error('メインインベントリとホットバーをまたぐ移動には、Bedrockのインベントリ画面を開く機能が必要です。')
-    }
-    closeInventory = await agent._stack.withInventoryOpen()
-    if (!agent.currentWindow) {
-      try { closeInventory() } catch {}
-      throw new Error('Bedrockのインベントリ画面を開けませんでした。')
-    }
-  }
-
-  const inventory = agent.inventory?.slots
-  const source = inventory?.[from]
-  const destination = inventory?.[to]
-  if (!source || !Number.isInteger(source.count) || source.count < 1) {
+  // Validate before opening the inventory window so a bad click never leaves
+  // a temporary player inventory screen open.
+  const initialInventory = agent.inventory?.slots
+  const initialSource = initialInventory?.[from]
+  const initialDestination = initialInventory?.[to]
+  if (!initialSource || !Number.isInteger(initialSource.count) || initialSource.count < 1) {
     throw new Error('移動元スロットにアイテムがありません。')
   }
-  if (source.stackId == null) {
+  if (initialSource.stackId == null) {
     throw new Error('移動元アイテムのStack IDがありません。インベントリを再取得してください。')
   }
-  const amount = count == null ? source.count : Number(count)
-  if (!Number.isInteger(amount) || amount < 1 || amount > source.count) {
+  const amount = count == null ? initialSource.count : Number(count)
+  if (!Number.isInteger(amount) || amount < 1 || amount > initialSource.count) {
     throw new Error('移動する個数が不正です。')
   }
-  if (destination && amount !== source.count) {
+  if (initialDestination && amount !== initialSource.count) {
     throw new Error('アイテムが入っているスロットとの部分スタック移動はできません。先に空きスロットへ移動してください。')
   }
 
-  // Mineflayer's Bedrock plugin uses one shared request counter. Listen for the
-  // exact response before asking the plugin to send the corresponding request.
-  const currentRequestId = agent._stackRequest?.id
-  if (!Number.isSafeInteger(currentRequestId)) {
-    throw new Error('BedrockのItemStackRequest管理情報を取得できません。')
-  }
-  const requestId = currentRequestId - 2
-  const beforeSourceCount = source.count
-  const beforeDestination = destination ? { type: destination.type, count: destination.count } : null
-  const waiter = createItemStackResponseWaiter(agent, requestId, options.timeoutMs || 5000)
+  const crossesHotbarBoundary = (from >= 36) !== (to >= 36)
+  let closeInventory = () => {}
+  let waiter = null
   try {
+    if (crossesHotbarBoundary && !agent.currentWindow) {
+      if (typeof agent._stack?.withInventoryOpen !== 'function') {
+        throw new Error('メインインベントリとホットバーをまたぐ移動には、Bedrockのインベントリ画面を開く機能が必要です。')
+      }
+      closeInventory = await agent._stack.withInventoryOpen()
+      if (!agent.currentWindow) {
+        throw new Error('Bedrockのインベントリ画面を開けませんでした。')
+      }
+    }
+
+    // Opening the Bedrock inventory may resync slots. Always capture the
+    // latest live item and stack id immediately before issuing the request.
+    const inventory = agent.inventory?.slots
+    const source = inventory?.[from]
+    const destination = inventory?.[to]
+    if (!source || !Number.isInteger(source.count) || source.count < amount || source.stackId == null) {
+      throw new Error('インベントリを開いた後に移動元が変化しました。再取得してください。')
+    }
+    if (destination && amount !== source.count) {
+      throw new Error('移動先スロットが変化しました。部分スタック移動は空きスロットにのみ可能です。')
+    }
+
+    // Mineflayer's Bedrock plugin uses one shared request counter. Listen for
+    // the exact response before asking the plugin to send the corresponding request.
+    const currentRequestId = agent._stackRequest?.id
+    if (!Number.isSafeInteger(currentRequestId)) {
+      throw new Error('BedrockのItemStackRequest管理情報を取得できません。')
+    }
+    const requestId = currentRequestId - 2
+    const beforeSourceCount = source.count
+    const beforeDestination = destination ? { type: destination.type, count: destination.count } : null
+    waiter = createItemStackResponseWaiter(agent, requestId, options.timeoutMs || 5000)
     const returnedId = agent.moveInventoryItem(bedrockFrom, bedrockTo, amount)
     if (Number(returnedId) !== requestId) {
       throw new Error('インベントリ移動要求IDが一致しません。別のインベントリ操作と競合した可能性があります。')
@@ -98,9 +112,8 @@ async function moveInventorySlotConfirmed (agent, fromSlot, toSlot, count, optio
     }
     return { requestId, response, itemsMoved: amount, fromSlot: from, toSlot: to }
   } finally {
-    waiter.cancel()
+    waiter?.cancel()
     try { closeInventory() } catch {}
   }
 }
-
 module.exports = { toBedrockInventorySlot, selectHotbarSlot, moveInventorySlotConfirmed }
