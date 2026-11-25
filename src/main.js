@@ -25,6 +25,9 @@ const { restoreSavedAuthflow } = require('./auth-restore')
 const { isFishingHookSpawn, isFishingHookBite, findFishingRod, runtimeEntityId } = require('./auto-fishing')
 const { normalizeChatMessage, normalizeDropRequest, createInventorySnapshot } = require('./bot-actions')
 const { createInventoryDropPlan, tossStackConfirmed } = require('./inventory-drop')
+const { moveInventorySlotConfirmed, selectHotbarSlot } = require('./inventory-ops')
+const { buildFriendWorldIdentity, findMatchingFriendWorldSession } = require('./friend-world-selection')
+const { importSkinEntries, clientSkinToPlayerSkin } = require('./skin-import')
 const { installSubClientSupport, createGuestLoginTokens, createSubClientLoginDispatcher, MAX_SUB_CLIENTS } = require('./subclients')
 const { nextGuestSubClientId, resolveGuestLabel } = require('./guest-naming')
 const { installBedrockDimensionSync } = require('./bedrock-dimension-sync')
@@ -177,6 +180,9 @@ function publicBot (bot) {
     targetId: bot.targetId || '',
     networkId: bot.networkId || '',
     worldName: bot.worldName || '',
+    friendWorldSelection: bot.friendWorldSelection ? { ...bot.friendWorldSelection } : null,
+    skin: bot.skinMeta ? { ...bot.skinMeta } : null,
+    selectedHotbarSlot: Number.isInteger(bot.agent?.quickBarSlot) ? bot.agent.quickBarSlot : 0,
     movementMode: normalizeBotMovementMode(bot.movementMode),
     modules: normalizeBotModules(bot.modules),
     moduleStatus: {
@@ -241,6 +247,9 @@ function createBotRecord (saved) {
     targetId: saved.targetId || '',
     networkId: saved.networkId || '',
     worldName: saved.worldName || '',
+    friendWorldSelection: saved.friendWorldSelection && typeof saved.friendWorldSelection === 'object' ? saved.friendWorldSelection : null,
+    skinData: saved.skinData && typeof saved.skinData === 'object' ? saved.skinData : null,
+    skinMeta: saved.skinMeta && typeof saved.skinMeta === 'object' ? saved.skinMeta : null,
     movementMode: normalizeBotMovementMode(saved.movementMode),
     status: 'disconnected',
     client: null,
@@ -271,6 +280,7 @@ function createBotRecord (saved) {
     chatHistory: [],
     inventoryPublishTimer: null,
     inventoryDropBusy: false,
+    inventoryMoveBusy: false,
     itemUseTimer: null,
     itemUseRunning: false,
     itemUseBusy: false,
@@ -353,8 +363,10 @@ function saveSettings () {
       id, label, host, port, mode, signallingUrl, lastSuccessfulMode: lastSuccessfulMode || '', lastSuccessfulAt: lastSuccessfulAt || ''
     })),
     trustedServerKeys: { ...settings.trustedServerKeys },
-    bots: Array.from(bots.values()).map(({ id, label, targetType, targetId, networkId, worldName, movementMode, modules, parentBotId, subClientId }) => ({
-      id, label, targetType, targetId, networkId, worldName, movementMode: normalizeBotMovementMode(movementMode), modules: normalizeBotModules(modules), ...(parentBotId ? { parentBotId, subClientId } : {})
+    bots: Array.from(bots.values()).map(({ id, label, targetType, targetId, networkId, worldName, movementMode, modules, parentBotId, subClientId, friendWorldSelection, skinData, skinMeta }) => ({
+      id, label, targetType, targetId, networkId, worldName, movementMode: normalizeBotMovementMode(movementMode), modules: normalizeBotModules(modules),
+      friendWorldSelection: friendWorldSelection || null, skinData: skinData || null, skinMeta: skinMeta || null,
+      ...(parentBotId ? { parentBotId, subClientId } : {})
     }))
   }
   settingsSaveQueue = settingsSaveQueue.catch(() => {}).then(async () => {
@@ -500,6 +512,15 @@ function onMicrosoftDeviceCode (bot, data) {
 
 function askForWorldSelection (bot, sessions, attemptId) {
   if (!Array.isArray(sessions) || sessions.length === 0) throw new Error('参加可能なワールドが見つかりませんでした。')
+  if (bot.friendWorldSelection) {
+    const matched = findMatchingFriendWorldSession(sessions, bot.friendWorldSelection)
+    if (matched) {
+      const label = matched.identity?.worldName || matched.identity?.hostName || '保存済みワールド'
+      pushLog(`${bot.label}: 前回参加したフレンドワールド「${label}」を自動選択しました。`, 'success', bot.id)
+      return Promise.resolve(matched.session)
+    }
+    pushLog(`${bot.label}: 前回のフレンドワールドを一覧から特定できませんでした。選択画面を表示します。`, 'warning', bot.id)
+  }
   const requestId = randomUUID()
   const safeSessions = sessions.map((session, index) => {
     const properties = session?.customProperties || {}
@@ -510,7 +531,7 @@ function askForWorldSelection (bot, sessions, attemptId) {
       details: [properties.version, reference.templateName].filter(Boolean).join(' · ')
     }
   })
-  return new Promise((resolve, reject) => {
+  return new Promise((settle, reject) => {
     const timer = setTimeout(() => {
       pendingWorldSelections.delete(requestId)
       reject(new Error('ワールド選択がタイムアウトしました。'))
@@ -519,7 +540,14 @@ function askForWorldSelection (bot, sessions, attemptId) {
       botId: bot.id,
       attemptId,
       sessions,
-      resolve: (index) => { clearTimeout(timer); resolve(sessions[index]) },
+      resolve: async (index) => {
+        clearTimeout(timer)
+        bot.friendWorldSelection = buildFriendWorldIdentity(sessions[index])
+        try { await saveSettings() } catch (error) {
+          pushLog(`${bot.label}: 選択したフレンドワールドの保存に失敗しました: ${error.message}`, 'warning', bot.id)
+        }
+        settle(sessions[index])
+      },
       reject: (error) => { clearTimeout(timer); reject(error) }
     })
     send('world:sessions', { requestId, botId: bot.id, botLabel: bot.label, sessions: safeSessions })
@@ -968,6 +996,7 @@ async function connectBot (botId, options = {}) {
       useRaknetWorkers: false,
       profilesFolder: encryptedAuthCacheFactory(bot.id),
       authflow: bot.authflow,
+      skinData: bot.skinData || undefined,
       onMsaCode: (data) => onMicrosoftDeviceCode(bot, data),
       conLog: (message) => pushLog(`${bot.label}: ${message}`, 'info', bot.id),
       hideErrors: false,
@@ -1143,6 +1172,7 @@ async function connectBot (botId, options = {}) {
     bot.reconnectStatus = '接続済み'
     setBotStatus(bot, 'connected')
     preparePathfinder(bot)
+    if (bot.skinData) pushLog(`${bot.label}: 保存済みカスタムスキンをBedrockログインデータに含めました。表示可否はサーバーに依存します。`, 'info', bot.id)
     publishBotInventory(bot)
     pushLog(`${bot.label}: ワールドにスポーンしました。`, 'success', bot.id)
     reconnectGuestBots(bot).catch(error => {
@@ -1155,6 +1185,19 @@ async function connectBot (botId, options = {}) {
     const sender = String(username || '')
     if (sender && sender === String(agent.username || bot.playerName || '')) return
     recordBotChatMessage(bot, 'incoming', sender, message)
+  })
+  agent.on('whisper', (username, message) => {
+    if (bot.agent !== agent) return
+    const sender = String(username || '')
+    if (sender && sender === String(agent.username || bot.playerName || '')) return
+    recordBotChatMessage(bot, 'incoming', sender ? sender + ' (whisper)' : 'Whisper', message)
+  })
+  agent.on('message', (message, position, source) => {
+    if (bot.agent !== agent || position !== 'system') return
+    recordBotChatMessage(bot, 'system', String(source || 'System'), message?.toString?.() ?? message)
+  })
+  agent.on('heldItemChanged', () => {
+    if (bot.agent === agent) queueBotInventoryPublish(bot, agent)
   })
   agent.on('kicked', (reason) => {
     if (bot.agent !== agent) return
@@ -1179,7 +1222,7 @@ async function connectBot (botId, options = {}) {
     bot.movementTimer = null
     clearTimeout(bot.inventoryPublishTimer)
     bot.inventoryPublishTimer = null
-    send('bot:inventory-updated', { botId: bot.id, items: [], updatedAt: new Date().toISOString() })
+    send('bot:inventory-updated', { botId: bot.id, items: [], gear: [], quickBarSlot: 0, updatedAt: new Date().toISOString() })
     bot.client = null
     bot.agent = null
     bot.connectionStarting = false
@@ -1300,6 +1343,7 @@ async function joinGuestBot (parent, guest) {
       version: parent.client.options?.version || MC_VERSION,
       username: guest.label,
       client: view,
+      skinData: guest.skinData || undefined,
       hideErrors: false,
       logErrors: false,
       respawn: true
@@ -1351,6 +1395,22 @@ async function joinGuestBot (parent, guest) {
   })
   agent._client.on('level_chunk', () => { if (guest.agent === agent) guest.levelChunkPackets++ })
   agent._client.on('subchunk', () => { if (guest.agent === agent) guest.subchunkPackets++ })
+  agent.on('chat', (username, message) => {
+    if (guest.agent !== agent) return
+    const sender = String(username || '')
+    if (sender && sender === String(agent.username || guest.playerName || '')) return
+    recordBotChatMessage(guest, 'incoming', sender, message)
+  })
+  agent.on('whisper', (username, message) => {
+    if (guest.agent !== agent) return
+    const sender = String(username || '')
+    if (sender && sender === String(agent.username || guest.playerName || '')) return
+    recordBotChatMessage(guest, 'incoming', sender ? sender + ' (whisper)' : 'Whisper', message)
+  })
+  agent.on('message', (message, position, source) => {
+    if (guest.agent !== agent || position !== 'system') return
+    recordBotChatMessage(guest, 'system', String(source || 'System'), message?.toString?.() ?? message)
+  })
   for (const packetName of ['inventory_content', 'inventory_slot', 'inventory_transaction', 'item_stack_response']) {
     agent._client.on(packetName, () => queueBotInventoryPublish(guest, agent))
   }
@@ -1411,7 +1471,7 @@ async function joinGuestBot (parent, guest) {
     clearTimeout(guest.inventoryPublishTimer)
     guest.inventoryPublishTimer = null
     guest.connectionStarting = false
-    send('bot:inventory-updated', { botId: guest.id, items: [], updatedAt: new Date().toISOString() })
+    send('bot:inventory-updated', { botId: guest.id, items: [], gear: [], quickBarSlot: 0, updatedAt: new Date().toISOString() })
     guest.client = null
     guest.agent = null
     guest.pathfinderReady = false
@@ -1533,7 +1593,7 @@ function recordBotChatMessage (bot, direction, username, message) {
     at: new Date().toISOString(),
     direction,
     username: String(username || ''),
-    message: String(message ?? '').slice(0, 1000)
+    message: String(message?.toString?.() ?? message ?? '').slice(0, 1000)
   }
   bot.chatHistory ||= []
   bot.chatHistory.push(entry)
@@ -1557,20 +1617,162 @@ function getBotChatHistory (botId) {
   return [...(bot.chatHistory || [])]
 }
 
-function getBotInventory (botId) {
-  const { bot, agent } = getConnectedAgent(botId)
+function inventoryGearSnapshot (agent) {
+  const slots = agent?.inventory?.slots || []
+  const gearSlots = [
+    { slot: 5, label: '頭' },
+    { slot: 6, label: '胴' },
+    { slot: 7, label: '脚' },
+    { slot: 8, label: '足' },
+    { slot: 45, label: '副手' }
+  ]
+  return gearSlots.filter(entry => slots[entry.slot]).map(entry => {
+    const item = slots[entry.slot]
+    return {
+      slot: entry.slot,
+      name: String(item.name || ''),
+      displayName: String(item.displayName || item.name || '装備'),
+      count: Number(item.count) || 1,
+      type: Number.isInteger(item.type) ? item.type : null,
+      metadata: Number.isInteger(item.metadata) ? item.metadata : 0,
+      label: entry.label
+    }
+  })
+}
+
+function createBotInventoryPayload (bot, agent) {
   return {
     botId: bot.id,
     items: createInventorySnapshot(agent),
+    gear: inventoryGearSnapshot(agent),
+    quickBarSlot: Number.isInteger(agent?.quickBarSlot) ? agent.quickBarSlot : 0,
     updatedAt: new Date().toISOString()
   }
 }
 
+function getBotInventory (botId) {
+  const { bot, agent } = getConnectedAgent(botId)
+  return createBotInventoryPayload(bot, agent)
+}
+
 function publishBotInventory (bot) {
-  const items = bot.agent ? createInventorySnapshot(bot.agent) : []
-  const payload = { botId: bot.id, items, updatedAt: new Date().toISOString() }
+  const payload = bot.agent
+    ? createBotInventoryPayload(bot, bot.agent)
+    : { botId: bot.id, items: [], gear: [], quickBarSlot: 0, updatedAt: new Date().toISOString() }
   send('bot:inventory-updated', payload)
   return payload
+}
+
+function assertInventoryDropAvailable (bot) {
+  if (bot.inventoryDropBusy) throw new Error('別のアイテム投棄処理が実行中です。')
+  if (bot.inventoryMoveBusy) throw new Error('別のインベントリ操作が実行中です。')
+  if (bot.itemUseBusy || bot.itemUseRunning || bot.containerSupplyBusy || bot.containerSupplyRunning || bot.autoFishingBusy || bot.autoFishingRunning) {
+    throw new Error('別のModがインベントリを操作中です。')
+  }
+}
+
+async function moveBotInventoryItem (botId, input) {
+  const { bot, agent } = getConnectedAgent(botId)
+  assertInventoryDropAvailable(bot)
+  bot.inventoryMoveBusy = true
+  try {
+    const result = await moveInventorySlotConfirmed(agent, input?.fromSlot, input?.toSlot, input?.count)
+    if (bot.agent !== agent) throw new Error('アイテム移動中にBotが切断されました。')
+    pushLog(`${bot.label}: インベントリのスロット ${result.fromSlot} から ${result.toSlot} へ移動しました。`, 'success', bot.id)
+    return publishBotInventory(bot)
+  } finally {
+    bot.inventoryMoveBusy = false
+  }
+}
+
+function selectBotHotbarSlot (botId, input) {
+  const { bot, agent } = getConnectedAgent(botId)
+  assertInventoryDropAvailable(bot)
+  bot.inventoryMoveBusy = true
+  try {
+    const selected = selectHotbarSlot(agent, input?.slot)
+    pushLog(`${bot.label}: ホットバー ${selected + 1} を選択しました。`, 'success', bot.id)
+    return publishBotInventory(bot)
+  } finally {
+    bot.inventoryMoveBusy = false
+  }
+}
+
+async function collectSkinImportFiles (selectedPaths) {
+  const accepted = new Set(['.png', '.json', '.bin', '.zip', '.mcpack'])
+  const files = []
+  let totalBytes = 0
+  const visit = async (targetPath, basePath) => {
+    const stat = await fs.lstat(targetPath)
+    if (stat.isSymbolicLink()) return
+    if (stat.isDirectory()) {
+      const entries = await fs.readdir(targetPath, { withFileTypes: true })
+      for (const entry of entries) {
+        if (entry.isSymbolicLink()) continue
+        await visit(path.join(targetPath, entry.name), basePath || targetPath)
+      }
+      return
+    }
+    if (!stat.isFile()) return
+    if (!accepted.has(path.extname(targetPath).toLowerCase())) return
+    if (stat.size > 32 * 1024 * 1024) throw new Error('個別ファイルが32MBを超えています。')
+    totalBytes += stat.size
+    if (totalBytes > 32 * 1024 * 1024) throw new Error('スキン素材の合計サイズは32MBまでです。')
+    if (files.length >= 512) throw new Error('スキン素材のファイル数が512件を超えています。')
+    files.push({
+      name: path.relative(basePath || path.dirname(targetPath), targetPath).replace(/\\/g, '/'),
+      data: await fs.readFile(targetPath)
+    })
+  }
+  for (const targetPath of selectedPaths) {
+    const stat = await fs.lstat(targetPath)
+    await visit(targetPath, stat.isDirectory() ? targetPath : path.dirname(targetPath))
+  }
+  if (!files.length) throw new Error('選択したファイルまたはフォルダにPNG/JSON/BIN/ZIP/MCpackがありません。')
+  return files
+}
+
+function applySkinToConnectedBot (bot) {
+  const agent = bot.agent
+  if (!agent || bot.status !== 'connected' || !bot.skinData) return false
+  const uuid = agent._client?.profile?.uuid || agent.uuid || agent._client?.uuid
+  if (typeof uuid !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(uuid)) return false
+  agent._client.write('player_skin', {
+    uuid,
+    skin: clientSkinToPlayerSkin(bot.skinData),
+    skin_name: String(bot.skinMeta?.name || 'Jhonbot Custom Skin'),
+    old_skin_name: '',
+    is_verified: false
+  })
+  return true
+}
+
+async function importSkinForBot (botId) {
+  const bot = bots.get(botId)
+  if (!bot) throw new Error('Botが見つかりません。')
+  const selected = await dialog.showOpenDialog(mainWindow, {
+    title: 'スキン素材を読み込む',
+    properties: ['openFile', 'openDirectory', 'multiSelections'],
+    filters: [{ name: 'Minecraft Skin / 4D Skin', extensions: ['png', 'json', 'bin', 'zip', 'mcpack'] }]
+  })
+  if (selected.canceled || !selected.filePaths?.length) return { cancelled: true, bot: publicBot(bot), appliedLive: false }
+  const files = await collectSkinImportFiles(selected.filePaths)
+  const imported = importSkinEntries(files)
+  bot.skinData = imported.skinData
+  bot.skinMeta = { ...imported.meta, previewDataUrl: imported.previewDataUrl }
+  await saveSettings()
+  let appliedLive = false
+  if (bot.agent && bot.status === 'connected') {
+    try { appliedLive = applySkinToConnectedBot(bot) } catch (error) {
+      pushLog(`${bot.label}: 接続中のスキン更新パケットを送信できませんでした: ${safeErrorMessage(error)}`, 'warning', bot.id)
+    }
+  }
+  const message = appliedLive
+    ? `${bot.label}: カスタムスキン「${bot.skinMeta.name}」を保存し、PlayerSkinパケットを送信しました。`
+    : `${bot.label}: カスタムスキン「${bot.skinMeta.name}」を保存しました。次回接続時にログインスキンとして適用します。`
+  pushLog(message, appliedLive ? 'success' : 'info', bot.id)
+  publishBot(bot)
+  return { cancelled: false, bot: publicBot(bot), appliedLive }
 }
 
 function queueBotInventoryPublish (bot, agent) {
@@ -2398,14 +2600,14 @@ ipcMain.handle('bot:stop-container-supply', (_event, botId) => { const bot = bot
 ipcMain.handle('bot:start-auto-fishing', (_event, botId) => startAutoFishing(botId))
 ipcMain.handle('bot:look-direction', (_event, args) => setBotLookDirection(args?.botId, args))
 ipcMain.handle('bot:stop-auto-fishing', (_event, botId) => { const bot = bots.get(botId); if (!bot) throw new Error('Botが見つかりません。'); stopAutoFishing(bot, '手動停止'); return publicBot(bot) })
-ipcMain.handle('world:select-session', (_event, args) => {
+ipcMain.handle('world:select-session', async (_event, args) => {
   const requestId = String(args?.requestId || '')
   const pending = pendingWorldSelections.get(requestId)
   const index = Number(args?.sessionIndex)
   if (!pending) throw new Error('ワールド選択要求が見つからないか、期限切れです。')
   if (!Number.isInteger(index) || index < 0 || index >= pending.sessions.length) throw new Error('選択したワールドが不正です。')
   pendingWorldSelections.delete(requestId)
-  pending.resolve(index)
+  await pending.resolve(index)
   return true
 })
 ipcMain.handle('world:cancel-selection', (_event, requestId) => {
@@ -2446,6 +2648,9 @@ ipcMain.handle('bot:stop', (_event, botId) => stopBotMovement(botId))
 ipcMain.handle('bot:send-chat', (_event, args) => sendBotChat(args?.botId, args?.message))
 ipcMain.handle('bot:get-chat-history', (_event, botId) => getBotChatHistory(botId))
 ipcMain.handle('bot:get-inventory', (_event, botId) => getBotInventory(botId))
+ipcMain.handle('bot:move-inventory-item', (_event, args) => moveBotInventoryItem(args?.botId, args))
+ipcMain.handle('bot:select-hotbar-slot', (_event, args) => selectBotHotbarSlot(args?.botId, args))
+ipcMain.handle('bot:import-skin', (_event, botId) => importSkinForBot(botId))
 ipcMain.handle('bot:toss-item', (_event, args) => tossBotItem(args?.botId, args))
 ipcMain.handle('bot:toss-all-items', (_event, args) => tossAllBotItems(args?.botId))
 ipcMain.handle('auth:open-url', async (_event, rawUrl) => {
