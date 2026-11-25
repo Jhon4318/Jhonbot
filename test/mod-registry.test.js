@@ -4,7 +4,7 @@ const assert = require('node:assert/strict')
 const { MOD_CATALOG, normalizeInstalledMods, addInstalledMod, removeInstalledMod } = require('../src/mod-registry')
 
 test('catalog exposes the initial built-in Mod set', () => {
-  assert.deepEqual(MOD_CATALOG.map(mod => mod.id), ['inventory', 'itemUse', 'containerSupply', 'autoFishing', 'lookDirection'])
+  assert.deepEqual(MOD_CATALOG.map(mod => mod.id), ['inventory', 'itemUse', 'containerSupply', 'autoFishing', 'lookDirection', 'skin'])
   assert.equal(MOD_CATALOG.find(mod => mod.id === 'inventory').builtIn, true)
 })
 
@@ -23,6 +23,8 @@ test('normalizes valid installed IDs and removes duplicates or unknown IDs', () 
 test('adds and removes installed Mods safely', () => {
   assert.deepEqual(addInstalledMod(['itemUse'], 'containerSupply'), ['inventory', 'itemUse', 'containerSupply'])
   assert.deepEqual(addInstalledMod(['itemUse'], 'lookDirection'), ['inventory', 'itemUse', 'lookDirection'])
+  assert.deepEqual(addInstalledMod(['inventory'], 'skin'), ['inventory', 'skin'])
+  assert.deepEqual(removeInstalledMod(['inventory', 'skin'], 'skin'), ['inventory'])
   assert.deepEqual(removeInstalledMod(['inventory', 'itemUse', 'containerSupply'], 'itemUse'), ['inventory', 'containerSupply'])
   assert.throws(() => removeInstalledMod(['inventory'], 'inventory'), /標準搭載/)
   assert.throws(() => addInstalledMod([], 'unknown'), /カタログ/)
