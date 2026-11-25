@@ -1892,6 +1892,8 @@ async function setModInstallation (modId, installed, botId = null) {
       } else if (mod.id === 'lookDirection') {
         target.modules.lookDirection.assigned = false
         target.lookDirectionStatus = 'Modアンインストール'
+      } else if (mod.id === 'skin') {
+        target.modules.skin.assigned = false
       }
       publishBot(target)
     }
@@ -1933,6 +1935,7 @@ async function updateBotModules (botId, input) {
   if (next.containerSupply.assigned && !(settings.installedMods || []).includes('containerSupply')) throw new Error('先にMod管理から コンテナ補充 を導入してください。')
   if (next.autoFishing.assigned && !(settings.installedMods || []).includes('autoFishing')) throw new Error('先にMod管理から 自動釣り を導入してください。')
   if (next.lookDirection.assigned && !(settings.installedMods || []).includes('lookDirection')) throw new Error('先にMod管理から 視点変更 を導入してください。')
+  if (next.skin.assigned && !(settings.installedMods || []).includes('skin')) throw new Error('先にMod管理から スキン変更 を導入してください。')
   if (JSON.stringify(bot.modules.itemUse) !== JSON.stringify(next.itemUse)) stopBotItemUse(bot, next.itemUse.assigned ? '設定変更・停止' : 'Mod未割り当て')
   if (JSON.stringify(bot.modules.containerSupply) !== JSON.stringify(next.containerSupply)) stopContainerSupply(bot, next.containerSupply.assigned ? '設定変更・停止' : 'Mod未割り当て')
   if (JSON.stringify(bot.modules.autoFishing) !== JSON.stringify(next.autoFishing)) stopAutoFishing(bot, next.autoFishing.assigned ? '設定変更・停止' : 'Mod未割り当て')
