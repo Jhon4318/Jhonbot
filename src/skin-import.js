@@ -348,6 +348,21 @@ function importSkinEntries (inputEntries) {
     }
   }
 
+  // A SkinStealer BIN carries the authoritative Persona ResourcePatch and 4D geometry.
+  // Prefer it even when a companion preview PNG was selected alongside the BIN.
+  if (!personaBin) {
+    const personaEntry = entries.find(entry =>
+      /\.bin$/i.test(entry.name) &&
+      entry.data[0] !== 0x7b &&
+      !(entry.data[0] === 0x89 && entry.data[1] === 0x50 && entry.data[2] === 0x4e && entry.data[3] === 0x47))
+    if (personaEntry) personaBin = decodeTsukuyomiPersonaSkinBin(personaEntry.data, personaEntry.name)
+  }
+  if (personaBin) {
+    texture = { width: personaBin.width, height: personaBin.height, data: personaBin.data }
+    geometry = personaBin.geometry
+    previewPng = null
+  }
+
   let cape = null
   const capeEntry = entries.find(entry => /cape.*\.png$/i.test(entry.name))
   if (capeEntry) cape = decodePng(capeEntry.data)
