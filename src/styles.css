@@ -2416,3 +2416,72 @@ main#dashboardGrid{flex:1 1 auto;width:100%;min-height:0;max-height:none;margin:
 @media (max-width: 900px) {
   .chat-panel .chat-messages { min-height: 48px !important; }
 }
+
+
+/* 0.9.2: keep log rows compact, readable and reliably scrollable */
+.log-panel .log-list {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0 !important;
+  max-height: none !important;
+  height: auto !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  gap: 1px;
+}
+.log-panel .log-entry {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-width: 0;
+  min-height: 15px !important;
+  height: 15px !important;
+  max-height: 15px;
+  overflow: hidden !important;
+  padding: 0 2px;
+  gap: 6px;
+  white-space: nowrap !important;
+  line-height: 15px !important;
+}
+.log-panel .log-time {
+  flex: 0 0 48px;
+  white-space: nowrap;
+}
+.log-panel .log-message {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap !important;
+  text-overflow: ellipsis;
+  line-height: 15px !important;
+}
+
+/* Toggle actions are visibly latched until toggled off or all controls are cleared. */
+.control-panel .toggle-action-key {
+  position: relative;
+  min-width: 76px;
+  min-height: 29px;
+  padding: 3px 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.control-panel .toggle-action-key small {
+  font-size: 7px;
+  opacity: .65;
+  font-weight: 500;
+}
+.control-panel .toggle-action-key.active {
+  border-color: #8f86ff;
+  background: linear-gradient(135deg, #514a9d, #365b94);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(184, 177, 255, .34), 0 0 0 1px rgba(112, 99, 240, .14);
+}
+.control-panel .toggle-action-key.active small {
+  opacity: 1;
+  color: #e8e5ff;
+}
