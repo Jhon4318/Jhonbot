@@ -10,11 +10,13 @@ test('provides independent modules unassigned by default', () => {
     itemUse: { assigned: false, useMode: 'activate', intervalMs: 1500 },
     containerSupply: { assigned: false, x: null, y: null, z: null, items: [], intervalMs: 5000 },
     autoFishing: { assigned: false, biteTimeoutMs: 120000, recastDelayMs: 1000 },
-    lookDirection: { assigned: false, yawDeg: 0, pitchDeg: 0 }
+    lookDirection: { assigned: false, yawDeg: 0, pitchDeg: 0 },
+    skin: { assigned: false }
   })
   assert.equal(DEFAULT_MODULES.inventory.assigned, true)
   assert.equal(DEFAULT_MODULES.itemUse.assigned, false)
   assert.equal(DEFAULT_MODULES.lookDirection.assigned, false)
+  assert.equal(DEFAULT_MODULES.skin.assigned, false)
   assert.equal(Object.hasOwn(modules, 'connectionManager'), false)
 })
 
@@ -72,5 +74,8 @@ test('recognizes assigned modules explicitly', () => {
   assert.equal(isModuleAssigned(modules, 'containerSupply'), false)
   assert.equal(isModuleAssigned(modules, 'autoFishing'), true)
   assert.equal(isModuleAssigned(modules, 'lookDirection'), false)
+  assert.equal(isModuleAssigned(modules, 'skin'), false)
   assert.equal(isModuleAssigned(modules, 'inventory'), true)
+  const assignedSkin = normalizeBotModules({ skin: { assigned: true } })
+  assert.equal(isModuleAssigned(assignedSkin, 'skin'), true)
 })
