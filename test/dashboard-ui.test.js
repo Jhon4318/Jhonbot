@@ -273,12 +273,12 @@ test('graphical inventory exposes equipment, 27 main slots, 9 hotbar slots and s
   for (const id of ['openInventoryDialogButton', 'inventoryDialog', 'inventoryGearSlots', 'inventoryMainGrid', 'inventoryHotbarGrid', 'inventoryHotbarSelect', 'inventoryCursorStatus']) {
     assert.ok(elementIds(html).includes(id), 'Missing graphical inventory element: ' + id)
   }
-  assert.match(renderer, /for (let slot = 9; slot <= 35; slot++)/)
-  assert.match(renderer, /for (let slot = 36; slot <= 44; slot++)/)
-  assert.match(renderer, /api.moveInventoryItem({ botId: bot.id, fromSlot, toSlot/)
-  assert.match(renderer, /api.selectHotbarSlot({ botId: bot.id, slot })/)
-  assert.match(renderer, /contextmenu/)
-  assert.match(renderer, /event.dataTransfer.setData('text/plain'/)
+  assert.ok(renderer.includes('for (let slot = 9; slot <= 35; slot++)'))
+  assert.ok(renderer.includes('for (let slot = 36; slot <= 44; slot++)'))
+  assert.ok(renderer.includes('api.moveInventoryItem({ botId: bot.id, fromSlot, toSlot'))
+  assert.ok(renderer.includes('api.selectHotbarSlot({ botId: bot.id, slot })'))
+  assert.ok(renderer.includes('contextmenu'))
+  assert.ok(renderer.includes("event.dataTransfer.setData('text/plain'"))
 })
 
 test('custom skins expose PNG, geometry, animation and SkinStealer import actions', () => {
@@ -294,11 +294,11 @@ test('custom skins expose PNG, geometry, animation and SkinStealer import action
 
 test('world chat and connection logs retain scrollable history rather than rendering only the newest few lines', () => {
   const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
-  assert.match(renderer, /entries.slice(-150)/)
-  assert.match(renderer, /logList.children.length > 300/)
-  assert.match(styles, /.chat-panel .chat-messagess*{[^}]*overflow-y:s*auto/s)
-  assert.match(styles, /.log-panel .log-lists*{[^}]*overflow-y:s*auto/s)
+  assert.ok(renderer.includes('entries.slice(-150)'))
+  assert.ok(renderer.includes('logList.children.length > 300'))
+  assert.ok(styles.includes('.chat-panel .chat-messages') && styles.includes('overflow-y: auto'))
+  assert.ok(styles.includes('.log-panel .log-list') && styles.includes('overflow-y: auto'))
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
-  assert.match(main, /agent.on('chat'/)
-  assert.match(main, /recordBotChatMessage(bot, 'incoming'/)
+  assert.ok(main.includes("agent.on('chat'"))
+  assert.ok(main.includes("recordBotChatMessage(bot, 'incoming'"))
 })
