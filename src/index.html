@@ -99,7 +99,8 @@
             </div>
             <div class="movement-actions">
               <button type="button" class="action-key" data-control="jump">ジャンプ <kbd>Space</kbd></button>
-              <button type="button" class="action-key" data-control="sprint">ダッシュ <kbd>Shift</kbd></button>
+              <button type="button" class="action-key toggle-action-key" data-toggle-control="sprint" aria-pressed="false">ダッシュ <kbd>Ctrl</kbd><small>トグル</small></button>
+              <button type="button" class="action-key toggle-action-key" data-toggle-control="sneak" aria-pressed="false">スニーク <kbd>Shift</kbd><small>トグル</small></button>
               <button type="button" class="secondary-button" id="clearControlsButton">操作をすべて解除</button>
             </div>
           </div>
@@ -329,6 +330,8 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
+  <script src="control-keys.js"></script>
+  <script src="item-textures.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>
