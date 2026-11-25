@@ -27,7 +27,7 @@ const { normalizeChatMessage, normalizeDropRequest, createInventorySnapshot } = 
 const { createInventoryDropPlan, tossStackConfirmed } = require('./inventory-drop')
 const { moveInventorySlotConfirmed, selectHotbarSlot } = require('./inventory-ops')
 const { buildFriendWorldIdentity, findMatchingFriendWorldSession } = require('./friend-world-selection')
-const { importSkinEntries, clientSkinToPlayerSkin } = require('./skin-import')
+const { importSkinEntries } = require('./skin-import')
 const { installSubClientSupport, createGuestLoginTokens, createSubClientLoginDispatcher, MAX_SUB_CLIENTS } = require('./subclients')
 const { nextGuestSubClientId, resolveGuestLabel } = require('./guest-naming')
 const { installBedrockDimensionSync } = require('./bedrock-dimension-sync')
@@ -1726,20 +1726,6 @@ async function collectSkinImportFiles (selectedPaths) {
   return files
 }
 
-function applySkinToConnectedBot (bot) {
-  const agent = bot.agent
-  if (!agent || bot.status !== 'connected' || !bot.skinData) return false
-  const uuid = agent._client?.profile?.uuid || agent.uuid || agent._client?.uuid
-  if (typeof uuid !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(uuid)) return false
-  agent._client.write('player_skin', {
-    uuid,
-    skin: clientSkinToPlayerSkin(bot.skinData),
-    skin_name: String(bot.skinMeta?.name || 'Jhonbot Custom Skin'),
-    old_skin_name: '',
-    is_verified: false
-  })
-  return true
-}
 
 async function importSkinForBot (botId) {
   const bot = bots.get(botId)
@@ -1755,16 +1741,12 @@ async function importSkinForBot (botId) {
   bot.skinData = imported.skinData
   bot.skinMeta = { ...imported.meta, previewDataUrl: imported.previewDataUrl }
   await saveSettings()
-  let appliedLive = false
-  if (bot.agent && bot.status === 'connected') {
-    try { appliedLive = applySkinToConnectedBot(bot) } catch (error) {
-      pushLog(`${bot.label}: 接続中のスキン更新パケットを送信できませんでした: ${safeErrorMessage(error)}`, 'warning', bot.id)
-    }
-  }
-  const message = appliedLive
-    ? `${bot.label}: カスタムスキン「${bot.skinMeta.name}」を保存し、PlayerSkinパケットを送信しました。`
-    : `${bot.label}: カスタムスキン「${bot.skinMeta.name}」を保存しました。次回接続時にログインスキンとして適用します。`
-  pushLog(message, appliedLive ? 'success' : 'info', bot.id)
+  // The pinned Bedrock protocol schema is behind Mojang's 1.26.60
+  // SerializedSkin changes. Persist and apply through login skinData instead
+  // of sending an unverified live PlayerSkin packet.
+  const appliedLive = false
+  const message = `${bot.label}: カスタムスキン「${bot.skinMeta.name}」を保存しました。次回接続時にログインスキンとして適用します。`
+  pushLog(message, 'info', bot.id)
   publishBot(bot)
   return { cancelled: false, bot: publicBot(bot), appliedLive }
 }
