@@ -38,7 +38,7 @@ function createPersonaBin () {
     varInt(patch.length), patch,
     Buffer.from([0, 1, 0, 0, 0, 1, 0, 0]),
     varInt(pixels.length), pixels,
-    Buffer.alloc(0x200),
+    Buffer.alloc(0x200, 0x80),
     varInt(geometry.length), geometry,
     Buffer.from([version.length]), version
   ])
