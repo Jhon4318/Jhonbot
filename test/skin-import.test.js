@@ -34,7 +34,10 @@ test('4D geometry and animation JSON are included in the skin packet payload', (
   assert.deepEqual(JSON.parse(Buffer.from(imported.skinData.SkinAnimationData, 'base64').toString()), animation)
   const wire = clientSkinToPlayerSkin(imported.skinData)
   assert.equal(wire.skin_id, imported.skinData.SkinId)
-  assert.equal(wire.geometry_data, imported.skinData.SkinGeometryData)
+  assert.deepEqual(JSON.parse(wire.geometry_data), geometry)
+  assert.deepEqual(JSON.parse(wire.animation_data), animation)
+  assert.deepEqual(JSON.parse(wire.skin_resource_pack), { geometry: { default: 'geometry.test.4d' } })
+  assert.equal(wire.geometry_data_version, '1.12.0')
   assert.equal(wire.skin_data.width, 64)
   assert.equal(wire.skin_data.data.length, 64 * 64 * 4)
 })
@@ -86,4 +89,39 @@ test('SkinStealer JSON stored with a BIN extension restores embedded geometry, a
   assert.deepEqual(JSON.parse(Buffer.from(imported.skinData.SkinGeometryData, 'base64').toString()), geometry)
   assert.deepEqual(JSON.parse(Buffer.from(imported.skinData.SkinAnimationData, 'base64').toString()), animation)
   assert.equal(Buffer.from(imported.skinData.SkinData, 'base64').length, 64 * 64 * 4)
+})
+
+
+test('PlayerSkin wire format decodes all base64 strings and converts animated image fields', () => {
+  const texture = Buffer.alloc(32 * 32 * 4, 18)
+  const geometry = '{"format_version":"1.12.0","minecraft:geometry":[]}'
+  const resourcePatch = '{"geometry":{"default":"geometry.humanoid.custom"}}'
+  const animationData = '{"animations":{"animation.test.idle":{"loop":true}}}'
+  const wire = clientSkinToPlayerSkin({
+    SkinId: 'skin-id',
+    SkinResourcePatch: Buffer.from(resourcePatch).toString('base64'),
+    SkinImageWidth: 64,
+    SkinImageHeight: 64,
+    SkinData: Buffer.alloc(64 * 64 * 4, 1).toString('base64'),
+    AnimatedImageData: [{
+      Image: { Width: 32, Height: 32, Data: texture.toString('base64') },
+      Type: 'Body32x32',
+      Frames: 4,
+      AnimationExpression: 'Blinking'
+    }],
+    SkinGeometryData: Buffer.from(geometry).toString('base64'),
+    SkinGeometryDataEngineVersion: Buffer.from('1.12.0').toString('base64'),
+    SkinAnimationData: Buffer.from(animationData).toString('base64')
+  })
+  assert.equal(wire.skin_resource_pack, resourcePatch)
+  assert.equal(wire.geometry_data, geometry)
+  assert.equal(wire.geometry_data_version, '1.12.0')
+  assert.equal(wire.animation_data, animationData)
+  assert.equal(wire.animations.length, 1)
+  assert.equal(wire.animations[0].skin_image.width, 32)
+  assert.equal(wire.animations[0].skin_image.height, 32)
+  assert.equal(wire.animations[0].skin_image.data.length, texture.length)
+  assert.equal(wire.animations[0].animation_type, 2)
+  assert.equal(wire.animations[0].animation_frames, 4)
+  assert.equal(wire.animations[0].expression_type, 1)
 })
