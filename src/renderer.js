@@ -39,8 +39,23 @@ const dropItemCount = document.getElementById('dropItemCount')
 const dropAllItemsButton = document.getElementById('dropAllItemsButton')
 const dropItemForm = document.getElementById('dropItemForm')
 const refreshInventoryButton = document.getElementById('refreshInventoryButton')
+const openInventoryDialogButton = document.getElementById('openInventoryDialogButton')
+const inventoryDialog = document.getElementById('inventoryDialog')
+const inventoryDialogTitle = document.getElementById('inventoryDialogTitle')
+const inventoryDialogStatus = document.getElementById('inventoryDialogStatus')
+const inventoryGearSlots = document.getElementById('inventoryGearSlots')
+const inventoryMainGrid = document.getElementById('inventoryMainGrid')
+const inventoryHotbarGrid = document.getElementById('inventoryHotbarGrid')
+const inventoryHotbarSelect = document.getElementById('inventoryHotbarSelect')
+const inventoryCursorStatus = document.getElementById('inventoryCursorStatus')
+const importSkinButton = document.getElementById('importSkinButton')
+const skinPreviewImage = document.getElementById('skinPreviewImage')
+const skinPreviewPlaceholder = document.getElementById('skinPreviewPlaceholder')
+const skinName = document.getElementById('skinName')
+const skinDetails = document.getElementById('skinDetails')
+const skinStatus = document.getElementById('skinStatus')
 
-const state = { bots: new Map(), servers: [], installedMods: [], modCatalog: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map(), selectedModId: 'inventory', botPage: 0, serverPage: 0 }
+const state = { bots: new Map(), servers: [], installedMods: [], modCatalog: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map(), inventoryGearByBot: new Map(), inventoryQuickBarByBot: new Map(), inventoryCursor: null, selectedModId: 'inventory', botPage: 0, serverPage: 0 }
 const statusLabels = {
   disconnected: '未参加',
   authenticating: '認証処理中',
@@ -143,13 +158,15 @@ function positionText (bot) {
 }
 
 function appendLog (entry) {
+  const wasAtBottom = logList.scrollHeight - logList.scrollTop - logList.clientHeight < 36
   const empty = logList.querySelector('.log-empty')
   if (empty) empty.remove()
   const row = createElement('div', `log-entry ${entry.level || 'info'}`)
   const time = new Date(entry.at).toLocaleTimeString('ja-JP', { hour12: false })
   row.append(createElement('span', 'log-time', time), createElement('span', 'log-message', entry.message))
   logList.append(row)
-  while (logList.children.length > 12) logList.firstElementChild.remove()
+  while (logList.children.length > 300) logList.firstElementChild.remove()
+  if (wasAtBottom) logList.scrollTop = logList.scrollHeight
 }
 
 function openWorldChoices (bot,choices,description,targetFactory){
@@ -740,24 +757,233 @@ function chatSlotLabel (slot) {
 }
 
 function renderChatPanel () {
+  const wasAtBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 42
   const bot = selectedBot()
   chatMessages.replaceChildren()
   const entries = bot ? (state.chatMessagesByBot.get(bot.id) || []) : []
   if (!entries.length) {
     chatMessages.append(createElement('div', 'chat-empty', bot ? 'チャット履歴はありません。' : 'Botを選択してください。'))
   } else {
-    for (const entry of entries.slice(-5)) {
-      const row = createElement('div', `chat-message ${entry.direction === 'outgoing' ? 'outgoing' : 'incoming'}`)
+    for (const entry of entries.slice(-150)) {
+      const direction = entry.direction === 'outgoing' ? 'outgoing' : entry.direction === 'system' ? 'system' : 'incoming'
+      const row = createElement('div', `chat-message ${direction}`)
       const meta = createElement('div', 'chat-message-meta')
       const time = new Date(entry.at).toLocaleTimeString('ja-JP', { hour12: false })
-      meta.textContent = `${entry.direction === 'outgoing' ? '送信' : (entry.username || 'ワールド') } · ${time}`
+      const label = entry.direction === 'outgoing' ? '送信' : entry.direction === 'system' ? 'システム' : (entry.username || 'ワールド')
+      meta.textContent = `${label} · ${time}`
       row.append(meta, createElement('div', 'chat-message-text', entry.message))
       chatMessages.append(row)
     }
   }
+  if (wasAtBottom) chatMessages.scrollTop = chatMessages.scrollHeight
   const connected = bot?.status === 'connected'
   chatInput.disabled = !connected
   sendChatButton.disabled = !connected || !chatInput.value.trim()
+}
+
+function storeInventorySnapshot (botId, snapshot) {
+  state.inventoryByBot.set(botId, Array.isArray(snapshot?.items) ? snapshot.items : [])
+  state.inventoryGearByBot.set(botId, Array.isArray(snapshot?.gear) ? snapshot.gear : [])
+  state.inventoryQuickBarByBot.set(botId, Number.isInteger(snapshot?.quickBarSlot) ? snapshot.quickBarSlot : 0)
+  state.inventoryUpdatedAtByBot.set(botId, snapshot?.updatedAt || '')
+}
+
+function itemIconUrl (item) {
+  const name = String(item?.name || '').replace(/^minecraft:/i, '').toLowerCase()
+  if (!/^[a-z0-9_]+$/.test(name)) return ''
+  return 'https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/textures/items/' + name + '.png'
+}
+
+function makeInventorySlot (slot, item, options = {}) {
+  const button = createElement('button', 'inventory-grid-slot')
+  button.type = 'button'
+  button.dataset.slot = String(slot)
+  const gear = options.gear === true
+  const hotbar = slot >= 36 && slot <= 44
+  if (gear) button.classList.add('is-gear')
+  if (!item) button.classList.add('is-empty')
+  if (hotbar && state.inventoryQuickBarByBot.get(selectedBot()?.id) === slot - 36) button.classList.add('is-selected')
+  const cursor = state.inventoryCursor
+  const shownCount = item && cursor?.fromSlot === slot ? Math.max(0, item.count - cursor.count) : item?.count
+  if (cursor?.fromSlot === slot) button.classList.add('is-cursor-source')
+  button.title = item ? `${item.displayName || item.name} × ${shownCount} (slot ${slot})` : (options.label || `空きスロット ${slot}`)
+  if (hotbar) button.append(createElement('span', 'inventory-slot-number', String(slot - 35)))
+  if (item && shownCount > 0) {
+    const icon = itemIconUrl(item)
+    if (icon) {
+      const image = document.createElement('img')
+      image.alt = ''
+      image.src = icon
+      image.loading = 'lazy'
+      image.addEventListener('error', () => image.remove(), { once: true })
+      button.append(image)
+    } else {
+      button.append(createElement('span', 'inventory-empty-label', String(item.displayName || item.name).slice(0, 6)))
+    }
+    button.append(createElement('span', 'inventory-stack-count', shownCount > 1 ? String(shownCount) : ''))
+  } else if (options.label) {
+    button.append(createElement('span', 'inventory-empty-label', options.label))
+  } else {
+    button.append(createElement('span', 'inventory-empty-label', ''))
+  }
+  button.disabled = !selectedBot() || selectedBot().status !== 'connected' || gear
+  button.addEventListener('click', () => handleInventorySlotClick(slot, false))
+  button.addEventListener('contextmenu', event => {
+    event.preventDefault()
+    handleInventorySlotClick(slot, true)
+  })
+  button.draggable = !!item && !gear && selectedBot()?.status === 'connected'
+  button.addEventListener('dragstart', event => {
+    if (!item || gear) { event.preventDefault(); return }
+    event.dataTransfer.setData('text/plain', String(slot))
+    event.dataTransfer.effectAllowed = 'move'
+  })
+  button.addEventListener('dragover', event => { if (!gear) event.preventDefault() })
+  button.addEventListener('drop', event => {
+    event.preventDefault()
+    if (gear) return
+    const fromSlot = Number(event.dataTransfer.getData('text/plain'))
+    if (Number.isInteger(fromSlot)) commitInventoryMove(fromSlot, slot, null)
+  })
+  return button
+}
+
+function renderInventoryDialog () {
+  if (!inventoryDialog) return
+  const bot = selectedBot()
+  const items = bot ? (state.inventoryByBot.get(bot.id) || []) : []
+  const gear = bot ? (state.inventoryGearByBot.get(bot.id) || []) : []
+  const connected = bot?.status === 'connected'
+  const selected = bot ? (state.inventoryQuickBarByBot.get(bot.id) || 0) : 0
+  const itemAt = slot => items.find(item => item.slot === slot) || null
+  const gearAt = slot => gear.find(item => item.slot === slot) || null
+  inventoryDialogTitle.textContent = bot ? `${bot.label}：インベントリ` : 'インベントリ'
+  inventoryDialogStatus.textContent = !bot ? 'Botを選択してください。' : !connected ? 'Botがワールドに参加していません。' : 'スロットをクリックまたはドラッグして操作できます。'
+  inventoryGearSlots.replaceChildren()
+  const armorGroup = createElement('div', 'inventory-equipment-group')
+  for (const [slot, label] of [[5, '頭'], [6, '胴'], [7, '脚'], [8, '足']]) armorGroup.append(makeInventorySlot(slot, gearAt(slot), { gear: true, label }))
+  const offhandGroup = createElement('div', 'inventory-equipment-group')
+  offhandGroup.append(makeInventorySlot(45, gearAt(45), { gear: true, label: '副手' }))
+  inventoryGearSlots.append(armorGroup, offhandGroup)
+  inventoryMainGrid.replaceChildren()
+  for (let slot = 9; slot <= 35; slot++) inventoryMainGrid.append(makeInventorySlot(slot, itemAt(slot)))
+  inventoryHotbarGrid.replaceChildren()
+  for (let slot = 36; slot <= 44; slot++) inventoryHotbarGrid.append(makeInventorySlot(slot, itemAt(slot)))
+  inventoryHotbarSelect.replaceChildren()
+  for (let index = 0; index < 9; index++) {
+    const select = createElement('button', 'hotbar-select-button' + (selected === index ? ' selected' : ''), String(index + 1))
+    select.type = 'button'
+    select.disabled = !connected
+    select.title = `ホットバー ${index + 1} を選択`
+    select.addEventListener('click', () => chooseHotbarSlot(index))
+    inventoryHotbarSelect.append(select)
+  }
+  if (state.inventoryCursor && connected) {
+    const source = itemAt(state.inventoryCursor.fromSlot)
+    const name = source?.displayName || source?.name || 'アイテム'
+    inventoryCursorStatus.textContent = `持っているアイテム：${name} × ${state.inventoryCursor.count} · 置くスロットをクリック（Escでキャンセル）`
+  } else {
+    inventoryCursorStatus.textContent = 'アイテムを選択してください。'
+  }
+}
+
+async function handleInventorySlotClick (slot, rightClick) {
+  const bot = selectedBot()
+  if (!bot || bot.status !== 'connected') return
+  if (slot < 9 || slot > 44) return
+  const items = state.inventoryByBot.get(bot.id) || []
+  const item = items.find(entry => entry.slot === slot)
+  const cursor = state.inventoryCursor
+  if (!cursor) {
+    if (!item) return
+    const amount = rightClick ? Math.max(1, Math.ceil(item.count / 2)) : item.count
+    state.inventoryCursor = { fromSlot: slot, count: amount }
+    renderInventoryDialog()
+    return
+  }
+  if (cursor.fromSlot === slot) {
+    state.inventoryCursor = null
+    renderInventoryDialog()
+    return
+  }
+  const source = items.find(entry => entry.slot === cursor.fromSlot)
+  if (!source || cursor.count < 1 || cursor.count > source.count) {
+    state.inventoryCursor = null
+    renderInventoryDialog()
+    showToast('移動元インベントリが更新されました。もう一度選択してください。')
+    return
+  }
+  if (item && cursor.count < source.count) {
+    showToast('部分スタックは空きスロットにのみ置けます。')
+    return
+  }
+  const amount = rightClick ? 1 : cursor.count
+  try {
+    const snapshot = await api.moveInventoryItem({ botId: bot.id, fromSlot: cursor.fromSlot, toSlot: slot, count: amount })
+    storeInventorySnapshot(bot.id, snapshot)
+    if (item && cursor.count === source.count) {
+      state.inventoryCursor = { fromSlot: cursor.fromSlot, count: item.count }
+    } else if (rightClick && cursor.count > 1) {
+      state.inventoryCursor = { fromSlot: cursor.fromSlot, count: cursor.count - 1 }
+    } else {
+      state.inventoryCursor = null
+    }
+    renderInventoryPanel()
+    renderInventoryDialog()
+  } catch (error) {
+    showToast(error.message || 'インベントリを移動できませんでした。')
+    try { storeInventorySnapshot(bot.id, await api.getInventory(bot.id)) } catch {}
+    state.inventoryCursor = null
+    renderInventoryPanel()
+    renderInventoryDialog()
+  }
+}
+
+async function commitInventoryMove (fromSlot, toSlot, count) {
+  const bot = selectedBot()
+  if (!bot || bot.status !== 'connected') return
+  if (fromSlot === toSlot || fromSlot < 9 || fromSlot > 44 || toSlot < 9 || toSlot > 44) return
+  try {
+    const snapshot = await api.moveInventoryItem({ botId: bot.id, fromSlot, toSlot, count })
+    storeInventorySnapshot(bot.id, snapshot)
+    state.inventoryCursor = null
+    renderInventoryPanel()
+    renderInventoryDialog()
+  } catch (error) {
+    showToast(error.message || 'インベントリを移動できませんでした。')
+  }
+}
+
+async function chooseHotbarSlot (slot) {
+  const bot = selectedBot()
+  if (!bot || bot.status !== 'connected') return
+  try {
+    const snapshot = await api.selectHotbarSlot({ botId: bot.id, slot })
+    storeInventorySnapshot(bot.id, snapshot)
+    renderInventoryPanel()
+    renderInventoryDialog()
+  } catch (error) {
+    showToast(error.message || 'ホットバーを選択できませんでした。')
+  }
+}
+
+function renderSkinPanel (bot) {
+  const skin = bot?.skin
+  importSkinButton.disabled = !bot
+  if (!skin) {
+    skinPreviewImage.hidden = true
+    skinPreviewPlaceholder.hidden = false
+    skinName.textContent = 'スキン未設定'
+    skinDetails.textContent = 'PNG・Geometry JSON・Animation JSON・SkinSteal BIN・MCpackに対応'
+    skinStatus.textContent = bot ? 'スキン素材を読み込むと、このBotへ適用します。' : 'Botを選択してください。'
+    return
+  }
+  skinPreviewImage.hidden = !skin.previewDataUrl
+  skinPreviewImage.src = skin.previewDataUrl || ''
+  skinPreviewPlaceholder.hidden = !!skin.previewDataUrl
+  skinName.textContent = skin.name || 'カスタムスキン'
+  skinDetails.textContent = `${skin.width}×${skin.height} · ${skin.geometryId || '標準モデル'}${skin.hasAnimation ? ' · Animationあり' : ''}${skin.hasCape ? ' · Capeあり' : ''}`
+  skinStatus.textContent = '保存済み。4Dジオメトリ／アニメーションの描画可否は参加先サーバーに依存します。'
 }
 
 function renderInventoryPanel () {
@@ -784,21 +1010,12 @@ function renderInventoryPanel () {
     if (!items.length) inventoryList.append(createElement('div', 'inventory-empty', 'アイテムがないか、サーバーからの同期を待っています。'))
     for (const item of items.slice(0, 6)) {
       const row = createElement('div', 'inventory-item-row')
-      row.append(
-        createElement('span', 'inventory-slot', chatSlotLabel(item.slot)),
-        createElement('span', 'inventory-item-name', item.displayName || item.name),
-        createElement('strong', 'inventory-item-count', `× ${item.count}`)
-      )
+      row.append(createElement('span', 'inventory-slot', chatSlotLabel(item.slot)), createElement('span', 'inventory-item-name', item.displayName || item.name), createElement('strong', 'inventory-item-count', `× ${item.count}`))
       inventoryList.append(row)
     }
-    if (items.length > 6) {
-      inventoryList.append(createElement('div', 'inventory-empty', `ほか ${items.length - 6} 種類は下の選択欄から選べます。`))
-    }
-    if (items.length) {
-      for (const item of items) inventorySelect.append(new Option(`${chatSlotLabel(item.slot)} · ${item.displayName || item.name} × ${item.count}`, String(item.slot)))
-    } else {
-      inventorySelect.append(new Option('アイテムなし', ''))
-    }
+    if (items.length > 6) inventoryList.append(createElement('div', 'inventory-empty', `ほか ${items.length - 6} 種類は画像表示で確認できます。`))
+    for (const item of items) inventorySelect.append(new Option(`${chatSlotLabel(item.slot)} · ${item.displayName || item.name} × ${item.count}`, String(item.slot)))
+    if (!items.length) inventorySelect.append(new Option('アイテムなし', ''))
   }
 
   const previousSlot = inventorySelect.value
@@ -813,14 +1030,16 @@ function renderInventoryPanel () {
     dropItemCount.max = '1'
     dropItemCount.value = '1'
   }
-  // Selecting items in the UI is allowed in either mode; throwing still requires player mode.
   inventorySelect.disabled = !connected || !items.length
   dropItemCount.disabled = !connected || !items.length
   document.getElementById('dropItemButton').disabled = !connected || !items.length
   dropAllItemsButton.disabled = !connected || !items.length
+  openInventoryDialogButton.disabled = !connected
+  refreshInventoryButton.disabled = !connected
   const inventoryActionNote = document.getElementById('inventoryActionNote')
   if (inventoryActionNote) inventoryActionNote.hidden = !connected || playerMode
-  refreshInventoryButton.disabled = !connected
+  renderInventoryDialog()
+  renderSkinPanel(bot)
 }
 
 async function loadSelectedBotData () {
@@ -837,19 +1056,18 @@ async function loadSelectedBotData () {
     if (state.selectedBotId === botId) showToast(error.message || 'チャット履歴を取得できませんでした。')
   })
   if (!bot || bot.status !== 'connected') {
-    state.inventoryByBot.set(botId, [])
+    storeInventorySnapshot(botId, { items: [], gear: [], quickBarSlot: 0 })
     state.inventoryUpdatedAtByBot.delete(botId)
     renderInventoryPanel()
     return
   }
   api.getInventory(botId).then(snapshot => {
     if (state.selectedBotId !== botId) return
-    state.inventoryByBot.set(botId, snapshot.items || [])
-    state.inventoryUpdatedAtByBot.set(botId, snapshot.updatedAt || '')
+    storeInventorySnapshot(botId, snapshot)
     renderInventoryPanel()
   }).catch(error => {
     if (state.selectedBotId !== botId) return
-    state.inventoryByBot.set(botId, [])
+    storeInventorySnapshot(botId, { items: [], gear: [], quickBarSlot: 0 })
     renderInventoryPanel()
     showToast(error.message || 'インベントリを取得できませんでした。')
   })
@@ -1178,14 +1396,65 @@ inventorySelect.addEventListener('change', () => {
     dropItemCount.value = String(Math.min(Math.max(1, Number(dropItemCount.value) || 1), item.count))
   }
 })
+openInventoryDialogButton.addEventListener('click', () => {
+  const bot = selectedBot()
+  if (!bot || bot.status !== 'connected') return
+  state.inventoryCursor = null
+  renderInventoryDialog()
+  if (!inventoryDialog.open) inventoryDialog.showModal()
+})
+document.getElementById('closeInventoryDialogButton').addEventListener('click', () => {
+  state.inventoryCursor = null
+  inventoryDialog.close()
+})
+inventoryDialog.addEventListener('cancel', event => {
+  if (state.inventoryCursor) {
+    event.preventDefault()
+    state.inventoryCursor = null
+    renderInventoryDialog()
+  }
+})
+document.addEventListener('keydown', event => {
+  if (!inventoryDialog.open || event.ctrlKey || event.altKey || event.metaKey) return
+  if (/^[1-9]$/.test(event.key) && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+    event.preventDefault()
+    chooseHotbarSlot(Number(event.key) - 1)
+  } else if (event.key === 'Escape' && state.inventoryCursor) {
+    event.preventDefault()
+    state.inventoryCursor = null
+    renderInventoryDialog()
+  }
+})
+importSkinButton.addEventListener('click', async () => {
+  const bot = selectedBot()
+  if (!bot) return
+  importSkinButton.disabled = true
+  try {
+    const result = await api.importSkin(bot.id)
+    if (result?.cancelled) return
+    if (result?.bot) {
+      state.bots.set(result.bot.id, result.bot)
+      renderBots()
+      renderBotModulesPanel(false)
+      renderSkinPanel(result.bot)
+    }
+    showToast(result?.appliedLive
+      ? 'スキン素材を保存し、接続中のBotへ送信しました。サーバーでの適用表示を確認してください。'
+      : 'スキン素材を保存しました。次回接続時にログインスキンとして適用します。')
+  } catch (error) {
+    showToast(error.message || 'スキン素材を読み込めませんでした。')
+  } finally {
+    importSkinButton.disabled = !selectedBot()
+  }
+})
+
 refreshInventoryButton.addEventListener('click', async () => {
   const bot = selectedBot()
   if (!bot) return
   refreshInventoryButton.disabled = true
   try {
     const snapshot = await api.getInventory(bot.id)
-    state.inventoryByBot.set(bot.id, snapshot.items || [])
-    state.inventoryUpdatedAtByBot.set(bot.id, snapshot.updatedAt || '')
+    storeInventorySnapshot(bot.id, snapshot)
     renderInventoryPanel()
   } catch (error) {
     showToast(error.message || 'インベントリを更新できませんでした。')
@@ -1207,8 +1476,7 @@ dropItemForm.addEventListener('submit', async (event) => {
   dropAllItemsButton.disabled = true
   try {
     const snapshot = await api.tossItem({ botId: bot.id, slot, count })
-    state.inventoryByBot.set(bot.id, snapshot.items || [])
-    state.inventoryUpdatedAtByBot.set(bot.id, snapshot.updatedAt || '')
+    storeInventorySnapshot(bot.id, snapshot)
     renderInventoryPanel()
     showToast(`${item.displayName || item.name} を ${count} 個投げました。`)
   } catch (error) {
@@ -1234,15 +1502,13 @@ dropAllItemsButton.addEventListener('click', async () => {
   document.getElementById('dropItemButton').disabled = true
   try {
     const snapshot = await api.tossAllItems({ botId: bot.id })
-    state.inventoryByBot.set(bot.id, snapshot.items || [])
-    state.inventoryUpdatedAtByBot.set(bot.id, snapshot.updatedAt || '')
+    storeInventorySnapshot(bot.id, snapshot)
     renderInventoryPanel()
     showToast(`${snapshot.droppedStacks}スタック・${snapshot.droppedItems}個を投げました。`)
   } catch (error) {
     try {
       const snapshot = await api.getInventory(bot.id)
-      state.inventoryByBot.set(bot.id, snapshot.items || [])
-      state.inventoryUpdatedAtByBot.set(bot.id, snapshot.updatedAt || '')
+      storeInventorySnapshot(bot.id, snapshot)
     } catch {}
     showToast(error.message || 'すべて投げる操作に失敗しました。')
   } finally {
@@ -1445,6 +1711,8 @@ api.onBotRemoved((botId) => {
   state.chatMessagesByBot.delete(botId)
   state.inventoryByBot.delete(botId)
   state.inventoryUpdatedAtByBot.delete(botId)
+  state.inventoryGearByBot.delete(botId)
+  state.inventoryQuickBarByBot.delete(botId)
   if (state.selectedBotId === botId) {
     state.selectedBotId = removedBot?.parentBotId && state.bots.has(removedBot.parentBotId)
       ? removedBot.parentBotId
@@ -1463,8 +1731,7 @@ api.onChatMessage((entry) => {
   if (entry.botId === state.selectedBotId) renderChatPanel()
 })
 api.onInventoryUpdated((snapshot) => {
-  state.inventoryByBot.set(snapshot.botId, snapshot.items || [])
-  state.inventoryUpdatedAtByBot.set(snapshot.botId, snapshot.updatedAt || '')
+  storeInventorySnapshot(snapshot.botId, snapshot)
   if (snapshot.botId === state.selectedBotId) renderInventoryPanel()
 })
 api.onServersUpdated((servers) => {
