@@ -154,15 +154,17 @@ function clientSkinToPlayerSkin (clientSkin) {
     animation_data: decodeBase64Text(clientSkin.SkinAnimationData || ''),
     cape_id: String(clientSkin.CapeId || ''),
     full_skin_id: String(clientSkin.SkinId || ''),
-    arm_size: String(clientSkin.ArmSize || 'wide'),
-    skin_color: String(clientSkin.SkinColor || '#0'),
+    arm_size: String(clientSkin.ArmSize || 'wide').toLowerCase() === 'slim' ? 0 : 1,
+    skin_color: Number.parseInt(String(clientSkin.SkinColor || '#0').replace(/^#/, '') || '0', 16) >>> 0,
     personal_pieces: Array.isArray(clientSkin.PersonaPieces) ? clientSkin.PersonaPieces : [],
     piece_tint_colors: Array.isArray(clientSkin.PieceTintColors) ? clientSkin.PieceTintColors : [],
     premium: clientSkin.PremiumSkin === true,
     persona: clientSkin.PersonaSkin === true,
     cape_on_classic: clientSkin.CapeOnClassicSkin === true,
     primary_user: clientSkin.TrustedSkin !== false,
-    overriding_player_appearance: clientSkin.OverrideSkin !== false
+    overriding_player_appearance: clientSkin.OverrideSkin !== false,
+    trusted_skin_flag: clientSkin.TrustedSkin === false ? 'False' : clientSkin.TrustedSkin === true ? 'True' : 'Unset',
+    profile_hash: String(clientSkin.ProfileHash || '')
   }
 }
 function importSkinEntries (inputEntries) {
