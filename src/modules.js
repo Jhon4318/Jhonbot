@@ -5,7 +5,8 @@ const DEFAULT_MODULES = Object.freeze({
   itemUse: Object.freeze({ assigned: false, useMode: 'activate', intervalMs: 1500 }),
   containerSupply: Object.freeze({ assigned: false, x: null, y: null, z: null, items: Object.freeze([]), intervalMs: 5000 }),
   autoFishing: Object.freeze({ assigned: false, biteTimeoutMs: 120000, recastDelayMs: 1000 }),
-  lookDirection: Object.freeze({ assigned: false, yawDeg: 0, pitchDeg: 0 })
+  lookDirection: Object.freeze({ assigned: false, yawDeg: 0, pitchDeg: 0 }),
+  skin: Object.freeze({ assigned: false })
 })
 
 function clampedInteger (value, fallback, min, max) {
@@ -59,6 +60,7 @@ function normalizeBotModules (input = {}) {
   const containerSupply = input.containerSupply || {}
   const autoFishing = input.autoFishing || {}
   const lookDirection = input.lookDirection || {}
+  const skin = input.skin || {}
   return {
     inventory: { assigned: true },
     itemUse: {
@@ -83,7 +85,8 @@ function normalizeBotModules (input = {}) {
       assigned: lookDirection.assigned === true,
       yawDeg: clampedAngle(lookDirection.yawDeg, 0, -180, 180),
       pitchDeg: clampedAngle(lookDirection.pitchDeg, 0, -90, 90)
-    }
+    },
+    skin: { assigned: skin.assigned === true }
   }
 }
 
