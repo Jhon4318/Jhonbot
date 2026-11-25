@@ -65,3 +65,25 @@ test('archive path traversal entries are ignored', () => {
   const imported = importSkinEntries([{ name: 'safe.mcpack', data: Buffer.from(pack) }])
   assert.equal(imported.meta.width, 64)
 })
+
+
+test('SkinStealer JSON stored with a BIN extension restores embedded geometry, animation and RGBA texture', () => {
+  const geometry = { 'minecraft:geometry': [{ description: { identifier: 'geometry.skinstealer.4d' }, bones: [] }] }
+  const animation = { animations: { 'animation.skinstealer.idle': { loop: true } } }
+  const pixels = Buffer.alloc(64 * 64 * 4, 96)
+  const metadata = {
+    SkinImageWidth: 64,
+    SkinImageHeight: 64,
+    SkinData: pixels.toString('base64'),
+    SkinGeometryData: Buffer.from(JSON.stringify(geometry)).toString('base64'),
+    SkinGeometryDataEngineVersion: Buffer.from('1.12.0').toString('base64'),
+    SkinAnimationData: Buffer.from(JSON.stringify(animation)).toString('base64')
+  }
+  const imported = importSkinEntries([{ name: 'full_skin.bin', data: Buffer.from(JSON.stringify(metadata)) }])
+  assert.equal(imported.meta.geometryId, 'geometry.skinstealer.4d')
+  assert.equal(imported.meta.hasGeometry, true)
+  assert.equal(imported.meta.hasAnimation, true)
+  assert.deepEqual(JSON.parse(Buffer.from(imported.skinData.SkinGeometryData, 'base64').toString()), geometry)
+  assert.deepEqual(JSON.parse(Buffer.from(imported.skinData.SkinAnimationData, 'base64').toString()), animation)
+  assert.equal(Buffer.from(imported.skinData.SkinData, 'base64').length, 64 * 64 * 4)
+})
