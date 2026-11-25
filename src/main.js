@@ -28,6 +28,7 @@ const { createInventoryDropPlan, tossStackConfirmed } = require('./inventory-dro
 const { moveInventorySlotConfirmed, selectHotbarSlot } = require('./inventory-ops')
 const { buildFriendWorldIdentity, findMatchingFriendWorldSession } = require('./friend-world-selection')
 const { importSkinEntries } = require('./skin-import')
+const { skinImportChoiceOptions, skinImportFileDialogOptions, skinImportFolderDialogOptions } = require('./skin-import-dialog')
 const { installSubClientSupport, createGuestLoginTokens, createSubClientLoginDispatcher, MAX_SUB_CLIENTS } = require('./subclients')
 const { nextGuestSubClientId, resolveGuestLabel } = require('./guest-naming')
 const { installBedrockDimensionSync } = require('./bedrock-dimension-sync')
@@ -1730,11 +1731,16 @@ async function collectSkinImportFiles (selectedPaths) {
 async function importSkinForBot (botId) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
-  const selected = await dialog.showOpenDialog(mainWindow, {
-    title: 'スキン素材を読み込む',
-    properties: ['openFile', 'openDirectory', 'multiSelections'],
-    filters: [{ name: 'Minecraft Skin / 4D Skin', extensions: ['png', 'json', 'bin', 'zip', 'mcpack'] }]
-  })
+  // Windows/Linux Electron dialogs cannot select files and directories at once.
+  // Ask for the mode first, then open a file-only or folder-only picker.
+  const choice = await dialog.showMessageBox(mainWindow, skinImportChoiceOptions())
+  if (choice.response === 2 || (choice.response !== 0 && choice.response !== 1)) {
+    return { cancelled: true, bot: publicBot(bot), appliedLive: false }
+  }
+  const pickerOptions = choice.response === 0
+    ? skinImportFileDialogOptions()
+    : skinImportFolderDialogOptions()
+  const selected = await dialog.showOpenDialog(mainWindow, pickerOptions)
   if (selected.canceled || !selected.filePaths?.length) return { cancelled: true, bot: publicBot(bot), appliedLive: false }
   const files = await collectSkinImportFiles(selected.filePaths)
   const imported = importSkinEntries(files)
