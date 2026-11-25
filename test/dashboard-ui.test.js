@@ -288,7 +288,7 @@ test('custom skins expose PNG, geometry, animation and SkinStealer import action
   assert.match(renderer, /api.importSkin(bot.id)/)
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
   assert.match(main, /skinData: bot.skinData || undefined/)
-  assert.match(main, /agent._client.write('player_skin'/)
+  assert.ok(main.includes("agent._client.write('player_skin'"))
   assert.match(main, /findMatchingFriendWorldSession/)
 })
 
