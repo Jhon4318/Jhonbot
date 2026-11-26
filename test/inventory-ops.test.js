@@ -13,15 +13,13 @@ function createAgent (source, destination = null) {
   agent.inventory.slots[36] = source ? { type: source.type ?? 1, count: source.count ?? 10, stackId: 41 } : null
   agent.inventory.slots[9] = destination ? { type: destination.type ?? 2, count: destination.count ?? 4, stackId: 22 } : null
   agent.setQuickBarSlot = slot => { agent.quickBarSlot = slot }
-  agent._stack = {
-    withInventoryOpen: async () => {
-      agent.currentWindow = {}
-      agent.didOpenInventory = true
-      return () => {
-        agent.didCloseInventory = true
-        agent.currentWindow = null
-      }
-    }
+  agent.openInventory = () => {
+    agent.didOpenInventory = true
+    agent.currentWindow = { type: 'inventory', bedrockType: 'inventory' }
+  }
+  agent.closeWindow = window => {
+    agent.didCloseInventory = true
+    agent.currentWindow = null
   }
   agent.moveInventoryItem = (from, to, count) => {
     agent._stackRequest.id -= 2
@@ -158,12 +156,9 @@ test('hotbar-to-hotbar moves do not open the player inventory window', async () 
 test('cross-container move waits for a delayed container_open event', async () => {
   const agent = createAgent({ type: 7, count: 10 })
   agent.currentWindow = null
-  agent._stack.withInventoryOpen = async () => {
-    setTimeout(() => { agent.currentWindow = {} }, 85)
-    return () => {
-      agent.didCloseInventory = true
-      agent.currentWindow = null
-    }
+  agent.openInventory = () => {
+    agent.didOpenInventory = true
+    setTimeout(() => { agent.currentWindow = { type: 'inventory', bedrockType: 'inventory' } }, 85)
   }
   const result = await moveInventorySlotConfirmed(agent, 36, 9, undefined, { windowTimeoutMs: 400, pollIntervalMs: 10 })
   assert.equal(result.itemsMoved, 10)
@@ -173,7 +168,7 @@ test('cross-container move waits for a delayed container_open event', async () =
 test('cross-container move reports an inventory-window timeout and still calls close cleanup', async () => {
   const agent = createAgent({ type: 7, count: 10 })
   agent.currentWindow = null
-  agent._stack.withInventoryOpen = async () => () => { agent.didCloseInventory = true }
+  agent.openInventory = () => { agent.didOpenInventory = true }
   await assert.rejects(
     moveInventorySlotConfirmed(agent, 36, 9, undefined, { windowTimeoutMs: 30, pollIntervalMs: 5 }),
     /container_open|インベントリ画面/
