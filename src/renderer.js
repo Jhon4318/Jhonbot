@@ -93,15 +93,11 @@ function showStartupFailure (error) {
   const message = error instanceof Error ? error.message : String(error || '原因不明の初期化エラー')
   const version = document.getElementById('appVersionText')
   if (version) version.textContent = '起動エラー'
-  let banner = document.getElementById('startupFailureBanner')
-  if (!banner) {
-    banner = createElement('div', 'startup-error-banner')
-    banner.id = 'startupFailureBanner'
-    const topbar = document.querySelector('.topbar')
-    if (topbar?.parentNode) topbar.parentNode.insertBefore(banner, topbar.nextSibling)
-    else document.body.prepend(banner)
+  const banner = document.getElementById('startupFailureBanner')
+  if (banner) {
+    banner.hidden = false
+    banner.textContent = `初期化に失敗しました: ${message}  設定や認証情報を削除せず、診断ログを確認してください。`
   }
-  banner.textContent = `初期化に失敗しました: ${message}  設定や認証情報を削除せず、診断ログを確認してください。`
   const list = document.getElementById('logList')
   if (list && !list.querySelector('.startup-error-entry')) {
     list.append(createElement('div', 'log-entry error startup-error-entry', `画面初期化エラー: ${message}`))
