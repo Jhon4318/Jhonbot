@@ -2562,6 +2562,7 @@ function scheduleBotModuleResume (bot, agent, isAutomaticReconnect) {
     if (bot.agent !== agent || bot.status !== 'connected' || bot.manualDisconnect) return
     attempts++
     try {
+      if (snapshot.lookDirection) await setBotLookDirection(bot.id, snapshot.lookDirection)
       if (snapshot.itemUse) startBotItemUse(bot.id, snapshot.itemUseSlot)
       else if (snapshot.containerSupply) startContainerSupply(bot.id)
       else if (snapshot.autoFishing) startAutoFishing(bot.id)
