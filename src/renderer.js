@@ -62,7 +62,7 @@ const skinName = document.getElementById('skinName')
 const skinDetails = document.getElementById('skinDetails')
 const skinStatus = document.getElementById('skinStatus')
 
-const state = { bots: new Map(), servers: [], installedMods: [], modCatalog: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), toggledControlsByBot: new Map(), toggleControlsPressed: new Set(), logAutoFollow: true, pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map(), inventoryGearByBot: new Map(), inventoryQuickBarByBot: new Map(), inventoryCursor: null, selectedModId: 'inventory', botPage: 0, serverPage: 0 }
+const state = { bots: new Map(), servers: [], installedMods: [], modCatalog: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), toggledControlsByBot: new Map(), toggleControlsPressed: new Set(), logAutoFollow: true, pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map(), inventoryGearByBot: new Map(), inventoryQuickBarByBot: new Map(), inventoryCursor: null, inventoryMovePending: false, selectedModId: 'inventory', botPage: 0, serverPage: 0 }
 const statusLabels = {
   disconnected: '未参加',
   authenticating: '認証処理中',
@@ -215,11 +215,10 @@ function appendLog (entry) {
   const empty = logList.querySelector('.log-empty')
   if (empty) empty.remove()
   const fullMessage = formatLogLine(entry.message)
-  const message = fullMessage.length > 240 ? fullMessage.slice(0, 237) + '…' : fullMessage
+  const message = fullMessage
   const row = createElement('div', `log-entry ${entry.level || 'info'}`)
   const time = new Date(entry.at).toLocaleTimeString('ja-JP', { hour12: false })
   row.append(createElement('span', 'log-time', time), createElement('span', 'log-message', message))
-  if (fullMessage.length > message.length) row.title = fullMessage
   logList.append(row)
   while (logList.children.length > 300) logList.firstElementChild.remove()
   scheduleLogScroll()
@@ -865,7 +864,8 @@ function makeInventorySlot (slot, item, options = {}) {
   const cursor = state.inventoryCursor
   const shownCount = item && cursor?.fromSlot === slot ? Math.max(0, item.count - cursor.count) : item?.count
   if (cursor?.fromSlot === slot) button.classList.add('is-cursor-source')
-  button.title = item ? `${item.displayName || item.name} × ${shownCount} (slot ${slot})` : (options.label || `空きスロット ${slot}`)
+  const enchantmentLabels = Array.isArray(item?.enchantments) ? item.enchantments.map(enchantment => enchantment.label).filter(Boolean) : []
+  button.title = item ? `${item.displayName || item.name} × ${shownCount} (slot ${slot})${enchantmentLabels.length ? '\n' + enchantmentLabels.join('\n') : ''}` : (options.label || `空きスロット ${slot}`)
   if (hotbar) button.append(createElement('span', 'inventory-slot-number', String(slot - 35)))
   if (item && shownCount > 0) {
     const icons = itemIconUrls(item)
@@ -887,12 +887,13 @@ function makeInventorySlot (slot, item, options = {}) {
       button.append(createElement('span', 'inventory-empty-label', String(item.displayName || item.name).slice(0, 7)))
     }
     button.append(createElement('span', 'inventory-stack-count', shownCount > 1 ? String(shownCount) : ''))
+    if (enchantmentLabels.length) button.append(createElement('span', 'inventory-enchantment-mark', '✦'))
   } else if (options.label) {
     button.append(createElement('span', 'inventory-empty-label', options.label))
   } else {
     button.append(createElement('span', 'inventory-empty-label', ''))
   }
-  button.disabled = !selectedBot() || selectedBot().status !== 'connected' || gear
+  button.disabled = !selectedBot() || selectedBot().status !== 'connected' || gear || state.inventoryMovePending
   button.addEventListener('click', () => handleInventorySlotClick(slot, false))
   button.addEventListener('contextmenu', event => {
     event.preventDefault()
@@ -955,7 +956,7 @@ function renderInventoryDialog () {
 
 async function handleInventorySlotClick (slot, rightClick) {
   const bot = selectedBot()
-  if (!bot || bot.status !== 'connected') return
+  if (!bot || bot.status !== 'connected' || state.inventoryMovePending) return
   if (slot < 9 || slot > 44) return
   const items = state.inventoryByBot.get(bot.id) || []
   const item = items.find(entry => entry.slot === slot)
@@ -984,6 +985,8 @@ async function handleInventorySlotClick (slot, rightClick) {
     return
   }
   const amount = rightClick ? 1 : cursor.count
+  state.inventoryMovePending = true
+  renderInventoryDialog()
   try {
     const snapshot = await api.moveInventoryItem({ botId: bot.id, fromSlot: cursor.fromSlot, toSlot: slot, count: amount })
     storeInventorySnapshot(bot.id, snapshot)
@@ -1002,13 +1005,18 @@ async function handleInventorySlotClick (slot, rightClick) {
     state.inventoryCursor = null
     renderInventoryPanel()
     renderInventoryDialog()
+  } finally {
+    state.inventoryMovePending = false
+    renderInventoryDialog()
   }
 }
 
 async function commitInventoryMove (fromSlot, toSlot, count) {
   const bot = selectedBot()
-  if (!bot || bot.status !== 'connected') return
+  if (!bot || bot.status !== 'connected' || state.inventoryMovePending) return
   if (fromSlot === toSlot || fromSlot < 9 || fromSlot > 44 || toSlot < 9 || toSlot > 44) return
+  state.inventoryMovePending = true
+  renderInventoryDialog()
   try {
     const snapshot = await api.moveInventoryItem({ botId: bot.id, fromSlot, toSlot, count })
     storeInventorySnapshot(bot.id, snapshot)
@@ -1017,6 +1025,11 @@ async function commitInventoryMove (fromSlot, toSlot, count) {
     renderInventoryDialog()
   } catch (error) {
     showToast(error.message || 'インベントリを移動できませんでした。')
+    try { storeInventorySnapshot(bot.id, await api.getInventory(bot.id)) } catch {}
+    renderInventoryPanel()
+  } finally {
+    state.inventoryMovePending = false
+    renderInventoryDialog()
   }
 }
 
@@ -1049,9 +1062,11 @@ function renderSkinPanel (bot) {
   skinPreviewPlaceholder.hidden = !!skin.previewDataUrl
   skinName.textContent = skin.name || 'カスタムスキン'
   skinDetails.textContent = `${skin.width}×${skin.height} · ${skin.geometryId || '標準モデル'}${skin.hasAnimation ? ' · Animationあり' : ''}${skin.hasCape ? ' · Capeあり' : ''}${skin.sourceFormat ? ' · ' + skin.sourceFormat : ''}`
-  skinStatus.textContent = bot.status === 'connected'
-    ? '素材保存済み。適用時はBotを再接続し、ログインデータにスキンを含めます。4D表示は参加先サーバーに依存します。'
-    : '素材保存済み。次回ワールド接続時のログインデータに適用します。'
+  skinStatus.textContent = bot.skinFallbackActive
+    ? 'サーバーが指定スキンを拒否したため、現在は標準スキンで接続します。保存済みスキンは残してあります。別のスキンを読み込むと再試行します。'
+    : bot.status === 'connected'
+      ? '素材保存済み。適用時はBotを再接続し、ログインデータにスキンを含めます。4D表示は参加先サーバーに依存します。'
+      : '素材保存済み。次回ワールド接続時のログインデータに適用します。'
 }
 
 function renderInventoryPanel () {
@@ -1078,11 +1093,15 @@ function renderInventoryPanel () {
     if (!items.length) inventoryList.append(createElement('div', 'inventory-empty', 'アイテムがないか、サーバーからの同期を待っています。'))
     for (const item of items.slice(0, 6)) {
       const row = createElement('div', 'inventory-item-row')
-      row.append(createElement('span', 'inventory-slot', chatSlotLabel(item.slot)), createElement('span', 'inventory-item-name', item.displayName || item.name), createElement('strong', 'inventory-item-count', `× ${item.count}`))
+      const info = createElement('div', 'inventory-item-info')
+      info.append(createElement('span', 'inventory-item-name', item.displayName || item.name))
+      const enchantments = Array.isArray(item.enchantments) ? item.enchantments.map(enchantment => enchantment.label).filter(Boolean) : []
+      if (enchantments.length) info.append(createElement('span', 'inventory-item-enchantments', enchantments.join(' · ')))
+      row.append(createElement('span', 'inventory-slot', chatSlotLabel(item.slot)), info, createElement('strong', 'inventory-item-count', `× ${item.count}`))
       inventoryList.append(row)
     }
     if (items.length > 6) inventoryList.append(createElement('div', 'inventory-empty', `ほか ${items.length - 6} 種類は画像表示で確認できます。`))
-    for (const item of items) inventorySelect.append(new Option(`${chatSlotLabel(item.slot)} · ${item.displayName || item.name} × ${item.count}`, String(item.slot)))
+    for (const item of items) inventorySelect.append(new Option(`${chatSlotLabel(item.slot)} · ${item.displayName || item.name}${item.enchantments?.length ? ' · ' + item.enchantments.map(enchantment => enchantment.label).join(' / ') : ''} × ${item.count}`, String(item.slot)))
     if (!items.length) inventorySelect.append(new Option('アイテムなし', ''))
   }
 
