@@ -1761,6 +1761,7 @@ function inventoryGearSnapshot (agent) {
       count: Number(item.count) || 1,
       type: Number.isInteger(item.type) ? item.type : null,
       metadata: Number.isInteger(item.metadata) ? item.metadata : 0,
+      enchantments: extractItemEnchantments(item, agent.registry),
       label: entry.label
     }
   })
