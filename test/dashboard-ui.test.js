@@ -432,5 +432,5 @@ test('inventory UI displays enchantment labels and locks slots during confirmed 
 test('control panel remains scrollable when its content exceeds the dashboard row', () => {
   const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
   const fit = styles.slice(styles.lastIndexOf('0.9.4: preserve full connection messages'))
-  assert.match(fit, /#dashboardGrid > \.control-panel[\\s\\S]*overflow-y: auto !important/)
+  assert.match(fit, /#dashboardGrid > \.control-panel[\s\S]*overflow-y: auto !important/)
 })
