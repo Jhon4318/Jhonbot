@@ -7,6 +7,7 @@ const path = require('node:path')
 const fs = require('node:fs/promises')
 const fsSync = require('node:fs')
 const { readSettingsFile } = require('./settings-file')
+const { findExistingUserDataPath } = require('./user-data-path')
 
 // Keep the same Electron userData directory used by the ZIP builds.
 app.setName(PACKAGE.name)
@@ -26,33 +27,19 @@ try {
     'Bedrock Bot Console',
     'bedrock-bot-console'
   ].filter(name => typeof name === 'string' && name.trim()))]
-  const hasSavedProfileData = (directory) => {
-    const settingsFile = path.join(directory, 'settings.json')
-    try {
-      const parsed = JSON.parse(fsSync.readFileSync(settingsFile, 'utf8'))
-      return (Array.isArray(parsed.bots) && parsed.bots.length > 0) ||
-        (Array.isArray(parsed.servers) && parsed.servers.length > 0) ||
-        (Array.isArray(parsed.installedMods) && parsed.installedMods.length > 0) ||
-        (parsed.trustedServerKeys && typeof parsed.trustedServerKeys === 'object' && Object.keys(parsed.trustedServerKeys).length > 0)
-    } catch {
-      return false
-    }
-  }
   // A prior broken startup could have created a syntactically valid but empty
   // settings.json in the new directory. Prefer a legacy directory containing
   // actual saved Bots/servers instead of treating that empty file as the user profile.
-  if (!hasSavedProfileData(currentUserData)) {
-    const candidates = candidateNames
-      .map(name => path.resolve(appData, name))
-      .filter(candidate => candidate !== currentUserData &&
-        fsSync.existsSync(path.join(candidate, 'settings.json')) &&
-        hasSavedProfileData(candidate))
-      .map(candidate => ({ path: candidate, modified: fsSync.statSync(path.join(candidate, 'settings.json')).mtimeMs }))
-      .sort((a, b) => b.modified - a.modified)
-    if (candidates.length) {
-      app.setPath('userData', candidates[0].path)
-      userDataPathMigration = { from: currentUserData, to: candidates[0].path, candidates: candidates.length, currentWasEmpty: true }
-    }
+  const legacyUserData = findExistingUserDataPath({
+    currentUserData,
+    appData,
+    candidateNames,
+    fs: fsSync,
+    path
+  })
+  if (legacyUserData) {
+    app.setPath('userData', legacyUserData.path)
+    userDataPathMigration = { from: currentUserData, ...legacyUserData }
   }
 } catch (error) {
   // Keep Electron's default path and record the diagnostic after logging starts.
