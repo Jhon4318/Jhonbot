@@ -1,6 +1,13 @@
 'use strict'
 
-const api = window.botApp
+const bridgeMissing = !window.botApp
+const api = window.botApp || new Proxy({}, {
+  get (_target, property) {
+    if (property === 'then') return undefined
+    if (String(property).startsWith('on')) return () => {}
+    return () => Promise.reject(new Error('Electronの画面連携機能を読み込めませんでした。アプリを終了せず、診断ログを確認してください。'))
+  }
+})
 const botList = document.getElementById('botList')
 const emptyState = document.getElementById('emptyState')
 const logList = document.getElementById('logList')
@@ -82,11 +89,38 @@ function showToast (message) {
   state.toastTimer = setTimeout(() => toast.classList.remove('visible'), 3000)
 }
 
+function showStartupFailure (error) {
+  const message = error instanceof Error ? error.message : String(error || '原因不明の初期化エラー')
+  const version = document.getElementById('appVersionText')
+  if (version) version.textContent = '起動エラー'
+  let banner = document.getElementById('startupFailureBanner')
+  if (!banner) {
+    banner = createElement('div', 'startup-error-banner')
+    banner.id = 'startupFailureBanner'
+    const topbar = document.querySelector('.topbar')
+    if (topbar?.parentNode) topbar.parentNode.insertBefore(banner, topbar.nextSibling)
+    else document.body.prepend(banner)
+  }
+  banner.textContent = `初期化に失敗しました: ${message}  設定や認証情報を削除せず、診断ログを確認してください。`
+  const list = document.getElementById('logList')
+  if (list && !list.querySelector('.startup-error-entry')) {
+    list.append(createElement('div', 'log-entry error startup-error-entry', `画面初期化エラー: ${message}`))
+  }
+  console.error('Dashboard startup failed:', message)
+}
+
+window.addEventListener('error', (event) => {
+  const version = document.getElementById('appVersionText')
+  if (version?.textContent === '確認中') showStartupFailure(event.error || event.message)
+})
+
+
 window.addEventListener('unhandledrejection', (event) => {
   const reason = event.reason
   const detail = reason instanceof Error ? reason.message : (typeof reason === 'string' ? reason : '詳細不明の非同期エラー')
   console.error('Unhandled renderer promise rejection:', reason)
-  showToast(`画面側の非同期エラー: ${detail}`)
+  if (document.getElementById('appVersionText')?.textContent === '確認中') showStartupFailure(detail)
+  else showToast(`画面側の非同期エラー: ${detail}`)
   event.preventDefault()
 })
 
@@ -1884,12 +1918,21 @@ api.onAuthCode((info) => {
 })
 
 async function initialise () {
-  const initial = await api.getState()
-  document.getElementById('versionText').textContent = initial.version
+  let timeoutId
+  const initial = await Promise.race([
+    api.getState(),
+    new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('メインプロセスから初期状態が返りませんでした（15秒）。診断ログの [app:get-state] を確認してください。')), 15000)
+    })
+  ]).finally(() => clearTimeout(timeoutId))
+  if (!initial || !Array.isArray(initial.bots) || !Array.isArray(initial.servers) || !Array.isArray(initial.logs)) {
+    throw new Error('メインプロセスから不完全な初期データが返されました。')
+  }
+  document.getElementById('versionText').textContent = initial.version || '不明'
   document.getElementById('appVersionText').textContent = initial.appVersion ? `v${initial.appVersion}` : '不明'
-  state.servers = initial.servers || []
-  state.installedMods = initial.installedMods || []
-  state.modCatalog = initial.modCatalog || []
+  state.servers = initial.servers
+  state.installedMods = Array.isArray(initial.installedMods) ? initial.installedMods : []
+  state.modCatalog = Array.isArray(initial.modCatalog) ? initial.modCatalog : []
   for (const bot of initial.bots) state.bots.set(bot.id, bot)
   for (const entry of initial.logs) appendLog(entry)
   scheduleLogScroll(true)
@@ -1910,4 +1953,5 @@ async function initialise () {
   loadSelectedBotData()
 }
 
-initialise().catch(error => showToast(`初期化エラー: ${error.message}`))
+if (bridgeMissing) showStartupFailure('Electronのpreloadブリッジ window.botApp が存在しません。')
+initialise().catch(showStartupFailure)
