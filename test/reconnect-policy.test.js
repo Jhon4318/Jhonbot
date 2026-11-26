@@ -50,7 +50,7 @@ test('captures only modules that were actively running at disconnect time', () =
     itemUseRunning: false,
     containerSupplyRunning: false,
     autoFishingRunning: true
-  }), { itemUse: false, itemUseSlot: null, containerSupply: false, autoFishing: true })
+  }), { itemUse: false, itemUseSlot: null, containerSupply: false, autoFishing: true, lookDirection: null })
 })
 
 test('does not create resume work when no runtime Mod was active', () => {
@@ -58,4 +58,9 @@ test('does not create resume work when no runtime Mod was active', () => {
   assert.equal(hasModuleResumeState(null), false)
   assert.equal(hasModuleResumeState({ itemUse: false, containerSupply: false, autoFishing: false }), false)
   assert.equal(hasModuleResumeState({ itemUse: true }), true)
+  assert.equal(hasModuleResumeState({ lookDirection: { yawDeg: 90, pitchDeg: -15 } }), true)
+  assert.deepEqual(captureModuleResumeState({
+    modules: { lookDirection: { assigned: true, yawDeg: 90, pitchDeg: -15 } },
+    lookDirectionStatus: '適用済み · Yaw 90° / Pitch -15°'
+  }), { itemUse: false, itemUseSlot: null, containerSupply: false, autoFishing: false, lookDirection: { yawDeg: 90, pitchDeg: -15 } })
 })
