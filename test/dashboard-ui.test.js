@@ -376,7 +376,7 @@ test('inventory icons use the Bedrock atlas and show a text fallback after image
 
 test('inventory transfers wait for the Bedrock inventory window and the matching stack response', () => {
   const operations = fs.readFileSync(path.join(__dirname, '..', 'src', 'inventory-ops.js'), 'utf8')
-  assert.ok(operations.includes('agent.openInventory()'))
+  assert.ok(operations.includes('openPlayerInventory(agent)'))
   assert.ok(operations.includes('await waitForInventoryWindow(agent'))
   assert.ok(operations.includes('createItemStackResponseWaiter(agent, requestId'))
   assert.ok(operations.includes('await waiter.promise'))
@@ -408,7 +408,7 @@ test('importing a Persona BIN reconnects an active Bot through saved login skinD
   assert.ok(parser.includes('pieceTintColors'))
   assert.ok(main.includes('reconnectWithSavedSkin(bot'))
   assert.ok(main.includes('waitForBotSpawn'))
-  assert.ok(main.includes('skinData: bot.skinData || undefined'))
+  assert.match(main, /skinData: bot\.skinFallbackActive \? undefined : \(bot\.skinData \? validateSkinLoginData\(bot\.skinData\) : undefined\)/)
 })
 
 
