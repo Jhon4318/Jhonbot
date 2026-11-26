@@ -86,12 +86,31 @@ async function moveInventorySlotConfirmed (agent, fromSlot, toSlot, count, optio
         }
         // Bedrock sends an InteractPacket(open_inventory); the server replies with
         // container_open. Mineflayer exposes the confirmed window as currentWindow.
-        agent.openInventory()
+        let openWasAbandoned = false
+        let onLateWindowOpen = null
+        if (typeof agent.on === 'function' && typeof agent.removeListener === 'function') {
+          onLateWindowOpen = window => {
+            const windowType = String(window?.bedrockType ?? window?.type ?? '').toLowerCase()
+            if (!openWasAbandoned || windowType !== 'inventory') return
+            agent.removeListener('windowOpen', onLateWindowOpen)
+            try { agent.closeWindow?.(window) } catch {}
+          }
+          agent.on('windowOpen', onLateWindowOpen)
+        }
         closeInventory = () => {
-          if (agent.currentWindow && typeof agent.closeWindow === 'function') {
-            agent.closeWindow(agent.currentWindow)
+          const currentWindow = agent.currentWindow
+          const currentType = String(currentWindow?.bedrockType ?? currentWindow?.type ?? '').toLowerCase()
+          if (currentWindow && currentType === 'inventory') {
+            if (onLateWindowOpen) agent.removeListener('windowOpen', onLateWindowOpen)
+            try { agent.closeWindow?.(currentWindow) } catch {}
+          } else if (!currentWindow) {
+            // If the server answers after our timeout, close only the delayed player inventory.
+            openWasAbandoned = true
+          } else if (onLateWindowOpen) {
+            agent.removeListener('windowOpen', onLateWindowOpen)
           }
         }
+        agent.openInventory()
       }
       await waitForInventoryWindow(agent, {
         timeoutMs: options.windowTimeoutMs || 5000,
