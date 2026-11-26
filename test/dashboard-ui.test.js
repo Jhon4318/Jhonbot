@@ -442,6 +442,7 @@ test('friend-world selection, guest reconnect and active Mods distinguish automa
   assert.ok(main.includes('async function waitForGuestConnectionRelease (guest'))
   assert.ok(main.includes('await waitForGuestConnectionRelease(guest)'))
   assert.ok(main.includes('autoReconnectEligible = true'))
+  assert.ok(main.includes('bot.autoReconnectEligible = false'))
   assert.ok(main.includes('scheduleBotModuleResume(bot, agent, options.reconnect === true)'))
   assert.ok(main.includes('await setBotLookDirection(bot.id, snapshot.lookDirection)'))
   assert.ok(policy.includes('guest.autoReconnectEligible === true'))
