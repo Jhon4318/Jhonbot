@@ -282,7 +282,15 @@ function importSkinEntries (inputEntries) {
   const geometryVersion = personaBin?.geometryVersion || geometry?.format_version || (embeddedSkin?.SkinGeometryDataEngineVersion
     ? Buffer.from(embeddedSkin.SkinGeometryDataEngineVersion, 'base64').toString('utf8')
     : '0.0.0')
-  const resourcePatch = embeddedResourcePatch || { geometry: { default: geometryId } }
+  const resourcePatch = {
+    ...(embeddedResourcePatch && typeof embeddedResourcePatch === 'object' ? embeddedResourcePatch : {}),
+    geometry: {
+      ...(embeddedResourcePatch?.geometry && typeof embeddedResourcePatch.geometry === 'object' ? embeddedResourcePatch.geometry : {}),
+      default: typeof embeddedResourcePatch?.geometry?.default === 'string' && embeddedResourcePatch.geometry.default
+        ? embeddedResourcePatch.geometry.default
+        : geometryId
+    }
+  }
   const clientSkin = {
     SkinId: personaBin?.skinId || embeddedSkin?.SkinId || ('jhonbot.' + randomUUID()),
     SkinResourcePatch: Buffer.from(JSON.stringify(resourcePatch)).toString('base64'),
