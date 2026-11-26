@@ -374,7 +374,7 @@ test('inventory icons use the Bedrock atlas and show a text fallback after image
 
 test('inventory transfers wait for the Bedrock inventory window and the matching stack response', () => {
   const operations = fs.readFileSync(path.join(__dirname, '..', 'src', 'inventory-ops.js'), 'utf8')
-  assert.ok(operations.includes('await agent._stack.withInventoryOpen()'))
+  assert.ok(operations.includes('agent.openInventory()'))
   assert.ok(operations.includes('await waitForInventoryWindow(agent'))
   assert.ok(operations.includes('createItemStackResponseWaiter(agent, requestId'))
   assert.ok(operations.includes('await waiter.promise'))
