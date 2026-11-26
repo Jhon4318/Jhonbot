@@ -2499,3 +2499,84 @@ main#dashboardGrid{flex:1 1 auto;width:100%;min-height:0;max-height:none;margin:
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
+
+/* 0.9.4: preserve full connection messages and wrap at the panel edge. */
+.log-panel .log-list {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  justify-content: flex-start !important;
+}
+.log-panel .log-entry {
+  flex: 0 0 auto !important;
+  align-items: flex-start !important;
+  width: 100%;
+  min-width: 0;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  white-space: normal !important;
+  line-height: 1.35 !important;
+  padding: 2px 1px;
+}
+.log-panel .log-time {
+  flex: 0 0 48px;
+  line-height: 1.35;
+}
+.log-panel .log-message {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: visible !important;
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word;
+  text-overflow: clip !important;
+  line-height: 1.35 !important;
+}
+
+/* The control panel's min-content height may exceed the dashboard row on short windows. */
+#dashboardGrid > .control-panel {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+
+/* Inventory enchantments remain readable in both the compact list and the slot grid. */
+.inventory-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.inventory-item-enchantments {
+  color: #b9adff;
+  font-size: 8px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.inventory-grid-slot .inventory-enchantment-mark {
+  position: absolute;
+  top: 1px;
+  right: 4px;
+  color: #d9d0ff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  text-shadow: 0 1px 3px #000;
+  pointer-events: none;
+}
+.selected-mod-operation-panel .inventory-item-info {
+  min-width: 0;
+}
+.selected-mod-operation-panel .inventory-item-enchantments {
+  font-size: 7px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.inventory-grid-slot:disabled.is-cursor-source {
+  opacity: .35;
+}
