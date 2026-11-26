@@ -29,7 +29,6 @@ function findExistingUserDataPath (options = {}) {
 
   if (hasSavedProfileData(currentUserData, { fs, path })) return null
 
-  const currentSettingsExists = fs.existsSync(path.join(currentUserData, 'settings.json'))
   const candidates = candidateNames
     .map(name => path.resolve(appData, name))
     .filter(candidate => candidate !== currentUserData &&
@@ -45,7 +44,7 @@ function findExistingUserDataPath (options = {}) {
   return {
     path: candidates[0].path,
     candidates: candidates.length,
-    currentWasEmpty: !currentSettingsExists
+    currentWasEmpty: true
   }
 }
 
