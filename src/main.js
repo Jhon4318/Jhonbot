@@ -1451,11 +1451,23 @@ async function joinGuestBot (parent, guest) {
     publishBotInventory(guest)
     pushLog(`${guest.label}: ワールドにゲストBotとしてスポーンしました。`, 'success', guest.id)
   })
-  agent.on('chat', (username, message) => {
+  agent.on('chat', (username, message, translate, messageObject) => {
     if (guest.agent !== agent) return
     const sender = String(username || '')
     if (sender && sender === String(agent.username || guest.playerName || '')) return
-    recordBotChatMessage(guest, 'incoming', sender, message)
+    const source = messageObject || (translate ? { translate } : message)
+    recordBotChatMessage(guest, 'incoming', sender, source, message)
+  })
+  agent.on('whisper', (username, message, translate, messageObject) => {
+    if (guest.agent !== agent) return
+    const sender = String(username || '')
+    if (sender && sender === String(agent.username || guest.playerName || '')) return
+    const source = messageObject || (translate ? { translate } : message)
+    recordBotChatMessage(guest, 'incoming', sender ? sender + ' (whisper)' : 'Whisper', source, message)
+  })
+  agent.on('message', (message, position, source) => {
+    if (guest.agent !== agent || position !== 'system') return
+    recordBotChatMessage(guest, 'system', String(source || 'System'), message, message?.toString?.() ?? message)
   })
   agent.on('kicked', (reason) => {
     if (guest.agent !== agent) return
