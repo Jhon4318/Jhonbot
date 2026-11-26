@@ -968,6 +968,7 @@ async function connectBot (botId, options = {}) {
     }
     bot.manualDisconnect = false
     if (!options.reconnect) {
+      bot.autoReconnectEligible = false
       bot.resumeModulesAfterReconnect = null
       clearTimeout(bot.moduleResumeTimer)
       bot.moduleResumeTimer = null
