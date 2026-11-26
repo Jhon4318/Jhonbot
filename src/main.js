@@ -971,6 +971,7 @@ async function connectBot (botId, options = {}) {
       bot.resumeModulesAfterReconnect = null
       clearTimeout(bot.moduleResumeTimer)
       bot.moduleResumeTimer = null
+      if (String(bot.lookDirectionStatus || '').startsWith('適用済み')) bot.lookDirectionStatus = '手動接続・未適用'
     }
     return joinGuestBot(parent, bot, { reconnect: options.reconnect === true })
   }
@@ -982,7 +983,12 @@ async function connectBot (botId, options = {}) {
     for (const guest of bots.values()) {
       if (guest.parentBotId !== bot.id) continue
       guest.autoReconnectEligible = false
+      guest.resumeModulesAfterReconnect = null
+      clearTimeout(guest.moduleResumeTimer)
+      guest.moduleResumeTimer = null
+      if (String(guest.lookDirectionStatus || '').startsWith('適用済み')) guest.lookDirectionStatus = '手動接続・未適用'
     }
+    if (String(bot.lookDirectionStatus || '').startsWith('適用済み')) bot.lookDirectionStatus = '手動接続・未適用'
   }
   const attemptId = ++bot.connectionAttempt
   const abortController = new AbortController()
@@ -2699,6 +2705,9 @@ async function removeBot (botId) {
     : [...Array.from(bots.values()).filter(item => item.parentBotId === bot.id), bot]
   for (const item of removed) {
     stopBotModules(item, 'Bot削除')
+    clearTimeout(item.moduleResumeTimer)
+    item.moduleResumeTimer = null
+    item.resumeModulesAfterReconnect = null
     clearTimeout(item.reconnectTimer)
     item.reconnectTimer = null
     if (item.client || item.connectionStarting) {
@@ -2734,6 +2743,7 @@ function disconnectBot (botId) {
   bot.resumeModulesAfterReconnect = null
   clearTimeout(bot.moduleResumeTimer)
   bot.moduleResumeTimer = null
+  if (String(bot.lookDirectionStatus || '').startsWith('適用済み')) bot.lookDirectionStatus = '手動切断・未適用'
   if (bot.parentBotId) {
     bot.autoReconnectEligible = false
   } else {
@@ -2743,6 +2753,7 @@ function disconnectBot (botId) {
       guest.resumeModulesAfterReconnect = null
       clearTimeout(guest.moduleResumeTimer)
       guest.moduleResumeTimer = null
+      if (String(guest.lookDirectionStatus || '').startsWith('適用済み')) guest.lookDirectionStatus = '手動切断・未適用'
     }
   }
   clearTimeout(bot.reconnectTimer)
@@ -2952,6 +2963,9 @@ app.on('before-quit', () => {
   writeDiagnosticLog('[electron] before-quit')
   for (const bot of bots.values()) {
     stopBotModules(bot, 'アプリ終了')
+    clearTimeout(bot.moduleResumeTimer)
+    bot.moduleResumeTimer = null
+    bot.resumeModulesAfterReconnect = null
     clearTimeout(bot.reconnectTimer)
     bot.reconnectTimer = null
     if (bot.client) {
