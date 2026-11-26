@@ -90,10 +90,14 @@ test('Bot cards use shrink-safe rows and wrap their actions in narrow management
   assert.match(styles, /@container bot-management \(max-width:\s*235px\)/)
 })
 
-test('compact control panels scroll to diagnostics instead of clipping them', () => {
+test('Bot controls fit a fixed panel without a scroll bar', () => {
   const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
-  assert.match(styles, /\.control-panel\s*\{[^}]*overflow-y:\s*auto;/s)
-  assert.match(styles, /\.control-panel > \.diagnostic-card\s*\{\s*flex:\s*0 0 auto;/)
+  const fit = styles.slice(styles.lastIndexOf('0.9.5: fixed Bot control layout'))
+  assert.ok(html.includes('class="control-top-layout"'))
+  assert.match(fit, /#dashboardGrid > \.control-panel[\s\S]*overflow-y: hidden !important/)
+  assert.match(fit, /\.control-top-layout\s*\{[^}]*display:\s*grid;/s)
+  assert.doesNotMatch(fit, /overflow-y:\s*auto/)
+  assert.doesNotMatch(fit, /scrollbar-gutter/)
 })
 
 
@@ -429,8 +433,22 @@ test('inventory UI displays enchantment labels and locks slots during confirmed 
   assert.ok(actions.includes('enchantments: extractItemEnchantments(item, agent.registry)'))
 })
 
-test('control panel remains scrollable when its content exceeds the dashboard row', () => {
+test('friend-world selection, guest reconnect and active Mods distinguish automatic reconnects', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
+  const policy = fs.readFileSync(path.join(__dirname, '..', 'src', 'reconnect-policy.js'), 'utf8')
+  assert.ok(main.includes('askForWorldSelection(bot, sessions, attemptId, options.reconnect === true)'))
+  assert.ok(main.includes('if (options.reconnect) {\n      reconnectGuestBots(bot)'))
+  assert.ok(main.includes('getReconnectableGuestBots(Array.from(bots.values()), parent.id)'))
+  assert.ok(main.includes('autoReconnectEligible = true'))
+  assert.ok(main.includes('scheduleBotModuleResume(bot, agent, options.reconnect === true)'))
+  assert.ok(main.includes('await setBotLookDirection(bot.id, snapshot.lookDirection)'))
+  assert.ok(policy.includes('guest.autoReconnectEligible === true'))
+  assert.ok(policy.includes('startsWith(\'適用済み\')'))
+})
+
+test('manual Bot controls remain non-scrollable after the compact layout rules', () => {
   const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
-  const fit = styles.slice(styles.lastIndexOf('0.9.4: preserve full connection messages'))
-  assert.match(fit, /#dashboardGrid > \.control-panel[\s\S]*overflow-y: auto !important/)
+  const fit = styles.slice(styles.lastIndexOf('0.9.5: fixed Bot control layout'))
+  assert.match(fit, /overflow-y: hidden !important/)
+  assert.doesNotMatch(fit, /overflow-y:\s*auto/)
 })
