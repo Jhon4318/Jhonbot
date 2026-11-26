@@ -2660,9 +2660,9 @@ function createWindow () {
     writeDiagnosticLog(`[did-fail-load] ${message}`)
   })
   mainWindow.webContents.on('console-message', (_event, details) => {
-    const level = typeof details === 'object' ? details.level : arguments[1]
-    const message = typeof details === 'object' ? details.message : String(details)
-    if (level === 'error' || level === 2) writeDiagnosticLog(`[renderer.console.error] ${message}`)
+    if (!details || typeof details !== 'object') return
+    const message = String(details.message || '')
+    if (details.level === 'error' || details.level === 2) writeDiagnosticLog(`[renderer.console.error] ${message}`)
   })
   mainWindow.webContents.on('did-finish-load', () => {
     writeDiagnosticLog('[renderer] index.html loaded.')
