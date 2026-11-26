@@ -2692,7 +2692,7 @@ main#dashboardGrid{flex:1 1 auto;width:100%;min-height:0;max-height:none;margin:
   gap: 3px;
 }
 .control-panel .movement-card .subheading span,
-.control-panel .goto-card .subheading span { font-size: 6px; }
+.control-panel .goto-card .subheading span { font-size: 7px; }
 .control-panel .dpad {
   grid-template-columns: repeat(3, 25px);
   grid-template-rows: repeat(3, 21px);
@@ -2711,19 +2711,19 @@ main#dashboardGrid{flex:1 1 auto;width:100%;min-height:0;max-height:none;margin:
 .control-panel .movement-actions .action-key {
   min-height: 21px;
   padding: 0 4px;
-  font-size: 6px;
+  font-size: 7px;
   gap: 2px;
 }
 .control-panel .movement-actions .action-key kbd {
   margin-left: 1px;
   padding: 1px 2px;
-  font-size: 6px;
+  font-size: 7px;
 }
-.control-panel .movement-actions .action-key small { font-size: 6px; }
+.control-panel .movement-actions .action-key small { font-size: 7px; }
 .control-panel .movement-actions > .secondary-button {
   min-height: 20px;
   padding: 0 4px;
-  font-size: 6px;
+  font-size: 7px;
 }
 .control-panel .goto-form {
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2749,7 +2749,7 @@ main#dashboardGrid{flex:1 1 auto;width:100%;min-height:0;max-height:none;margin:
   -webkit-line-clamp: 2;
   overflow: hidden;
   margin-top: 3px;
-  font-size: 6px;
+  font-size: 7px;
   line-height: 1.2;
 }
 .control-panel .movement-status {
@@ -2778,7 +2778,7 @@ main#dashboardGrid{flex:1 1 auto;width:100%;min-height:0;max-height:none;margin:
   font-size: 7px;
   line-height: 1.15;
 }
-.control-panel > .diagnostic-card > .subheading span { font-size: 6px; }
+.control-panel > .diagnostic-card > .subheading span { font-size: 7px; }
 .control-panel .diagnostic-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 3px;
@@ -2791,7 +2791,7 @@ main#dashboardGrid{flex:1 1 auto;width:100%;min-height:0;max-height:none;margin:
   padding: 3px 4px;
 }
 .control-panel .diagnostic-grid span {
-  font-size: 6px;
+  font-size: 7px;
   line-height: 1.15;
 }
 .control-panel .diagnostic-grid strong {
