@@ -58,7 +58,8 @@ const { assertCanAuthenticate, assertCanJoinWorld } = require('./account-state')
 const { createEncryptedAuthCacheFactory, hasEncryptedAuthCache } = require('./auth-cache')
 const { restoreSavedAuthflow } = require('./auth-restore')
 const { isFishingHookSpawn, isFishingHookBite, findFishingRod, runtimeEntityId } = require('./auto-fishing')
-const { normalizeChatMessage, normalizeDropRequest, createInventorySnapshot } = require('./bot-actions')
+const { normalizeChatMessage, normalizeDropRequest, createInventorySnapshot, extractItemEnchantments } = require('./bot-actions')
+const { extractDisconnectReason, isSkinRejectionReason, validateSkinLoginData } = require('./skin-login')
 const { formatBedrockChatMessage } = require('./chat-format')
 const { createInventoryDropPlan, tossStackConfirmed } = require('./inventory-drop')
 const { moveInventorySlotConfirmed, selectHotbarSlot } = require('./inventory-ops')
@@ -226,6 +227,7 @@ function publicBot (bot) {
     worldName: bot.worldName || '',
     friendWorldSelection: bot.friendWorldSelection ? { ...bot.friendWorldSelection } : null,
     skin: bot.skinMeta ? { ...bot.skinMeta } : null,
+    skinFallbackActive: bot.skinFallbackActive === true,
     selectedHotbarSlot: Number.isInteger(bot.agent?.quickBarSlot) ? bot.agent.quickBarSlot : 0,
     movementMode: normalizeBotMovementMode(bot.movementMode),
     modules: normalizeBotModules(bot.modules),
@@ -294,6 +296,9 @@ function createBotRecord (saved) {
     friendWorldSelection: saved.friendWorldSelection && typeof saved.friendWorldSelection === 'object' ? saved.friendWorldSelection : null,
     skinData: saved.skinData && typeof saved.skinData === 'object' ? saved.skinData : null,
     skinMeta: saved.skinMeta && typeof saved.skinMeta === 'object' ? saved.skinMeta : null,
+    skinFallbackActive: false,
+    skinFallbackPending: false,
+    skinFallbackUsed: false,
     movementMode: normalizeBotMovementMode(saved.movementMode),
     status: 'disconnected',
     client: null,
@@ -1056,7 +1061,7 @@ async function connectBot (botId, options = {}) {
       useRaknetWorkers: false,
       profilesFolder: encryptedAuthCacheFactory(bot.id),
       authflow: bot.authflow,
-      skinData: bot.skinData || undefined,
+      skinData: bot.skinFallbackActive ? undefined : (bot.skinData ? validateSkinLoginData(bot.skinData) : undefined),
       onMsaCode: (data) => onMicrosoftDeviceCode(bot, data),
       conLog: (message) => pushLog(`${bot.label}: ${message}`, 'info', bot.id),
       hideErrors: false,
@@ -1155,6 +1160,19 @@ async function connectBot (botId, options = {}) {
                 : 'unknown'))
       const threshold = Number(params.compression_threshold)
       detail = ' / compression=' + algorithmName + ', threshold=' + (Number.isFinite(threshold) ? String(threshold) : 'unknown')
+    } else if (name === 'disconnect') {
+      const reason = extractDisconnectReason(packet)
+      if (reason) {
+        detail = ' / server_reason=' + reason
+        bot.lastServerDisconnectReason = reason
+        pushLog(`${bot.label}: [Bedrock] サーバー切断理由=${reason}`, 'warning', bot.id)
+        if (bot.skinData && !bot.skinFallbackActive && isSkinRejectionReason(reason)) {
+          bot.skinFallbackPending = true
+          pushLog(`${bot.label}: サーバーがカスタムスキンを拒否した可能性を検出しました。標準スキンで一度だけ再接続します。`, 'warning', bot.id)
+        }
+      } else {
+        detail = ' / server_reason=理由フィールドなし'
+      }
     }
     pushLog(`${bot.label}: [Bedrock] 受信パケット=${name}${detail}`, 'info', bot.id)
   })
@@ -1266,6 +1284,11 @@ async function connectBot (botId, options = {}) {
     bot.kicked = true
     bot.hadError = true
     bot.lastError = String(reason || 'サーバーから切断されました。')
+    const disconnectReason = extractDisconnectReason(reason) || bot.lastError
+    if (bot.skinData && !bot.skinFallbackActive && isSkinRejectionReason(disconnectReason)) {
+      bot.skinFallbackPending = true
+      pushLog(`${bot.label}: キック理由からカスタムスキン拒否を検出しました。標準スキンで一度だけ再接続します。`, 'warning', bot.id)
+    }
     pushLog(`${bot.label}: キックされました: ${bot.lastError}`, 'warning', bot.id)
   })
   agent.on('error', (error) => {
@@ -1278,6 +1301,10 @@ async function connectBot (botId, options = {}) {
   agent.on('end', (reason) => {
     if (bot.agent !== agent) return
     const wasConnected = bot.hasJoinedWorld || bot.status === 'connected'
+    const finalReason = extractDisconnectReason(reason) || String(reason || '')
+    if (bot.skinData && !bot.skinFallbackActive && isSkinRejectionReason(finalReason)) bot.skinFallbackPending = true
+    const retryWithoutSkin = bot.skinFallbackPending === true && !!bot.skinData && !bot.skinFallbackActive && !bot.skinFallbackUsed && !bot.manualDisconnect
+    bot.skinFallbackPending = false
     bot.hasJoinedWorld = false
     bot.movementRequestId++
     clearInterval(bot.movementTimer)
@@ -1294,6 +1321,29 @@ async function connectBot (botId, options = {}) {
     const finalStatus = bot.hadError ? 'error' : 'disconnected'
     setBotStatus(bot, finalStatus)
     if (!bot.manualDisconnect) pushLog(`${bot.label}: 接続が終了しました。${reason ? ` (${String(reason)})` : ''}`, bot.hadError ? 'warning' : 'info', bot.id)
+    if (retryWithoutSkin) {
+      bot.skinFallbackActive = true
+      bot.skinFallbackUsed = true
+      bot.reconnectStatus = '標準スキンで再接続中'
+      bot.reconnectDelayMs = 1200
+      pushLog(`${bot.label}: 保存済みカスタムスキンは保持したまま、今回の接続では標準スキンに切り替えて再接続します。`, 'warning', bot.id)
+      publishBot(bot)
+      bot.reconnectTimer = setTimeout(async () => {
+        bot.reconnectTimer = null
+        if (bot.manualDisconnect || bot.agent || bot.connectionStarting || !bots.has(bot.id)) return
+        bot.reconnectStatus = '標準スキンで再接続中'
+        bot.reconnectDelayMs = 0
+        try {
+          await connectBot(bot.id, { reconnect: true })
+        } catch (error) {
+          if (!bots.has(bot.id) || bot.manualDisconnect) return
+          bot.hadError = true
+          bot.lastError = safeErrorMessage(error)
+          scheduleBotReconnect(bot, bot.lastError, false)
+        }
+      }, 1200)
+      return
+    }
     scheduleBotReconnect(bot, reason || bot.lastError, wasConnected)
   })
   agent.on('move', () => {
@@ -1405,7 +1455,7 @@ async function joinGuestBot (parent, guest) {
       version: parent.client.options?.version || MC_VERSION,
       username: guest.label,
       client: view,
-      skinData: guest.skinData || undefined,
+      skinData: guest.skinFallbackActive ? undefined : (guest.skinData ? validateSkinLoginData(guest.skinData) : undefined),
       hideErrors: false,
       logErrors: false,
       respawn: true
@@ -1750,6 +1800,9 @@ async function moveBotInventoryItem (botId, input) {
     if (bot.agent !== agent) throw new Error('アイテム移動中にBotが切断されました。')
     pushLog(`${bot.label}: インベントリのスロット ${result.fromSlot} から ${result.toSlot} へ移動しました。`, 'success', bot.id)
     return publishBotInventory(bot)
+  } catch (error) {
+    pushLog(`${bot.label}: インベントリ移動に失敗しました: ${safeErrorMessage(error)}`, 'warning', bot.id)
+    throw error
   } finally {
     bot.inventoryMoveBusy = false
   }
@@ -1838,8 +1891,12 @@ async function importSkinForBot (botId) {
   if (selected.canceled || !selected.filePaths?.length) return { cancelled: true, bot: publicBot(bot), appliedLive: false }
   const files = await collectSkinImportFiles(selected.filePaths)
   const imported = importSkinEntries(files)
+  validateSkinLoginData(imported.skinData)
   bot.skinData = imported.skinData
   bot.skinMeta = { ...imported.meta, previewDataUrl: imported.previewDataUrl }
+  bot.skinFallbackActive = false
+  bot.skinFallbackPending = false
+  bot.skinFallbackUsed = false
   await saveSettings()
 
   let appliedLive = false
