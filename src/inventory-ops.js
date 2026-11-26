@@ -53,7 +53,7 @@ function openPlayerInventory (agent) {
   }
   // Bedrock 1.26.60 InteractAction::OpenInventory is action_id 6.
   // The server responds with container_open; do not fabricate a local window.
-  const packet = { action_id: 6, target_entity_id: targetEntityId, position: null }
+  const packet = { action_id: 6, target_entity_id: targetEntityId }
   if (typeof client.queue === 'function') client.queue('interact', packet)
   else client.write('interact', packet)
   return packet
