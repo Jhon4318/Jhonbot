@@ -26,7 +26,7 @@ test('only previously joined guest Bots are eligible for automatic parent reconn
   ]
   assert.deepEqual(
     getReconnectableGuestBots(guests, 'parent').map(guest => guest.id),
-    ['joined-guest-1', 'joined-guest-2']
+    ['joined-guest-1', 'joined-guest-2', 'already-active']
   )
   assert.deepEqual(getReconnectableGuestBots(guests, 'missing-parent'), [])
   assert.deepEqual(getReconnectableGuestBots(null, 'parent'), [])
