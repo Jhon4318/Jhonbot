@@ -74,6 +74,7 @@ const { normalizeBotModules, moduleConfigComplete, isModuleAssigned } = require(
 const { BOT_MOVEMENT_MODES, normalizeBotMovementMode, suppressPlayerAuthInput, requiresPlayerInput } = require('./bot-modes')
 const { normalizeLookDirection, applyLookDirection } = require('./look-direction')
 const { reconnectDelay, isRetryableDisconnect } = require('./connection-manager')
+const { shouldAutoSelectPreviousFriendWorld, getReconnectableGuestBots, captureModuleResumeState, hasModuleResumeState } = require('./reconnect-policy')
 const { MOD_CATALOG, normalizeInstalledMods, addInstalledMod, removeInstalledMod } = require('./mod-registry')
 const { listRealms, getRealmFromInvite } = require('./realms')
 const { discoverLanWorlds } = require('./lan-discovery')
@@ -299,6 +300,9 @@ function createBotRecord (saved) {
     skinFallbackActive: false,
     skinFallbackPending: false,
     skinFallbackUsed: false,
+    autoReconnectEligible: false,
+    resumeModulesAfterReconnect: null,
+    moduleResumeTimer: null,
     movementMode: normalizeBotMovementMode(saved.movementMode),
     status: 'disconnected',
     client: null,
@@ -575,9 +579,9 @@ function onMicrosoftDeviceCode (bot, data) {
   pushLog(`${bot.label}: Microsoftのデバイスコード認証が必要です。`, 'info', bot.id)
 }
 
-function askForWorldSelection (bot, sessions, attemptId) {
+function askForWorldSelection (bot, sessions, attemptId, isAutomaticReconnect = false) {
   if (!Array.isArray(sessions) || sessions.length === 0) throw new Error('参加可能なワールドが見つかりませんでした。')
-  if (bot.friendWorldSelection) {
+  if (shouldAutoSelectPreviousFriendWorld(isAutomaticReconnect) && bot.friendWorldSelection) {
     const matched = findMatchingFriendWorldSession(sessions, bot.friendWorldSelection)
     if (matched) {
       const label = matched.identity?.worldName || matched.identity?.hostName || '保存済みワールド'
@@ -963,9 +967,23 @@ async function connectBot (botId, options = {}) {
       throw new Error('ゲスト接続には先に親Botをワールドへ参加させてください。')
     }
     bot.manualDisconnect = false
-    return joinGuestBot(parent, bot)
+    if (!options.reconnect) {
+      bot.resumeModulesAfterReconnect = null
+      clearTimeout(bot.moduleResumeTimer)
+      bot.moduleResumeTimer = null
+    }
+    return joinGuestBot(parent, bot, { reconnect: options.reconnect === true })
   }
   assertCanJoinWorld(bot)
+  if (!options.reconnect) {
+    bot.resumeModulesAfterReconnect = null
+    clearTimeout(bot.moduleResumeTimer)
+    bot.moduleResumeTimer = null
+    for (const guest of bots.values()) {
+      if (guest.parentBotId !== bot.id) continue
+      guest.autoReconnectEligible = false
+    }
+  }
   const attemptId = ++bot.connectionAttempt
   const abortController = new AbortController()
   bot.connectionAbortController = abortController
@@ -1007,7 +1025,7 @@ async function connectBot (botId, options = {}) {
       pushLog(`${bot.label}: ${profile.label}（${profile.host}:${profile.port}）への接続を開始します。方式=${profile.mode} / 検出=${connectionMethod}`, 'info', bot.id)
     } else if (bot.targetType === 'friend-world') {
       connectionOptions = {
-        world: { pickSession: (sessions) => askForWorldSelection(bot, sessions, attemptId) },
+        world: { pickSession: (sessions) => askForWorldSelection(bot, sessions, attemptId, options.reconnect === true) },
         nethernet: {
           webrtcBackend: 'werift',
           signallingConnectTimeout: 30000,
@@ -1253,10 +1271,13 @@ async function connectBot (botId, options = {}) {
     if (bot.skinData) pushLog(`${bot.label}: 保存済みカスタムスキンをBedrockログインデータに含めました。表示可否はサーバーに依存します。`, 'info', bot.id)
     publishBotInventory(bot)
     pushLog(`${bot.label}: ワールドにスポーンしました。`, 'success', bot.id)
-    reconnectGuestBots(bot).catch(error => {
-      writeDiagnosticLog(`[guest-reconnect] parent=${bot.id} ${describeFailure(error)}`)
-      pushLog(`${bot.label}: ゲストBotの再参加処理に失敗しました: ${safeErrorMessage(error)}`, 'warning', bot.id)
-    })
+    if (options.reconnect) {
+      reconnectGuestBots(bot).catch(error => {
+        writeDiagnosticLog(`[guest-reconnect] parent=${bot.id} ${describeFailure(error)}`)
+        pushLog(`${bot.label}: ゲストBotの再参加処理に失敗しました: ${safeErrorMessage(error)}`, 'warning', bot.id)
+      })
+    }
+    scheduleBotModuleResume(bot, agent, options.reconnect === true)
   })
   agent.on('chat', (username, message, translate, messageObject) => {
     if (bot.agent !== agent) return
@@ -1301,6 +1322,11 @@ async function connectBot (botId, options = {}) {
   agent.on('end', (reason) => {
     if (bot.agent !== agent) return
     const wasConnected = bot.hasJoinedWorld || bot.status === 'connected'
+    const moduleResumeState = captureModuleResumeState(bot)
+    if (bot.manualDisconnect) bot.resumeModulesAfterReconnect = null
+    else if (moduleResumeState) bot.resumeModulesAfterReconnect = moduleResumeState
+    clearTimeout(bot.moduleResumeTimer)
+    bot.moduleResumeTimer = null
     const finalReason = extractDisconnectReason(reason) || String(reason || '')
     if (bot.skinData && !bot.skinFallbackActive && isSkinRejectionReason(finalReason)) bot.skinFallbackPending = true
     const retryWithoutSkin = bot.skinFallbackPending === true && !!bot.skinData && !bot.skinFallbackActive && !bot.skinFallbackUsed && !bot.manualDisconnect
@@ -1419,12 +1445,10 @@ async function addGuestBot (parentBotId, input) {
 
 async function reconnectGuestBots (parent) {
   if (!parent || parent.parentBotId || parent.status !== 'connected' || !parent.client) return
-  const guests = Array.from(bots.values())
-    .filter(item => item.parentBotId === parent.id && !item.agent && !item.manualDisconnect)
-    .sort((a, b) => Number(a.subClientId) - Number(b.subClientId))
+  const guests = getReconnectableGuestBots(Array.from(bots.values()), parent.id)
   for (const guest of guests) {
     try {
-      await joinGuestBot(parent, guest)
+      await joinGuestBot(parent, guest, { reconnect: true })
     } catch (error) {
       guest.hadError = true
       guest.lastError = safeErrorMessage(error)
@@ -1435,7 +1459,7 @@ async function reconnectGuestBots (parent) {
   }
 }
 
-async function joinGuestBot (parent, guest) {
+async function joinGuestBot (parent, guest, options = {}) {
   if (!parent || parent.parentBotId || parent.status !== 'connected' || !parent.client || !parent.agent) {
     throw new Error('先に親Botをワールドに参加させてください。')
   }
@@ -1485,6 +1509,11 @@ async function joinGuestBot (parent, guest) {
     throw error
   }
   guest.manualDisconnect = false
+  if (!options.reconnect) {
+    guest.resumeModulesAfterReconnect = null
+    clearTimeout(guest.moduleResumeTimer)
+    guest.moduleResumeTimer = null
+  }
   guest.hadError = false
   guest.lastError = ''
   guest.playerName = guest.label
@@ -1554,9 +1583,12 @@ async function joinGuestBot (parent, guest) {
     if (guest.agent !== agent) return
     guest.connectionStarting = false
     setBotStatus(guest, 'connected')
+    guest.hasJoinedWorld = true
+    guest.autoReconnectEligible = true
     preparePathfinder(guest)
     publishBotInventory(guest)
     pushLog(`${guest.label}: ワールドにゲストBotとしてスポーンしました。`, 'success', guest.id)
+    scheduleBotModuleResume(guest, agent, options.reconnect === true)
   })
   agent.on('chat', (username, message, translate, messageObject) => {
     if (guest.agent !== agent) return
@@ -1591,6 +1623,14 @@ async function joinGuestBot (parent, guest) {
   })
   agent.on('end', (reason) => {
     if (guest.agent !== agent) return
+    const parentBot = bots.get(guest.parentBotId)
+    const guestModuleResumeState = captureModuleResumeState(guest)
+    if (guest.manualDisconnect || parentBot?.manualDisconnect) guest.resumeModulesAfterReconnect = null
+    else if (guestModuleResumeState) guest.resumeModulesAfterReconnect = guestModuleResumeState
+    clearTimeout(guest.moduleResumeTimer)
+    guest.moduleResumeTimer = null
+    guest.hasJoinedWorld = false
+    if (guest.manualDisconnect) guest.autoReconnectEligible = false
     guest.movementRequestId++
     clearInterval(guest.movementTimer)
     guest.movementTimer = null
@@ -2506,6 +2546,42 @@ function startAutoFishing (botId) {
   return publicBot(bot)
 }
 
+function scheduleBotModuleResume (bot, agent, isAutomaticReconnect) {
+  clearTimeout(bot.moduleResumeTimer)
+  bot.moduleResumeTimer = null
+  const snapshot = bot.resumeModulesAfterReconnect
+  if (!isAutomaticReconnect) {
+    bot.resumeModulesAfterReconnect = null
+    return false
+  }
+  if (!hasModuleResumeState(snapshot)) return false
+
+  let attempts = 0
+  const tryResume = () => {
+    bot.moduleResumeTimer = null
+    if (bot.agent !== agent || bot.status !== 'connected' || bot.manualDisconnect) return
+    attempts++
+    try {
+      if (snapshot.itemUse) startBotItemUse(bot.id, snapshot.itemUseSlot)
+      else if (snapshot.containerSupply) startContainerSupply(bot.id)
+      else if (snapshot.autoFishing) startAutoFishing(bot.id)
+      bot.resumeModulesAfterReconnect = null
+      pushLog(`${bot.label}: 自動再接続前に動作していたModを再開しました。`, 'success', bot.id)
+      publishBot(bot)
+    } catch (error) {
+      if (attempts < 4) {
+        bot.moduleResumeTimer = setTimeout(tryResume, 1000)
+        return
+      }
+      bot.resumeModulesAfterReconnect = null
+      pushLog(`${bot.label}: 自動再接続後のMod再開に失敗しました: ${safeErrorMessage(error)}`, 'warning', bot.id)
+      publishBot(bot)
+    }
+  }
+  bot.moduleResumeTimer = setTimeout(tryResume, 1200)
+  return true
+}
+
 function scheduleBotReconnect (bot, reason, wasConnected = false) {
   if (!bot || bot.parentBotId || bot.manualDisconnect || bot.kicked || bot.reconnectTimer) return false
   if (!isRetryableDisconnect(reason, bot.lastError, wasConnected || bot.hasJoinedWorld)) {
@@ -2654,6 +2730,20 @@ function disconnectBot (botId) {
   const bot = bots.get(botId)
   if (!bot) throw new Error('Botが見つかりません。')
   bot.manualDisconnect = true
+  bot.resumeModulesAfterReconnect = null
+  clearTimeout(bot.moduleResumeTimer)
+  bot.moduleResumeTimer = null
+  if (bot.parentBotId) {
+    bot.autoReconnectEligible = false
+  } else {
+    for (const guest of bots.values()) {
+      if (guest.parentBotId !== bot.id) continue
+      guest.autoReconnectEligible = false
+      guest.resumeModulesAfterReconnect = null
+      clearTimeout(guest.moduleResumeTimer)
+      guest.moduleResumeTimer = null
+    }
+  }
   clearTimeout(bot.reconnectTimer)
   bot.reconnectTimer = null
   bot.reconnectStatus = '手動切断'
