@@ -349,16 +349,18 @@ test('Bedrock world chat formats translation messages instead of showing raw tra
   assert.ok(formatter.includes('multiplayer.player.left'))
 })
 
-test('log history follows new entries unless the user has scrolled away, and long rows are clamped', () => {
+test('log history follows new entries and wraps complete messages inside the log panel', () => {
   const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
+  const fit = styles.slice(styles.lastIndexOf('0.9.4: preserve full connection messages'))
   assert.ok(renderer.includes('state.logAutoFollow'))
   assert.ok(renderer.includes("logList.addEventListener('scroll'"))
   assert.ok(renderer.includes('requestAnimationFrame'))
   assert.ok(renderer.includes('scheduleLogScroll(true)'))
-  assert.ok(renderer.includes('fullMessage.length > 240'))
-  assert.ok(styles.includes('.log-panel .log-message'))
-  assert.ok(styles.includes('text-overflow: ellipsis'))
-  assert.ok(styles.includes('white-space: nowrap !important'))
+  assert.ok(renderer.includes('const message = fullMessage'))
+  assert.ok(fit.includes('white-space: pre-wrap !important'))
+  assert.ok(fit.includes('overflow-wrap: anywhere !important'))
+  assert.ok(fit.includes('height: auto !important'))
+  assert.ok(fit.includes('overflow-y: auto !important'))
 })
 
 test('inventory icons use the Bedrock atlas and show a text fallback after image download failure', () => {
@@ -407,4 +409,28 @@ test('importing a Persona BIN reconnects an active Bot through saved login skinD
   assert.ok(main.includes('reconnectWithSavedSkin(bot'))
   assert.ok(main.includes('waitForBotSpawn'))
   assert.ok(main.includes('skinData: bot.skinData || undefined'))
+})
+
+
+test('inventory screen uses Bedrock 1.26.60 OpenInventory action for cross-section transfers', () => {
+  const operations = fs.readFileSync(path.join(__dirname, '..', 'src', 'inventory-ops.js'), 'utf8')
+  assert.ok(operations.includes('action_id: 6'))
+  assert.ok(operations.includes("queue('interact', packet)"))
+  assert.ok(operations.includes('await waitForInventoryWindow(agent'))
+  assert.ok(operations.includes('openPlayerInventory(agent)'))
+})
+
+test('inventory UI displays enchantment labels and locks slots during confirmed moves', () => {
+  assert.ok(renderer.includes('inventory-enchantments'))
+  assert.ok(renderer.includes('inventory-enchantment-mark'))
+  assert.ok(renderer.includes('state.inventoryMovePending'))
+  const actions = fs.readFileSync(path.join(__dirname, '..', 'src', 'bot-actions.js'), 'utf8')
+  assert.ok(actions.includes('extractItemEnchantments'))
+  assert.ok(actions.includes('enchantments: extractItemEnchantments(item, agent.registry)'))
+})
+
+test('control panel remains scrollable when its content exceeds the dashboard row', () => {
+  const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
+  const fit = styles.slice(styles.lastIndexOf('0.9.4: preserve full connection messages'))
+  assert.match(fit, /#dashboardGrid > \.control-panel[\\s\\S]*overflow-y: auto !important/)
 })
