@@ -38,13 +38,13 @@ test('captures only modules that were actively running at disconnect time', () =
     itemUseSlot: 36,
     containerSupplyRunning: false,
     autoFishingRunning: false
-  }), { itemUse: true, itemUseSlot: 36, containerSupply: false, autoFishing: false })
+  }), { itemUse: true, itemUseSlot: 36, containerSupply: false, autoFishing: false, lookDirection: null })
 
   assert.deepEqual(captureModuleResumeState({
     itemUseRunning: false,
     containerSupplyRunning: true,
     autoFishingRunning: false
-  }), { itemUse: false, itemUseSlot: null, containerSupply: true, autoFishing: false })
+  }), { itemUse: false, itemUseSlot: null, containerSupply: true, autoFishing: false, lookDirection: null })
 
   assert.deepEqual(captureModuleResumeState({
     itemUseRunning: false,
