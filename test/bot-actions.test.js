@@ -2,7 +2,7 @@
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { normalizeChatMessage, createInventorySnapshot, normalizeDropRequest } = require('../src/bot-actions')
+const { normalizeChatMessage, createInventorySnapshot, extractItemEnchantments, normalizeDropRequest } = require('../src/bot-actions')
 
 test('normalizes world chat text and preserves slash commands', () => {
   assert.equal(normalizeChatMessage('  hello world  '), 'hello world')
@@ -24,6 +24,45 @@ test('creates a sorted snapshot of main inventory and hotbar items only', () => 
   assert.deepEqual(result.map(item => item.slot), [12, 36])
   assert.equal(result[0].displayName, 'Apple')
   assert.equal(result[1].count, 64)
+  assert.deepEqual(result[0].enchantments, [])
+})
+
+test('reads legacy Bedrock enchantment NBT tags and formats their Japanese labels', () => {
+  const item = {
+    nbt: {
+      type: 'compound',
+      value: {
+        ench: {
+          type: 'list',
+          value: {
+            type: 'compound',
+            value: [
+              { id: { type: 'short', value: 9 }, lvl: { type: 'short', value: 3 } },
+              { id: { type: 'short', value: 34 }, lvl: { type: 'short', value: 2 } }
+            ]
+          }
+        }
+      }
+    }
+  }
+  assert.deepEqual(extractItemEnchantments(item), [
+    { id: '9', name: '氷渡り', level: 3, label: '氷渡り 3' },
+    { id: '34', name: '耐久力', level: 2, label: '耐久力 2' }
+  ])
+})
+
+test('reads string enchantment names and ignores malformed entries', () => {
+  assert.deepEqual(extractItemEnchantments({
+    enchants: [
+      { id: 'minecraft:sharpness', lvl: 5 },
+      { id: 'minecraft:unbreaking', level: 3 },
+      { id: 'minecraft:fortune', lvl: 0 },
+      { id: 'invalid', lvl: 'unknown' }
+    ]
+  }), [
+    { id: 'minecraft:sharpness', name: '鋭さ', level: 5, label: '鋭さ 5' },
+    { id: 'minecraft:unbreaking', name: '耐久力', level: 3, label: '耐久力 3' }
+  ])
 })
 
 test('normalizes a valid partial item drop from one exact slot', () => {
