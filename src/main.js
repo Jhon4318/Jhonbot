@@ -2557,7 +2557,7 @@ function scheduleBotModuleResume (bot, agent, isAutomaticReconnect) {
   if (!hasModuleResumeState(snapshot)) return false
 
   let attempts = 0
-  const tryResume = () => {
+  const tryResume = async () => {
     bot.moduleResumeTimer = null
     if (bot.agent !== agent || bot.status !== 'connected' || bot.manualDisconnect) return
     attempts++
