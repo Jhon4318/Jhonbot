@@ -1120,15 +1120,9 @@ main#dashboardGrid{flex:1 1 auto;width:100%;min-height:0;max-height:none;margin:
   }
 }
 
-/* Keep diagnostics reachable when the window is at its minimum height. */
+/* Bot controls remain a fixed, non-scrolling panel. Its child layout is fitted below. */
 .control-panel {
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-}
-.control-panel > .diagnostic-card {
-  flex: 0 0 auto;
+  overflow: hidden;
 }
 
 
@@ -2536,13 +2530,6 @@ main#dashboardGrid{flex:1 1 auto;width:100%;min-height:0;max-height:none;margin:
   line-height: 1.35 !important;
 }
 
-/* The control panel's min-content height may exceed the dashboard row on short windows. */
-#dashboardGrid > .control-panel {
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
-  scrollbar-gutter: stable;
-  overscroll-behavior: contain;
-}
 
 /* Inventory enchantments remain readable in both the compact list and the slot grid. */
 .inventory-item-info {
@@ -2579,4 +2566,247 @@ main#dashboardGrid{flex:1 1 auto;width:100%;min-height:0;max-height:none;margin:
 }
 .inventory-grid-slot:disabled.is-cursor-source {
   opacity: .35;
+}
+
+/* 0.9.5: fixed Bot control layout. Keep every operation visible without panel scrolling. */
+#dashboardGrid > .control-panel,
+.control-panel {
+  overflow: hidden !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none;
+  overscroll-behavior: auto;
+}
+.control-panel::-webkit-scrollbar { display: none; }
+.control-panel .control-top-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr);
+  align-items: stretch;
+  gap: 5px;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+.control-panel .selected-connection-card {
+  min-width: 0;
+  padding: 5px;
+  gap: 4px;
+}
+.control-panel .connection-summary {
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.control-panel .connection-identity {
+  min-width: 0;
+  flex: 1 1 82px;
+  gap: 4px;
+}
+.control-panel .connection-identity strong { font-size: 9px; }
+.control-panel .connection-identity > span { font-size: 7px; }
+.control-panel .connection-action-buttons {
+  min-width: 0;
+  flex: 0 1 auto;
+  gap: 3px;
+}
+.control-panel .connection-action-buttons button {
+  min-height: 22px;
+  padding: 0 5px;
+  font-size: 7px;
+}
+.control-panel .connection-target-row {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3px;
+  margin-top: 2px;
+}
+.control-panel .connection-target-field { gap: 2px; }
+.control-panel .connection-target-field span { font-size: 7px; }
+.control-panel .connection-target-field select {
+  height: 24px;
+  min-height: 24px;
+  padding: 0 5px;
+  font-size: 8px;
+}
+.control-panel .connection-target-tools {
+  justify-content: flex-start;
+  gap: 3px;
+}
+.control-panel .connection-target-tools button {
+  min-height: 21px;
+  padding: 0 5px;
+  font-size: 7px;
+}
+.control-panel .connection-target-tools input {
+  height: 21px;
+  font-size: 7px;
+}
+.control-panel .connection-bot-detail {
+  min-height: 18px;
+  padding: 2px 5px;
+  font-size: 7px;
+}
+.control-panel .control-top-layout .control-select-mode-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 5px;
+}
+.control-panel .control-top-layout .control-select-mode-row > .field { gap: 2px; }
+.control-panel .control-top-layout .control-select-mode-row > .field > span { font-size: 7px; }
+.control-panel .control-top-layout .control-select-mode-row select {
+  width: 100%;
+  min-width: 0;
+  height: 25px;
+  min-height: 25px;
+  padding: 0 5px;
+  font-size: 8px;
+}
+.control-panel .control-top-layout .bot-mode-description {
+  margin: 0;
+  font-size: 7px;
+  line-height: 1.15;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.control-panel .control-layout {
+  flex: 0 0 auto;
+  min-height: 0;
+  grid-template-columns: minmax(0, .78fr) minmax(0, 1.22fr);
+  gap: 5px;
+  margin-top: 0;
+}
+.control-panel .movement-card,
+.control-panel .goto-card {
+  min-width: 0;
+  padding: 5px;
+  border-radius: 7px;
+}
+.control-panel .movement-card .subheading,
+.control-panel .goto-card .subheading {
+  font-size: 8px;
+  gap: 3px;
+}
+.control-panel .movement-card .subheading span,
+.control-panel .goto-card .subheading span { font-size: 6px; }
+.control-panel .dpad {
+  grid-template-columns: repeat(3, 25px);
+  grid-template-rows: repeat(3, 21px);
+  gap: 2px;
+  margin: 4px auto;
+}
+.control-panel .move-key {
+  border-radius: 4px;
+  font-size: 11px;
+}
+.control-panel .stop-key { font-size: 10px; }
+.control-panel .movement-actions {
+  gap: 2px;
+  justify-content: center;
+}
+.control-panel .movement-actions .action-key {
+  min-height: 21px;
+  padding: 0 4px;
+  font-size: 6px;
+  gap: 2px;
+}
+.control-panel .movement-actions .action-key kbd {
+  margin-left: 1px;
+  padding: 1px 2px;
+  font-size: 6px;
+}
+.control-panel .movement-actions .action-key small { font-size: 6px; }
+.control-panel .movement-actions > .secondary-button {
+  min-height: 20px;
+  padding: 0 4px;
+  font-size: 6px;
+}
+.control-panel .goto-form {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
+  margin-top: 5px;
+}
+.control-panel .goto-form .field { gap: 2px; }
+.control-panel .goto-form .field span { font-size: 7px; }
+.control-panel .goto-form .field input {
+  height: 24px;
+  padding: 0 4px;
+  font-size: 8px;
+}
+.control-panel .goto-form .primary-button {
+  grid-column: 1 / -1;
+  min-height: 21px;
+  padding: 0 5px;
+  font-size: 7px;
+}
+.control-panel .goto-note {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin-top: 3px;
+  font-size: 6px;
+  line-height: 1.2;
+}
+.control-panel .movement-status {
+  min-height: 18px;
+  margin-top: 3px;
+  padding: 3px 4px;
+  font-size: 7px;
+  line-height: 1.2;
+}
+.control-panel > .diagnostic-card {
+  display: grid;
+  grid-template-columns: minmax(68px, .24fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 4px 5px;
+}
+.control-panel > .diagnostic-card > .subheading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  font-size: 7px;
+  line-height: 1.15;
+}
+.control-panel > .diagnostic-card > .subheading span { font-size: 6px; }
+.control-panel .diagnostic-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
+  min-width: 0;
+  margin: 0;
+}
+.control-panel .diagnostic-grid > div {
+  min-width: 0;
+  gap: 1px;
+  padding: 3px 4px;
+}
+.control-panel .diagnostic-grid span {
+  font-size: 6px;
+  line-height: 1.15;
+}
+.control-panel .diagnostic-grid strong {
+  font-size: 7px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.control-panel .diagnostic-hint { display: none !important; }
+
+@media (max-height: 760px) {
+  .control-panel .dpad {
+    grid-template-rows: repeat(3, 19px);
+    margin: 3px auto;
+  }
+  .control-panel .movement-card,
+  .control-panel .goto-card { padding: 4px; }
+  .control-panel .diagnostic-grid > div { padding: 2px 3px; }
 }
