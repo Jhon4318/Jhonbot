@@ -25,13 +25,19 @@ function captureModuleResumeState (bot) {
     itemUse: bot.itemUseRunning === true,
     itemUseSlot: Number.isInteger(bot.itemUseSlot) ? bot.itemUseSlot : null,
     containerSupply: bot.containerSupplyRunning === true,
-    autoFishing: bot.autoFishingRunning === true
+    autoFishing: bot.autoFishingRunning === true,
+    lookDirection: bot.modules?.lookDirection?.assigned === true && String(bot.lookDirectionStatus || '').startsWith('適用済み')
+      ? {
+          yawDeg: bot.modules.lookDirection.yawDeg,
+          pitchDeg: bot.modules.lookDirection.pitchDeg
+        }
+      : null
   }
-  return state.itemUse || state.containerSupply || state.autoFishing ? state : null
+  return state.itemUse || state.containerSupply || state.autoFishing || state.lookDirection ? state : null
 }
 
 function hasModuleResumeState (state) {
-  return !!(state && (state.itemUse || state.containerSupply || state.autoFishing))
+  return !!(state && (state.itemUse || state.containerSupply || state.autoFishing || state.lookDirection))
 }
 
 module.exports = {
