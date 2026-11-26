@@ -74,13 +74,27 @@ async function moveInventorySlotConfirmed (agent, fromSlot, toSlot, count, optio
   let closeInventory = () => {}
   let waiter = null
   try {
-    if (crossesHotbarBoundary && !agent.currentWindow) {
-      if (typeof agent._stack?.withInventoryOpen !== 'function') {
-        throw new Error('メインインベントリとホットバーをまたぐ移動には、Bedrockのインベントリ画面を開く機能が必要です。')
+    if (crossesHotbarBoundary) {
+      const existingWindow = agent.currentWindow
+      const existingType = String(existingWindow?.bedrockType ?? existingWindow?.type ?? '').toLowerCase()
+      if (existingWindow && existingType !== 'inventory') {
+        throw new Error('別のコンテナ画面が開いています。閉じてからメインインベントリとホットバーを移動してください。')
       }
-      closeInventory = await agent._stack.withInventoryOpen()
+      if (!existingWindow) {
+        if (typeof agent.openInventory !== 'function') {
+          throw new Error('Bedrockのプレイヤーインベントリを開くAPIが利用できません。')
+        }
+        // Bedrock sends an InteractPacket(open_inventory); the server replies with
+        // container_open. Mineflayer exposes the confirmed window as currentWindow.
+        agent.openInventory()
+        closeInventory = () => {
+          if (agent.currentWindow && typeof agent.closeWindow === 'function') {
+            agent.closeWindow(agent.currentWindow)
+          }
+        }
+      }
       await waitForInventoryWindow(agent, {
-        timeoutMs: options.windowTimeoutMs || 2500,
+        timeoutMs: options.windowTimeoutMs || 5000,
         intervalMs: options.pollIntervalMs || 50,
         isConnected: () => agent.entity != null || agent._client?.connected !== false
       })
