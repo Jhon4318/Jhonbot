@@ -196,3 +196,72 @@ test('migrates saved Realm destinations and per-Bot modules', () => {
   assert.equal(migrated.bots[0].movementMode, 'chunk-hold')
   assert.equal(migrated.bots[1].movementMode, 'player')
 })
+
+
+test('preserves saved friend-world identity and custom skin data when settings are migrated', () => {
+  const friendWorldSelection = {
+    worldId: 'world-uuid-123',
+    ownerId: 'xuid-456',
+    worldName: 'My Survival World',
+    hostName: 'Player One',
+    templateName: 'Survival'
+  }
+  const skinData = {
+    SkinId: 'custom-persona-1',
+    SkinResourcePatch: 'eyJnZW9tZXRyeSI6eyJkZWZhdWx0IjoiZ2VvbWV0cnkuaHVtYW5vaWQuY3VzdG9tIn19',
+    SkinImageWidth: 64,
+    SkinImageHeight: 64,
+    SkinData: 'AAECAwQ=',
+    PersonaSkin: true,
+    PersonaPieces: [{ PieceId: 'piece-1', PieceType: 1, PackId: 'pack-1', IsDefaultPiece: false, ProductId: 'product-1' }],
+    PieceTintColors: [{ PieceType: 'persona_hair', Colors: ['#FFFFFFFF'] }]
+  }
+  const skinMeta = {
+    name: 'Custom Persona Skin',
+    width: 64,
+    height: 64,
+    geometryId: 'geometry.humanoid.custom',
+    hasGeometry: true,
+    hasAnimation: true,
+    sourceFormat: 'Tsukuyomi Persona BIN',
+    sourceFiles: ['full_skin.bin', 'geometry.json']
+  }
+
+  const migrated = migrateSettings({
+    bots: [{
+      id: 'skin-world-bot',
+      label: 'Skin World Bot',
+      targetType: 'friend-world',
+      friendWorldSelection,
+      skinData,
+      skinMeta
+    }]
+  })
+
+  assert.equal(migrated.bots.length, 1)
+  assert.deepEqual(migrated.bots[0].friendWorldSelection, friendWorldSelection)
+  assert.deepEqual(migrated.bots[0].skinData, skinData)
+  assert.deepEqual(migrated.bots[0].skinMeta, skinMeta)
+
+  // Settings are persisted as JSON; verify the values remain intact after that round-trip.
+  const reloaded = JSON.parse(JSON.stringify(migrated))
+  assert.deepEqual(reloaded.bots[0].friendWorldSelection, friendWorldSelection)
+  assert.deepEqual(reloaded.bots[0].skinData, skinData)
+  assert.deepEqual(reloaded.bots[0].skinMeta, skinMeta)
+})
+
+test('invalid array values for saved Bot metadata do not become active settings', () => {
+  const migrated = migrateSettings({
+    bots: [{
+      id: 'invalid-metadata-bot',
+      label: 'Invalid Metadata Bot',
+      friendWorldSelection: [],
+      skinData: [],
+      skinMeta: []
+    }]
+  })
+
+  assert.equal(migrated.bots[0].friendWorldSelection, null)
+  assert.equal(migrated.bots[0].skinData, null)
+  assert.equal(migrated.bots[0].skinMeta, null)
+})
