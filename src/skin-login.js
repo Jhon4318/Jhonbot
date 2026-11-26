@@ -1,7 +1,7 @@
 'use strict'
 
 const MAX_REASON_LENGTH = 400
-const SKIN_REJECTION_PATTERN = /(?:invalid|reject(?:ed|ion)?|unsupported|malformed|not\\s+valid|not\\s+allowed|failed|bad|mismatch|error|corrupt)[\\s\\S]{0,70}(?:skin|persona|texture|geometry)|(?:skin|persona|texture|geometry)[\\s\\S]{0,70}(?:invalid|reject(?:ed|ion)?|unsupported|malformed|not\\s+valid|not\\s+allowed|failed|bad|mismatch|error|corrupt)/i
+const SKIN_REJECTION_PATTERN = /(?:invalid|reject(?:ed|ion)?|unsupported|malformed|not\s+valid|not\s+allowed|failed|bad|mismatch|error|corrupt)[\s\S]{0,70}(?:skin|persona|texture|geometry)|(?:skin|persona|texture|geometry)[\s\S]{0,70}(?:invalid|reject(?:ed|ion)?|unsupported|malformed|not\s+valid|not\s+allowed|failed|bad|mismatch|error|corrupt)/i
 
 function printableReason (value, depth = 0) {
   if (value == null || depth > 4) return ''
