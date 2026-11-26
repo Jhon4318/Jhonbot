@@ -288,7 +288,7 @@ test('custom skins expose PNG, geometry, animation and SkinStealer import action
   assert.ok(renderer.includes('api.importSkin(bot.id)'))
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
   assert.match(main, /skinData: bot.skinData || undefined/)
-  assert.ok(main.includes("skinData: bot.skinData || undefined"))
+  assert.ok(main.includes('validateSkinLoginData(bot.skinData)'))
   assert.match(main, /findMatchingFriendWorldSession/)
 })
 
@@ -421,7 +421,7 @@ test('inventory screen uses Bedrock 1.26.60 OpenInventory action for cross-secti
 })
 
 test('inventory UI displays enchantment labels and locks slots during confirmed moves', () => {
-  assert.ok(renderer.includes('inventory-enchantments'))
+  assert.ok(renderer.includes('inventory-item-enchantments'))
   assert.ok(renderer.includes('inventory-enchantment-mark'))
   assert.ok(renderer.includes('state.inventoryMovePending'))
   const actions = fs.readFileSync(path.join(__dirname, '..', 'src', 'bot-actions.js'), 'utf8')
