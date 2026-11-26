@@ -122,7 +122,7 @@ function enchantmentPrimitive (value) {
 function enchantmentName (id, registry) {
   const raw = String(id ?? '').replace(/^minecraft:/i, '').toLowerCase()
   if (ENCHANTMENT_NAME_ALIASES[raw]) return ENCHANTMENT_NAME_ALIASES[raw]
-  if (/^-?\\d+$/.test(raw)) {
+  if (/^-?\d+$/.test(raw)) {
     const numeric = Number(raw)
     const registryDefinitions = registry?.enchantments || registry?.enchantmentsById
     const definition = Array.isArray(registryDefinitions)
