@@ -38,6 +38,27 @@ async function waitForInventoryWindow (agent, options = {}) {
   throw new Error('Bedrockサーバーからインベントリ画面の応答が届きませんでした。Botがワールドに参加しているか確認してください。')
 }
 
+function openPlayerInventory (agent) {
+  const client = agent?._client
+  if (!client || (typeof client.queue !== 'function' && typeof client.write !== 'function')) {
+    throw new Error('Bedrockのインベントリ画面を開く通信APIが利用できません。')
+  }
+  const runtimeId = agent.entity?.id ?? client.entityId
+  if (runtimeId == null) throw new Error('プレイヤーのRuntime IDを取得できません。')
+  let targetEntityId
+  try {
+    targetEntityId = typeof runtimeId === 'bigint' ? runtimeId : BigInt(runtimeId)
+  } catch {
+    throw new Error('プレイヤーのRuntime IDが不正です。')
+  }
+  // Bedrock 1.26.60 InteractAction::OpenInventory is action_id 6.
+  // The server responds with container_open; do not fabricate a local window.
+  const packet = { action_id: 6, target_entity_id: targetEntityId, position: null }
+  if (typeof client.queue === 'function') client.queue('interact', packet)
+  else client.write('interact', packet)
+  return packet
+}
+
 async function moveInventorySlotConfirmed (agent, fromSlot, toSlot, count, options = {}) {
   if (!agent || typeof agent.moveInventoryItem !== 'function') {
     throw new Error('Bedrock用のインベントリ移動APIが利用できません。')
@@ -81,11 +102,9 @@ async function moveInventorySlotConfirmed (agent, fromSlot, toSlot, count, optio
         throw new Error('別のコンテナ画面が開いています。閉じてからメインインベントリとホットバーを移動してください。')
       }
       if (!existingWindow) {
-        if (typeof agent.openInventory !== 'function') {
-          throw new Error('Bedrockのプレイヤーインベントリを開くAPIが利用できません。')
-        }
-        // Bedrock sends an InteractPacket(open_inventory); the server replies with
-        // container_open. Mineflayer exposes the confirmed window as currentWindow.
+        // This Mineflayer Bedrock build does not expose bot.openInventory().
+        // Send the Bedrock 1.26.60 OpenInventory InteractPacket and wait for the
+        // authoritative container_open response before moving any stack.
         let openWasAbandoned = false
         let onLateWindowOpen = null
         if (typeof agent.on === 'function' && typeof agent.removeListener === 'function') {
@@ -110,7 +129,7 @@ async function moveInventorySlotConfirmed (agent, fromSlot, toSlot, count, optio
             agent.removeListener('windowOpen', onLateWindowOpen)
           }
         }
-        agent.openInventory()
+        openPlayerInventory(agent)
       }
       await waitForInventoryWindow(agent, {
         timeoutMs: options.windowTimeoutMs || 5000,
@@ -164,4 +183,4 @@ async function moveInventorySlotConfirmed (agent, fromSlot, toSlot, count, optio
     try { closeInventory() } catch {}
   }
 }
-module.exports = { toBedrockInventorySlot, selectHotbarSlot, waitForInventoryWindow, moveInventorySlotConfirmed }
+module.exports = { toBedrockInventorySlot, selectHotbarSlot, waitForInventoryWindow, openPlayerInventory, moveInventorySlotConfirmed }
