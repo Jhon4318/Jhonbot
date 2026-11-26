@@ -127,5 +127,5 @@ test('decoder restores the Persona texture, full ResourcePatch and both 4D geome
 
 test('decoder rejects an unrelated or truncated binary without misclassifying it as a skin', () => {
   assert.equal(decodeTsukuyomiPersonaSkinBin(Buffer.from('not a skin'), 'other.bin'), null)
-  assert.throws(() => decodeTsukuyomiPersonaSkinBin(Buffer.concat([Buffer.from([20]), Buffer.from('persona-short')]), 'skin.bin'), /可変長整数|データ長|読み取れません/)
+  assert.equal(decodeTsukuyomiPersonaSkinBin(Buffer.concat([Buffer.from([20]), Buffer.from('persona-short')]), 'skin.bin'), null)
 })
