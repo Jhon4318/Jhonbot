@@ -37,8 +37,8 @@ test('reads legacy Bedrock enchantment NBT tags and formats their Japanese label
           value: {
             type: 'compound',
             value: [
-              { id: { type: 'short', value: 9 }, lvl: { type: 'short', value: 3 } },
-              { id: { type: 'short', value: 34 }, lvl: { type: 'short', value: 2 } }
+              { id: { type: 'short', value: 25 }, lvl: { type: 'short', value: 3 } },
+              { id: { type: 'short', value: 17 }, lvl: { type: 'short', value: 2 } }
             ]
           }
         }
@@ -46,8 +46,8 @@ test('reads legacy Bedrock enchantment NBT tags and formats their Japanese label
     }
   }
   assert.deepEqual(extractItemEnchantments(item), [
-    { id: '9', name: '氷渡り', level: 3, label: '氷渡り 3' },
-    { id: '34', name: '耐久力', level: 2, label: '耐久力 2' }
+    { id: '25', name: '氷渡り', level: 3, label: '氷渡り 3' },
+    { id: '17', name: '耐久力', level: 2, label: '耐久力 2' }
   ])
 })
 
