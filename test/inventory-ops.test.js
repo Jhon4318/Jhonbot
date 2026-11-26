@@ -72,7 +72,7 @@ test('opens the player inventory with the Bedrock 1.26.60 InteractPacket action 
   assert.equal(agent.lastPacket.name, 'interact')
   assert.equal(packet.action_id, 6)
   assert.equal(packet.target_entity_id, 123n)
-  assert.equal(packet.position, null)
+  assert.equal(Object.prototype.hasOwnProperty.call(packet, 'position'), false)
 })
 
 test('full stack move waits for a matching server response', async () => {
