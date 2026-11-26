@@ -269,3 +269,19 @@ test('SkinStealer Persona BIN import forwards Persona pieces and tint colors int
   assert.deepEqual(wire.personal_pieces, imported.skinData.PersonaPieces)
   assert.deepEqual(wire.piece_tint_colors, imported.skinData.PieceTintColors)
 })
+
+
+test('adds a default geometry to an embedded resource patch that only specifies auxiliary geometry', () => {
+  const pixels = Buffer.alloc(64 * 64 * 4, 90)
+  const resourcePatch = { geometry: { animated_face: 'geometry.animated_face.test' } }
+  const metadata = {
+    SkinImageWidth: 64,
+    SkinImageHeight: 64,
+    SkinData: pixels.toString('base64'),
+    SkinResourcePatch: Buffer.from(JSON.stringify(resourcePatch)).toString('base64')
+  }
+  const imported = importSkinEntries([{ name: 'full_skin.bin', data: Buffer.from(JSON.stringify(metadata)) }])
+  const decodedPatch = JSON.parse(Buffer.from(imported.skinData.SkinResourcePatch, 'base64').toString('utf8'))
+  assert.equal(decodedPatch.geometry.default, 'geometry.humanoid.custom')
+  assert.equal(decodedPatch.geometry.animated_face, 'geometry.animated_face.test')
+})
