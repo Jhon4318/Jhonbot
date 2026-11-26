@@ -439,6 +439,8 @@ test('friend-world selection, guest reconnect and active Mods distinguish automa
   assert.ok(main.includes('askForWorldSelection(bot, sessions, attemptId, options.reconnect === true)'))
   assert.ok(main.includes('if (options.reconnect) {\n      reconnectGuestBots(bot)'))
   assert.ok(main.includes('getReconnectableGuestBots(Array.from(bots.values()), parent.id)'))
+  assert.ok(main.includes('async function waitForGuestConnectionRelease (guest'))
+  assert.ok(main.includes('await waitForGuestConnectionRelease(guest)'))
   assert.ok(main.includes('autoReconnectEligible = true'))
   assert.ok(main.includes('scheduleBotModuleResume(bot, agent, options.reconnect === true)'))
   assert.ok(main.includes('await setBotLookDirection(bot.id, snapshot.lookDirection)'))
