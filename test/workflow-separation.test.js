@@ -108,7 +108,7 @@ test('cancelling a pending destination, world choice, or server-key prompt inval
 })
 
 test('guest Bots can be connected from the selected-Bot operations panel', () => {
-  assert.match(main, /if \(bot\.parentBotId\) \{[\s\S]*?return joinGuestBot\(parent, bot\)/)
+  assert.match(main, /if \(bot\.parentBotId\) \{[\s\S]*?return joinGuestBot\(parent, bot, \{ reconnect: options\.reconnect === true \}\)/)
   assert.match(main, /先に親Botをワールドへ参加させてください/)
   assert.match(main, /connectionActive: !!\(bot\.agent \|\| bot\.client \|\| bot\.connectionStarting\)/)
   assert.match(renderer, /ゲスト接続/)
@@ -118,7 +118,11 @@ test('guest Bots can be connected from the selected-Bot operations panel', () =>
 })
 
 test('a manually disconnected guest is not silently rejoined with its parent', () => {
-  assert.match(main, /filter\(item => item\.parentBotId === parent\.id && !item\.agent && !item\.manualDisconnect\)/)
+  const policy = fs.readFileSync(path.join(__dirname, '..', 'src', 'reconnect-policy.js'), 'utf8')
+  assert.match(main, /if \(options\.reconnect\) \{\s*reconnectGuestBots\(bot\)/)
+  assert.match(policy, /guest\.autoReconnectEligible === true/)
+  assert.match(main, /guest\.manualDisconnect \|\| guest\.autoReconnectEligible !== true/)
+  assert.match(main, /guest\.autoReconnectEligible = false/)
 })
 
 test('both primary Bots and guest SubClients install BDS dimension synchronization', () => {
