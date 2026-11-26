@@ -135,6 +135,18 @@ function migrateSettings (parsed) {
       worldName: target.worldName,
       movementMode: item.movementMode === 'player' ? 'player' : 'chunk-hold',
       modules: item.modules && typeof item.modules === 'object' ? item.modules : {},
+      // These fields are stored by 0.9.0+ and must survive the settings migration.
+      // Losing them here causes skins and saved friend-world matching to disappear
+      // when loadSettings() immediately writes the normalized settings back to disk.
+      friendWorldSelection: item.friendWorldSelection && typeof item.friendWorldSelection === 'object' && !Array.isArray(item.friendWorldSelection)
+        ? item.friendWorldSelection
+        : null,
+      skinData: item.skinData && typeof item.skinData === 'object' && !Array.isArray(item.skinData)
+        ? item.skinData
+        : null,
+      skinMeta: item.skinMeta && typeof item.skinMeta === 'object' && !Array.isArray(item.skinMeta)
+        ? item.skinMeta
+        : null,
       ...(typeof item.parentBotId === 'string' && item.parentBotId !== item.id && [1, 2, 3].includes(Number(item.subClientId))
         ? { parentBotId: item.parentBotId, subClientId: Number(item.subClientId) }
         : {})
