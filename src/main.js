@@ -3,13 +3,44 @@
 const { app, BrowserWindow, ipcMain, safeStorage, shell, dialog } = require('electron')
 const PACKAGE = require('../package.json')
 const APP_VERSION = PACKAGE.version
+const path = require('node:path')
+const fs = require('node:fs/promises')
+const fsSync = require('node:fs')
+const { readSettingsFile } = require('./settings-file')
 
 // Keep the same Electron userData directory used by the ZIP builds.
 app.setName(PACKAGE.name)
 if (process.platform === 'win32') app.setAppUserModelId('com.jhonbot.bedrockbotconsole')
-const path = require('node:path')
-const fs = require('node:fs/promises')
-const fsSync = require('node:fs')
+
+// Some older packages used the display name instead of package.name for the
+// Electron userData directory. Reuse an existing data directory when the
+// current one has no settings file; never create a second empty profile over it.
+let userDataPathMigration = null
+try {
+  const currentUserData = path.resolve(app.getPath('userData'))
+  const appData = app.getPath('appData')
+  const candidateNames = [...new Set([
+    PACKAGE.name,
+    PACKAGE.build?.productName,
+    PACKAGE.build?.appId,
+    'Bedrock Bot Console',
+    'bedrock-bot-console'
+  ].filter(name => typeof name === 'string' && name.trim()))]
+  if (!fsSync.existsSync(path.join(currentUserData, 'settings.json'))) {
+    const candidates = candidateNames
+      .map(name => path.resolve(appData, name))
+      .filter(candidate => candidate !== currentUserData && fsSync.existsSync(path.join(candidate, 'settings.json')))
+      .map(candidate => ({ path: candidate, modified: fsSync.statSync(path.join(candidate, 'settings.json')).mtimeMs }))
+      .sort((a, b) => b.modified - a.modified)
+    if (candidates.length) {
+      app.setPath('userData', candidates[0].path)
+      userDataPathMigration = { from: currentUserData, to: candidates[0].path, candidates: candidates.length }
+    }
+  }
+} catch (error) {
+  // Keep Electron's default path and record the diagnostic after logging starts.
+  userDataPathMigration = { error: error.message }
+}
 const util = require('node:util')
 const { Vec3 } = require('vec3')
 const { randomUUID } = require('node:crypto')
@@ -78,6 +109,12 @@ function initializeDiagnosticLog () {
     writeDiagnosticLog(`\n===== Bedrock Bot Console ${APP_VERSION} 起動 =====`)
     writeDiagnosticLog(`platform=${process.platform} arch=${process.arch} node=${process.versions.node} electron=${process.versions.electron}`)
     writeDiagnosticLog(`logFile=${diagnosticLogPath}`)
+    writeDiagnosticLog(`userDataPath=${app.getPath('userData')}`)
+    if (userDataPathMigration?.to) {
+      writeDiagnosticLog(`[user-data-migration] Found existing settings and reused data directory: ${userDataPathMigration.from} -> ${userDataPathMigration.to} (candidates=${userDataPathMigration.candidates})`)
+    } else if (userDataPathMigration?.error) {
+      writeDiagnosticLog(`[user-data-migration] Could not scan legacy data directories: ${userDataPathMigration.error}`)
+    }
 
     // Library warnings/errors were previously only visible in the terminal. Mirror them to a persistent file.
     for (const method of ['log', 'info', 'warn', 'error']) {
@@ -333,21 +370,36 @@ function publicServerProfiles () {
 }
 
 async function loadSettings () {
-  const file = path.join(app.getPath('userData'), 'settings.json')
-  try {
-    const parsed = JSON.parse(await fs.readFile(file, 'utf8'))
-    settings = migrateSettings(parsed)
-    settings.installedMods = normalizeInstalledMods(parsed.installedMods, parsed.bots)
-  } catch (error) {
-    if (error.code !== 'ENOENT') pushLog(`設定ファイルを読み込めませんでした: ${error.message}`, 'warning')
+  const userDataPath = app.getPath('userData')
+  const file = path.join(userDataPath, 'settings.json')
+  writeDiagnosticLog(`[settings] Loading settings from ${file}`)
+  const loaded = await readSettingsFile(file)
+  if (!loaded.exists) {
     settings = { servers: [], bots: [], trustedServerKeys: {}, installedMods: [] }
+    writeDiagnosticLog('[settings] No settings file exists; starting a new profile.')
+    await saveSettings()
+    return
+  }
+
+  const parsed = loaded.parsed
+  settings = migrateSettings(parsed)
+  settings.installedMods = normalizeInstalledMods(parsed.installedMods, parsed.bots)
+
+  // Keep the pre-migration file so a future schema problem cannot destroy the
+  // user's last readable settings snapshot.
+  const backupFile = `${file}.pre-migration.bak`
+  try {
+    await fs.copyFile(file, backupFile, fsSync.constants.COPYFILE_EXCL)
+    writeDiagnosticLog(`[settings] Preserved original settings at ${backupFile}`)
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error
   }
 
   for (const saved of settings.bots) {
     const bot = createBotRecord(saved)
     if (!bot.parentBotId) {
       try {
-        if (await hasEncryptedAuthCache(app.getPath('userData'), bot.id)) bot.accountStatus = 'saved'
+        if (await hasEncryptedAuthCache(userDataPath, bot.id)) bot.accountStatus = 'saved'
       } catch (error) {
         pushLog(`${bot.label}: 保存済み認証情報の確認に失敗しました: ${error.message}`, 'warning', bot.id)
       }
@@ -356,6 +408,7 @@ async function loadSettings () {
     }
     bots.set(saved.id, bot)
   }
+  writeDiagnosticLog(`[settings] Loaded ${settings.bots.length} Bots, ${settings.servers.length} servers and ${settings.installedMods.length} installed Mods.`)
   await saveSettings()
 }
 
@@ -2597,6 +2650,23 @@ function createWindow () {
     writeDiagnosticLog('[renderer] ウィンドウが応答しなくなりました')
     pushLog('画面が応答しなくなりました。', 'error')
   })
+  mainWindow.webContents.on('preload-error', (_event, preloadPath, error) => {
+    const message = `Preload読み込み失敗: ${preloadPath || 'unknown'} / ${safeErrorMessage(error)}`
+    writeDiagnosticLog(`[preload-error] ${message}`)
+    pushLog(message, 'error')
+  })
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    const message = `画面読み込み失敗: code=${errorCode} description=${errorDescription} mainFrame=${Boolean(isMainFrame)} url=${validatedURL}`
+    writeDiagnosticLog(`[did-fail-load] ${message}`)
+  })
+  mainWindow.webContents.on('console-message', (_event, details) => {
+    const level = typeof details === 'object' ? details.level : arguments[1]
+    const message = typeof details === 'object' ? details.message : String(details)
+    if (level === 'error' || level === 2) writeDiagnosticLog(`[renderer.console.error] ${message}`)
+  })
+  mainWindow.webContents.on('did-finish-load', () => {
+    writeDiagnosticLog('[renderer] index.html loaded.')
+  })
   mainWindow.loadFile(path.join(__dirname, 'index.html')).catch((error) => {
     pushLog(`画面の読み込みに失敗しました: ${error.message}`, 'error')
     dialog.showErrorBox('Bedrock Bot Console', `画面を読み込めませんでした。\n${error.message}`)
@@ -2604,16 +2674,19 @@ function createWindow () {
   mainWindow.on('closed', () => { mainWindow = null })
 }
 
-ipcMain.handle('app:get-state', () => ({
-  version: MC_VERSION,
-  appVersion: APP_VERSION,
-  installedMods: [...(settings.installedMods || [])],
-  modCatalog: MOD_CATALOG,
-  servers: publicServerProfiles(),
-  bots: Array.from(bots.values()).map(publicBot),
-  pendingAuthCodes: Array.from(bots.values()).map(bot => bot.pendingAuthCode).filter(Boolean),
-  logs: logBuffer
-}))
+ipcMain.handle('app:get-state', () => {
+  writeDiagnosticLog(`[app:get-state] Renderer requested initial state: bots=${bots.size} servers=${settings.servers.length}`)
+  return {
+    version: MC_VERSION,
+    appVersion: APP_VERSION,
+    installedMods: [...(settings.installedMods || [])],
+    modCatalog: MOD_CATALOG,
+    servers: publicServerProfiles(),
+    bots: Array.from(bots.values()).map(publicBot),
+    pendingAuthCodes: Array.from(bots.values()).map(bot => bot.pendingAuthCode).filter(Boolean),
+    logs: logBuffer
+  }
+})
 ipcMain.handle('bot:add', (_event, input) => publicBot(bots.get(addBot(input).id)))
 ipcMain.handle('bot:add-guest', async (_event, args) => addGuestBot(args?.parentBotId, args))
 ipcMain.handle('server:add', (_event, input) => {
