@@ -26,15 +26,32 @@ try {
     'Bedrock Bot Console',
     'bedrock-bot-console'
   ].filter(name => typeof name === 'string' && name.trim()))]
-  if (!fsSync.existsSync(path.join(currentUserData, 'settings.json'))) {
+  const hasSavedProfileData = (directory) => {
+    const settingsFile = path.join(directory, 'settings.json')
+    try {
+      const parsed = JSON.parse(fsSync.readFileSync(settingsFile, 'utf8'))
+      return (Array.isArray(parsed.bots) && parsed.bots.length > 0) ||
+        (Array.isArray(parsed.servers) && parsed.servers.length > 0) ||
+        (Array.isArray(parsed.installedMods) && parsed.installedMods.length > 0) ||
+        (parsed.trustedServerKeys && typeof parsed.trustedServerKeys === 'object' && Object.keys(parsed.trustedServerKeys).length > 0)
+    } catch {
+      return false
+    }
+  }
+  // A prior broken startup could have created a syntactically valid but empty
+  // settings.json in the new directory. Prefer a legacy directory containing
+  // actual saved Bots/servers instead of treating that empty file as the user profile.
+  if (!hasSavedProfileData(currentUserData)) {
     const candidates = candidateNames
       .map(name => path.resolve(appData, name))
-      .filter(candidate => candidate !== currentUserData && fsSync.existsSync(path.join(candidate, 'settings.json')))
+      .filter(candidate => candidate !== currentUserData &&
+        fsSync.existsSync(path.join(candidate, 'settings.json')) &&
+        hasSavedProfileData(candidate))
       .map(candidate => ({ path: candidate, modified: fsSync.statSync(path.join(candidate, 'settings.json')).mtimeMs }))
       .sort((a, b) => b.modified - a.modified)
     if (candidates.length) {
       app.setPath('userData', candidates[0].path)
-      userDataPathMigration = { from: currentUserData, to: candidates[0].path, candidates: candidates.length }
+      userDataPathMigration = { from: currentUserData, to: candidates[0].path, candidates: candidates.length, currentWasEmpty: true }
     }
   }
 } catch (error) {
@@ -111,7 +128,7 @@ function initializeDiagnosticLog () {
     writeDiagnosticLog(`logFile=${diagnosticLogPath}`)
     writeDiagnosticLog(`userDataPath=${app.getPath('userData')}`)
     if (userDataPathMigration?.to) {
-      writeDiagnosticLog(`[user-data-migration] Found existing settings and reused data directory: ${userDataPathMigration.from} -> ${userDataPathMigration.to} (candidates=${userDataPathMigration.candidates})`)
+      writeDiagnosticLog(`[user-data-migration] Found existing user data and reused data directory: ${userDataPathMigration.from} -> ${userDataPathMigration.to} (candidates=${userDataPathMigration.candidates}, currentWasEmpty=${Boolean(userDataPathMigration.currentWasEmpty)})`)
     } else if (userDataPathMigration?.error) {
       writeDiagnosticLog(`[user-data-migration] Could not scan legacy data directories: ${userDataPathMigration.error}`)
     }
