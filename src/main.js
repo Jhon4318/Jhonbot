@@ -2662,7 +2662,7 @@ function createWindow () {
   mainWindow.webContents.on('console-message', (_event, details) => {
     if (!details || typeof details !== 'object') return
     const message = String(details.message || '')
-    if (details.level === 'error' || details.level === 2) writeDiagnosticLog(`[renderer.console.error] ${message}`)
+    if (details.level === 'error' || details.level === 2 || details.level === 3) writeDiagnosticLog(`[renderer.console] level=${details.level} ${message}`)
   })
   mainWindow.webContents.on('did-finish-load', () => {
     writeDiagnosticLog('[renderer] index.html loaded.')
