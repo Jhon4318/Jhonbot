@@ -2485,3 +2485,17 @@ main#dashboardGrid{flex:1 1 auto;width:100%;min-height:0;max-height:none;margin:
   opacity: 1;
   color: #e8e5ff;
 }
+
+/* Persistent diagnosis when the renderer cannot obtain its initial state. */
+.startup-error-banner {
+  flex: 0 0 auto;
+  margin: 7px 0 0;
+  padding: 9px 12px;
+  border: 1px solid #a45b65;
+  border-radius: 8px;
+  background: #3a2029;
+  color: #ffd7dc;
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
