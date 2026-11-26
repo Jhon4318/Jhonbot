@@ -165,13 +165,22 @@ test('cross-container move waits for a delayed container_open event', async () =
   assert.equal(agent.didCloseInventory, true)
 })
 
-test('cross-container move reports an inventory-window timeout and still calls close cleanup', async () => {
+test('cross-container move closes a player inventory that opens after the acknowledgement timeout', async () => {
   const agent = createAgent({ type: 7, count: 10 })
   agent.currentWindow = null
-  agent.openInventory = () => { agent.didOpenInventory = true }
+  agent.openInventory = () => {
+    agent.didOpenInventory = true
+    setTimeout(() => {
+      const window = { type: 'inventory', bedrockType: 'inventory' }
+      agent.currentWindow = window
+      agent.emit('windowOpen', window)
+    }, 60)
+  }
   await assert.rejects(
     moveInventorySlotConfirmed(agent, 36, 9, undefined, { windowTimeoutMs: 30, pollIntervalMs: 5 }),
     /container_open|インベントリ画面/
   )
+  await new Promise(resolve => setTimeout(resolve, 90))
   assert.equal(agent.didCloseInventory, true)
+  assert.equal(agent.currentWindow, null)
 })
