@@ -1449,10 +1449,35 @@ async function addGuestBot (parentBotId, input) {
   return publicBot(guest)
 }
 
+async function waitForGuestConnectionRelease (guest, timeoutMs = 8000) {
+  const waitUntilReleased = async deadline => {
+    while (Date.now() < deadline) {
+      if (guest.manualDisconnect || guest.autoReconnectEligible !== true) return false
+      if (!guest.agent && !guest.client && !guest.connectionStarting) return true
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    return !guest.agent && !guest.client && !guest.connectionStarting &&
+      guest.manualDisconnect !== true && guest.autoReconnectEligible === true
+  }
+
+  if (await waitUntilReleased(Date.now() + timeoutMs)) return true
+  if (guest.manualDisconnect || guest.autoReconnectEligible !== true) return false
+  try { guest.client?.close?.('Parent Bot automatic reconnect cleanup') } catch {}
+  return waitUntilReleased(Date.now() + 4000)
+}
+
 async function reconnectGuestBots (parent) {
   if (!parent || parent.parentBotId || parent.status !== 'connected' || !parent.client) return
   const guests = getReconnectableGuestBots(Array.from(bots.values()), parent.id)
   for (const guest of guests) {
+    const released = await waitForGuestConnectionRelease(guest)
+    if (!released) {
+      if (guest.autoReconnectEligible && !guest.manualDisconnect) {
+        pushLog(`${guest.label}: 前回のSubClient接続が終了しなかったため、自動再参加を見送りました。`, 'warning', guest.id)
+      }
+      continue
+    }
+    if (guest.autoReconnectEligible !== true || guest.manualDisconnect) continue
     try {
       await joinGuestBot(parent, guest, { reconnect: true })
     } catch (error) {
