@@ -250,7 +250,7 @@ test('inventory panel offers individual and confirmed full-inventory dropping', 
 })
 
 test('individual and full inventory drops wait for Bedrock stack request responses', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
+  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8').replace(/\r\n/g, '\n')
   const dropModule = fs.readFileSync(path.join(__dirname, '..', 'src', 'inventory-drop.js'), 'utf8')
   assert.match(main, /await tossStackConfirmed\(agent, request\.item, request\.count\)/)
   assert.match(main, /await tossStackConfirmed\(agent, item, item\.count\)/)
