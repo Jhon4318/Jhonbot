@@ -12,9 +12,6 @@ function getReconnectableGuestBots (guests, parentBotId) {
       guest.parentBotId === parentBotId &&
       guest.autoReconnectEligible === true &&
       guest.manualDisconnect !== true &&
-      !guest.agent &&
-      !guest.client &&
-      !guest.connectionStarting
     )
     .sort((a, b) => Number(a.subClientId) - Number(b.subClientId))
 }
