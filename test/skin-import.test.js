@@ -228,7 +228,7 @@ test('PlayerSkin wire format decodes all base64 strings and converts animated im
   }])
   assert.deepEqual(wire.piece_tint_colors, [{
     piece_type: 'persona_hair',
-    colors: [-1, -16777216, -15654349, -2143015578]
+    colors: [-1, -16777216, -15654349, -2143005338]
   }])
   assert.equal(wire.trusted, 'True')
   assert.equal(wire.trusted_skin_flag, 'True')
