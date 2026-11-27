@@ -182,6 +182,15 @@ test('patches app and nested Mineflayer protocol copies without touching options
       '    this.q2 = []',
       '    this.status = ClientStatus.Disconnected',
       '  }',
+      '}',
+      'class PacketFixture {',
+      '  readPacket (packet) {',
+      '    try {',
+      '      var des = this.deserializer.parsePacketBuffer(packet)',
+      '    } catch (e) {',
+      BEDROCK_CONNECTION_READ_PACKET_ERROR_ORIGINAL,
+      '    }',
+      '  }',
       '}'
     ].join('\n')
     fs.writeFileSync(path.join(root, 'src', 'client.js'), clientSource)
@@ -191,13 +200,6 @@ test('patches app and nested Mineflayer protocol copies without touching options
       BEDROCK_CONNECTION_SEND_MCPE_ORIGINAL,
       BEDROCK_CONNECTION_HANDLE_ORIGINAL,
       BEDROCK_CONNECTION_DECRYPTED_PACKET_ORIGINAL,
-      '  readPacket (packet) {',
-      '    try {',
-      '      var des = this.deserializer.parsePacketBuffer(packet)',
-      '    } catch (e) {',
-      BEDROCK_CONNECTION_READ_PACKET_ERROR_ORIGINAL,
-      '    }',
-      '  }',
       '}'
     ].join('\n')
     fs.writeFileSync(path.join(root, 'src', 'connection.js'), bedrockConnectionSource)
@@ -370,12 +372,12 @@ test('patches app and nested Mineflayer protocol copies without touching options
       assert.match(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_OPTIONS/)
       assert.match(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_CLOSE_REASON_DIAGNOSTICS/)
       assert.match(clientSource, /BEDROCK_BOT_CONSOLE_PRE_CLOSE_STATUS_DIAGNOSTICS/)
+      assert.match(clientSource, /BEDROCK_BOT_CONSOLE_BEDROCK_PACKET_PARSE_DIAGNOSTICS/)
       const bedrockConnectionSource = fs.readFileSync(path.join(target, 'src', 'connection.js'), 'utf8')
       assert.match(bedrockConnectionSource, /BEDROCK_BOT_CONSOLE_BEDROCK_OUTBOUND_PACKET_DIAGNOSTICS/)
       assert.match(bedrockConnectionSource, /BEDROCK_BOT_CONSOLE_NETHERNET_HANDSHAKE_SEND_RESULT/)
       assert.match(bedrockConnectionSource, /BEDROCK_BOT_CONSOLE_BEDROCK_INBOUND_FRAME_DIAGNOSTICS/)
       assert.match(bedrockConnectionSource, /BEDROCK_BOT_CONSOLE_BEDROCK_DECRYPTED_FRAME_DIAGNOSTICS/)
-      assert.match(bedrockConnectionSource, /BEDROCK_BOT_CONSOLE_BEDROCK_PACKET_PARSE_DIAGNOSTICS/)
       const worldAuthSource = fs.readFileSync(path.join(target, 'src', 'client', 'auth.js'), 'utf8')
       assert.match(worldAuthSource, /BEDROCK_BOT_CONSOLE_XBOX_CONNECTIONTYPE_ROUTING/)
       assert.match(worldAuthSource, /_signallingProtocol = protocol/)
