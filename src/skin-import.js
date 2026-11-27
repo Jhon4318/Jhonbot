@@ -168,9 +168,9 @@ function decodeBase64Text (value) {
 
 function decodeGeometryVersion (value) {
   const version = String(value || '').trim()
-  if (/^\\d+\\.\\d+(?:\\.\\d+)?$/.test(version)) return version
+  if (/^\d+\.\d+(?:\.\d+)?$/.test(version)) return version
   const decoded = decodeBase64Text(version).trim()
-  return /^\\d+\\.\\d+(?:\\.\\d+)?$/.test(decoded) ? decoded : '0.0.0'
+  return /^\d+\.\d+(?:\.\d+)?$/.test(decoded) ? decoded : '0.0.0'
 }
 
 function clientSkinToPlayerSkin (clientSkin) {
