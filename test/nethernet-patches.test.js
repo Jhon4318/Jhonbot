@@ -2,6 +2,8 @@
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
 const crypto = require('node:crypto')
 const vm = require('node:vm')
 const {
@@ -22,6 +24,16 @@ const {
   patchHttpErrorSource,
   patchHttpServerKeyVariantsSource,
   patchNethernetTimeoutOptionsSource,
+  CLIENT_SERVICES_SIGNAL_ORIGINAL,
+  CLIENT_SERVICES_SIGNAL_MARKER,
+  CLIENT_SERVICES_SIGNAL_OPTIONS_ORIGINAL,
+  CLIENT_SERVICES_SIGNAL_OPTIONS_MARKER,
+  CLIENT_CONNECTED_ORIGINAL,
+  CLIENT_CONNECTED_MARKER,
+  CLIENT_TIMEOUT_ORIGINAL,
+  CLIENT_TIMEOUT_MARKER,
+  patchClientConnectionDiagnosticsSource,
+  patchClientSignallingOptionsSource,
   VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL,
   VERIFY_SERVER_IDENTITY_PUBLIC_KEY_MARKER,
   patchServerIdentityPublicKeySource
@@ -30,6 +42,34 @@ const {
 test('pins the exact bedrock-protocol and nethernet versions whose source is patched', () => {
   assert.equal(EXPECTED_VERSION, '3.60.1')
   assert.equal(EXPECTED_NETHERNET_VERSION, '1.1.2')
+})
+
+test('applies friend-world Xbox signalling diagnostics and forwards the diagnostic callback', () => {
+  const clientFixture = [
+    'class Client {',
+    CLIENT_SERVICES_SIGNAL_ORIGINAL,
+    CLIENT_CONNECTED_ORIGINAL,
+    CLIENT_TIMEOUT_ORIGINAL,
+    '}'
+  ].join('\n')
+  const patchedClient = patchClientConnectionDiagnosticsSource(clientFixture)
+  assert.equal(patchedClient.changed, true)
+  assert.match(patchedClient.source, new RegExp(CLIENT_SERVICES_SIGNAL_MARKER))
+  assert.match(patchedClient.source, new RegExp(CLIENT_CONNECTED_MARKER))
+  assert.match(patchedClient.source, new RegExp(CLIENT_TIMEOUT_MARKER))
+  assert.ok(patchedClient.source.includes('Xbox services signalling is ready'))
+  assert.equal(patchClientConnectionDiagnosticsSource(patchedClient.source).changed, false)
+
+  const optionsFixture = ['function connect () {', CLIENT_SERVICES_SIGNAL_OPTIONS_ORIGINAL, '}'].join('\n')
+  const patchedOptions = patchClientSignallingOptionsSource(optionsFixture)
+  assert.equal(patchedOptions.changed, true)
+  assert.match(patchedOptions.source, new RegExp(CLIENT_SERVICES_SIGNAL_OPTIONS_MARKER))
+  assert.ok(patchedOptions.source.includes('onDiagnostics: this.options.nethernet.onDiagnostics'))
+  assert.equal(patchClientSignallingOptionsSource(patchedOptions.source).changed, false)
+
+  const patchScript = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'patch-bedrock-protocol.js'), 'utf8')
+  assert.ok(patchScript.includes("replaceFile(path.join(copy.root, 'src', 'client.js'), patchClientConnectionDiagnosticsSource)"))
+  assert.ok(patchScript.includes("replaceFile(path.join(copy.root, 'src', 'client.js'), patchClientSignallingOptionsSource)"))
 })
 
 test('adds the Minecraft services issuer domain to the NetherNet identity assertion', () => {
