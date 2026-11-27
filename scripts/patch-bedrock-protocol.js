@@ -1520,21 +1520,6 @@ function patchNethernetConnectionDiagnosticsSource (source) {
       "        this.notifyClosed('disconnected')",
       '      } // BEDROCK_BOT_CONSOLE_RELIABLE_CHANNEL_DIAGNOSTICS'
     ].join('\n'),
-      '      this.reliable.onopen = () => {',
-      "        this.nethernet?.reportDiagnostic?.('Reliable data channel opened; queuedMessages=' + this.sendQueue.length)",
-      '        this.flushQueue()',
-      '      }',
-      '',
-      '      this.reliable.onclose = () => {',
-      "        this.nethernet?.reportDiagnostic?.('Reliable data channel closed')",
-      "        this.notifyClosed('disconnected')",
-      '      }',
-      '',
-      '      this.reliable.onerror = () => {',
-      "        this.nethernet?.reportDiagnostic?.('Reliable data channel error')",
-      "        this.notifyClosed('disconnected')",
-      '      } // BEDROCK_BOT_CONSOLE_RELIABLE_CHANNEL_DIAGNOSTICS'
-    ].join('\n'),
     NETHERNET_CONNECTION_RELIABLE_CHANNELS_MARKER,
     'nethernet/src/connection.js reliable data channel diagnostics'
   )
@@ -1556,20 +1541,6 @@ function patchNethernetConnectionDiagnosticsSource (source) {
       '',
       '      this.unreliable.onerror = (event) => {',
       "        this.nethernet?.reportDiagnostic?.('Unreliable data channel error; eventType=' + String(event?.type || 'unknown') + ', errorName=' + String(event?.error?.name || 'unknown') + ', readyState=' + String(this.unreliable?.readyState || 'unknown'))",
-      "        this.notifyClosed('disconnected')",
-      '      } // BEDROCK_BOT_CONSOLE_UNRELIABLE_CHANNEL_DIAGNOSTICS'
-    ].join('\n'),
-      '      this.unreliable.onopen = () => {',
-      "        this.nethernet?.reportDiagnostic?.('Unreliable data channel opened')",
-      '      }',
-      '',
-      '      this.unreliable.onclose = () => {',
-      "        this.nethernet?.reportDiagnostic?.('Unreliable data channel closed')",
-      "        this.notifyClosed('disconnected')",
-      '      }',
-      '',
-      '      this.unreliable.onerror = () => {',
-      "        this.nethernet?.reportDiagnostic?.('Unreliable data channel error')",
       "        this.notifyClosed('disconnected')",
       '      } // BEDROCK_BOT_CONSOLE_UNRELIABLE_CHANNEL_DIAGNOSTICS'
     ].join('\n'),
