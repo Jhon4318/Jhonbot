@@ -166,6 +166,13 @@ function decodeBase64Text (value) {
   }
 }
 
+function decodeGeometryVersion (value) {
+  const version = String(value || '').trim()
+  if (/^\\d+\\.\\d+(?:\\.\\d+)?$/.test(version)) return version
+  const decoded = decodeBase64Text(version).trim()
+  return /^\\d+\\.\\d+(?:\\.\\d+)?$/.test(decoded) ? decoded : '0.0.0'
+}
+
 function clientSkinToPlayerSkin (clientSkin) {
   if (!clientSkin || typeof clientSkin !== 'object') throw new TypeError('スキンデータがありません。')
   const image = (width, height, encoded) => ({
@@ -204,7 +211,7 @@ function clientSkinToPlayerSkin (clientSkin) {
     animations,
     cape_data: image(clientSkin.CapeImageWidth, clientSkin.CapeImageHeight, clientSkin.CapeData),
     geometry_data: decodeBase64Text(clientSkin.SkinGeometryData || ''),
-    geometry_data_version: decodeBase64Text(clientSkin.SkinGeometryDataEngineVersion || ''),
+    geometry_data_version: decodeGeometryVersion(clientSkin.SkinGeometryDataEngineVersion),
     animation_data: decodeBase64Text(clientSkin.SkinAnimationData || ''),
     cape_id: String(clientSkin.CapeId || ''),
     full_skin_id: String(clientSkin.SkinId || ''),
@@ -355,9 +362,9 @@ function importSkinEntries (inputEntries) {
     : (embeddedSkin?.SkinGeometryData || embeddedSkin?.skinGeometryData || Buffer.from('null').toString('base64'))
   const animationString = animation ? JSON.stringify(animation) : ''
   const existingAnimationData = embeddedSkin?.SkinAnimationData || embeddedSkin?.skinAnimationData || ''
-  const geometryVersion = personaBin?.geometryVersion || geometry?.format_version || (embeddedSkin?.SkinGeometryDataEngineVersion
-    ? Buffer.from(embeddedSkin.SkinGeometryDataEngineVersion, 'base64').toString('utf8')
-    : '0.0.0')
+  const geometryVersion = personaBin?.geometryVersion ||
+    geometry?.format_version ||
+    decodeGeometryVersion(embeddedSkin?.SkinGeometryDataEngineVersion)
   const resourcePatch = {
     ...(embeddedResourcePatch && typeof embeddedResourcePatch === 'object' ? embeddedResourcePatch : {}),
     geometry: {
@@ -378,7 +385,9 @@ function importSkinEntries (inputEntries) {
     CapeImageHeight: cape?.height || Number(embeddedSkin?.CapeImageHeight) || 0,
     CapeData: cape ? cape.data.toString('base64') : String(embeddedSkin?.CapeData || ''),
     SkinGeometryData: geometry ? Buffer.from(geometryString).toString('base64') : geometryString,
-    SkinGeometryDataEngineVersion: Buffer.from(geometryVersion).toString('base64'),
+    // Bedrock Login ClientData expects a plain semantic-version string here.
+    // Keep accepting Base64-encoded values from older saved SkinStealer imports.
+    SkinGeometryDataEngineVersion: geometryVersion,
     SkinAnimationData: animationString ? Buffer.from(animationString).toString('base64') : existingAnimationData,
     CapeId: '',
     ArmSize: 'wide',
