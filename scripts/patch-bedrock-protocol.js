@@ -1562,11 +1562,11 @@ function patchNethernetConnectionDiagnosticsSource (source) {
     [
       '    this.receivedMessageCount = (this.receivedMessageCount || 0) + 1',
       '    if (this.receivedMessageCount <= 8) {',
-      "      const payloadPreview = this.buf.subarray(0, 96)
-      const payloadHex = payloadPreview.toString('hex')
-      const payloadTruncated = this.buf.length > payloadPreview.length
-      const header = this.buf.length ? '0x' + this.buf[0].toString(16).padStart(2, '0') : 'empty'
-      this.nethernet?.reportDiagnostic?.('Reliable data channel payload received; count=' + this.receivedMessageCount + ', bytes=' + this.buf.length + ', header=' + header + ', hex=' + payloadHex + (payloadTruncated ? '...truncated' : ''))",
+      "      const payloadPreview = this.buf.subarray(0, 96)",
+      "      const payloadHex = payloadPreview.toString('hex')",
+      "      const payloadTruncated = this.buf.length > payloadPreview.length",
+      "      const header = this.buf.length ? '0x' + this.buf[0].toString(16).padStart(2, '0') : 'empty'",
+      "      this.nethernet?.reportDiagnostic?.('Reliable data channel payload received; count=' + this.receivedMessageCount + ', bytes=' + this.buf.length + ', header=' + header + ', hex=' + payloadHex + (payloadTruncated ? '...truncated' : ''))",
       '    }',
       "    this.nethernet.emit('encapsulated', this.buf, this.address)",
       '    this.buf = null // BEDROCK_BOT_CONSOLE_RELIABLE_PAYLOAD_DIAGNOSTICS'
