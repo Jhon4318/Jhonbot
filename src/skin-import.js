@@ -86,21 +86,75 @@ function decodeEmbeddedJson (value) {
   }
 }
 
+function extractLegacyGeometryIdentifier (geometry) {
+  const root = geometry && typeof geometry === 'object' ? geometry : {}
+  return Object.keys(root).find(key =>
+    /^geometry\.[a-z0-9_.-]+$/i.test(key) &&
+    root[key] && typeof root[key] === 'object' &&
+    Array.isArray(root[key].bones)
+  ) || ''
+}
+
 function extractGeometryIdentifier (geometry) {
   const root = geometry && typeof geometry === 'object' ? geometry : {}
   const first = Array.isArray(root['minecraft:geometry']) ? root['minecraft:geometry'][0] : null
   return first?.description?.identifier ||
+    extractLegacyGeometryIdentifier(root) ||
     root.geometry?.default ||
     root.description?.identifier ||
     ''
 }
 
 function isGeometryJson (value) {
-  return !!(value && typeof value === 'object' && (Array.isArray(value['minecraft:geometry']) || value.geometry?.default || value.description?.identifier))
+  return !!(value && typeof value === 'object' && (
+    Array.isArray(value['minecraft:geometry']) ||
+    value.geometry?.default ||
+    value.description?.identifier ||
+    extractLegacyGeometryIdentifier(value)
+  ))
 }
 
 function isAnimationJson (value) {
   return !!(value && typeof value === 'object' && (value.animations || value.animation_controllers || value['minecraft:animations']))
+}
+
+function extractSkinPackDescriptor (jsonEntries) {
+  for (const entry of jsonEntries) {
+    const skins = entry.value && Array.isArray(entry.value.skins) ? entry.value.skins : []
+    const selected = skins.find(skin => skin && typeof skin === 'object' &&
+      (typeof skin.geometry === 'string' || typeof skin.texture === 'string'))
+    if (selected) {
+      return {
+        geometry: typeof selected.geometry === 'string' ? selected.geometry.trim() : '',
+        texture: typeof selected.texture === 'string' ? selected.texture.trim() : '',
+        animations: selected.animations && typeof selected.animations === 'object' ? selected.animations : null
+      }
+    }
+  }
+  return null
+}
+
+function normalizeAssetReference (value) {
+  return String(value || '').replace(/\\/g, '/').replace(/^\.\//, '').replace(/^\/+/, '').toLowerCase()
+}
+
+function findSkinPackTexture (pngEntries, textureReference) {
+  const wanted = normalizeAssetReference(textureReference)
+  if (!wanted) return null
+  const wantedBase = wanted.split('/').pop()
+  return pngEntries.find(entry => normalizeAssetReference(entry.name) === wanted) ||
+    pngEntries.find(entry => normalizeAssetReference(entry.name).endsWith('/' + wanted)) ||
+    pngEntries.find(entry => normalizeAssetReference(entry.name).split('/').pop() === wantedBase) ||
+    null
+}
+
+function geometryMatchesSkinPackReference (geometry, reference) {
+  const wanted = String(reference || '').trim()
+  if (!wanted) return true
+  if (wanted.toLowerCase() === 'minecraft:geometry') {
+    return !!(geometry && Array.isArray(geometry['minecraft:geometry']))
+  }
+  return extractGeometryIdentifier(geometry) === wanted
 }
 
 function decodeBase64Text (value) {
@@ -194,15 +248,28 @@ function importSkinEntries (inputEntries) {
   }
 
   const jsons = jsonEntries(entries)
+  const skinPackDescriptor = extractSkinPackDescriptor(jsons)
   let embeddedSkin = null
   let geometry = null
   let animation = null
   let personaBin = null
+  const geometryEntries = []
   for (const entry of jsons) {
     const value = entry.value
     if (!embeddedSkin && (value.SkinData || value.skinData || value.SkinImageWidth || value.SkinResourcePatch)) embeddedSkin = value
-    if (!geometry && isGeometryJson(value)) geometry = value
+    if (isGeometryJson(value)) {
+      geometryEntries.push(value)
+      if (!geometry) geometry = value
+    }
     if (!animation && isAnimationJson(value)) animation = value
+  }
+
+  // Skin packs declare the geometry identifier in skins.json. Prefer the matching
+  // geometry document instead of whichever JSON happened to be encountered first.
+  if (skinPackDescriptor?.geometry) {
+    geometry = geometryEntries.find(value =>
+      geometryMatchesSkinPackReference(value, skinPackDescriptor.geometry)
+    ) || null
   }
 
   if (embeddedSkin) {
@@ -219,8 +286,11 @@ function importSkinEntries (inputEntries) {
   let texture = null
   let previewPng = null
   const pngCandidates = entries.filter(entry => /\.png$/i.test(entry.name) && !/(cape|elytra)/i.test(entry.name))
+  const skinPackTexture = findSkinPackTexture(pngCandidates, skinPackDescriptor?.texture)
   if (pngCandidates.length) {
-    const preferred = pngCandidates.find(entry => /(^|[/_ -])(skin|texture|steve|alex)([/_ .-]|$)/i.test(entry.name)) || pngCandidates[0]
+    const preferred = skinPackTexture ||
+      pngCandidates.find(entry => /(^|[/_ -])(skin|texture|steve|alex)([/_ .-]|$)/i.test(entry.name)) ||
+      pngCandidates[0]
     texture = decodePng(preferred.data)
     previewPng = preferred.data
   } else if (embeddedSkin?.SkinData || embeddedSkin?.skinData) {
@@ -273,7 +343,13 @@ function importSkinEntries (inputEntries) {
     (embeddedResourcePatchValue && typeof embeddedResourcePatchValue === 'object'
       ? embeddedResourcePatchValue
       : decodeEmbeddedJson(embeddedResourcePatchValue))
-  const geometryId = extractGeometryIdentifier(geometry) || embeddedResourcePatch?.geometry?.default || 'geometry.humanoid.custom'
+  const declaredPackGeometry = skinPackDescriptor?.geometry && skinPackDescriptor.geometry.toLowerCase() !== 'minecraft:geometry'
+    ? skinPackDescriptor.geometry
+    : ''
+  const geometryId = extractGeometryIdentifier(geometry) ||
+    embeddedResourcePatch?.geometry?.default ||
+    declaredPackGeometry ||
+    'geometry.humanoid.custom'
   const geometryString = geometry
     ? JSON.stringify(geometry)
     : (embeddedSkin?.SkinGeometryData || embeddedSkin?.skinGeometryData || Buffer.from('null').toString('base64'))
@@ -316,7 +392,9 @@ function importSkinEntries (inputEntries) {
     OverrideSkin: true
   }
   if (!previewPng) previewPng = PNG.sync.write({ width: texture.width, height: texture.height, data: texture.data })
-  const textureFile = pngCandidates[0]?.name || entries.find(entry => /\.bin$/i.test(entry.name))?.name || 'skin texture'
+  const textureFile = (skinPackTexture || pngCandidates[0])?.name ||
+    entries.find(entry => /\.bin$/i.test(entry.name))?.name ||
+    'skin texture'
   return {
     skinData: clientSkin,
     previewDataUrl: 'data:image/png;base64,' + previewPng.toString('base64'),
@@ -328,7 +406,11 @@ function importSkinEntries (inputEntries) {
       hasGeometry: !!geometry,
       hasAnimation: !!animation,
       hasCape: !!cape,
-      sourceFormat: personaBin ? 'Tsukuyomi Persona BIN' : (pngCandidates.length ? 'PNG / JSON' : 'Skin package'),
+      sourceFormat: personaBin
+        ? 'Tsukuyomi Persona BIN'
+        : skinPackDescriptor
+          ? 'Bedrock Skin Pack (Tsukuyomi compatible)'
+          : (pngCandidates.length ? 'PNG / JSON' : 'Skin package'),
       sourceFiles: entries.map(entry => entry.name.split('/').pop()).filter(Boolean).slice(0, 20)
     }
   }
