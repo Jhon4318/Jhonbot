@@ -304,6 +304,7 @@ const NETHERNET_CONNECTION_RELIABLE_CHANNELS_ORIGINAL = [
   "        this.notifyClosed('disconnected')",
   '      }'
 ].join('\n')
+const NETHERNET_CONNECTION_RELIABLE_CHANNELS_MARKER = 'BEDROCK_BOT_CONSOLE_RELIABLE_CHANNEL_DIAGNOSTICS'
 const NETHERNET_CONNECTION_UNRELIABLE_CHANNELS_ORIGINAL = [
   '      this.unreliable.onclose = () => {',
   "        this.notifyClosed('disconnected')",
@@ -313,6 +314,7 @@ const NETHERNET_CONNECTION_UNRELIABLE_CHANNELS_ORIGINAL = [
   "        this.notifyClosed('disconnected')",
   '      }'
 ].join('\n')
+const NETHERNET_CONNECTION_UNRELIABLE_CHANNELS_MARKER = 'BEDROCK_BOT_CONSOLE_UNRELIABLE_CHANNEL_DIAGNOSTICS'
 const NETHERNET_CONNECTION_RECEIVE_ORIGINAL = [
   "    this.nethernet.emit('encapsulated', this.buf, this.address)",
   '    this.buf = null'
