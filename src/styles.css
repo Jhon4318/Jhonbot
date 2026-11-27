@@ -2944,3 +2944,135 @@ main#dashboardGrid{flex:1 1 auto;width:100%;min-height:0;max-height:none;margin:
   .control-panel .diagnostic-grid { gap: 3px; }
   .control-panel .diagnostic-grid > div { padding: 3px; }
 }
+
+/* 0.9.9: Recent skins, destination editing, and a roomier in-panel control layout. */
+.skin-history-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  margin-top: 9px;
+}
+.skin-history-button {
+  max-width: 100%;
+  min-height: 27px;
+  padding: 4px 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+}
+.skin-history-button.active {
+  border-color: #8f86ec;
+  background: #3b365e;
+  color: #fff;
+}
+.skin-history-button:disabled:not(.active) { opacity: .45; }
+.server-form .server-signalling-field { grid-column: span 2; }
+.server-profile-actions .edit-server-button {
+  min-height: 26px;
+  padding: 3px 8px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+.server-profile-actions .reset-server-key-button {
+  min-height: 26px;
+  padding: 3px 8px;
+  font-size: 9px;
+}
+
+/* Keep the operation widgets larger while the parent panel remains the boundary. */
+#dashboardGrid > .control-panel {
+  overflow: hidden !important;
+  padding: 9px;
+  gap: 6px;
+}
+.control-panel .control-layout {
+  flex: 1 1 205px !important;
+  min-height: 195px !important;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  gap: 7px;
+}
+.control-panel .movement-card,
+.control-panel .goto-card {
+  min-height: 195px;
+  padding: 8px;
+}
+.control-panel .dpad {
+  grid-template-columns: repeat(3, 39px);
+  grid-template-rows: repeat(3, 34px);
+  gap: 3px;
+  margin: 8px auto;
+}
+.control-panel .move-key { font-size: 16px; }
+.control-panel .movement-actions { gap: 4px; }
+.control-panel .movement-actions .action-key {
+  min-height: 29px;
+  padding: 0 7px;
+  font-size: 8px;
+}
+.control-panel .movement-actions > .secondary-button {
+  min-height: 28px;
+  padding: 0 7px;
+  font-size: 8px;
+}
+.control-panel .goto-form { gap: 5px; margin-top: 8px; }
+.control-panel .goto-form .field input {
+  height: 34px;
+  padding: 0 6px;
+  font-size: 10px;
+}
+.control-panel .goto-form .primary-button {
+  min-height: 32px;
+  padding: 0 8px;
+  font-size: 9px;
+}
+.control-panel .goto-note {
+  margin-top: 6px;
+  font-size: 8px;
+  line-height: 1.35;
+  -webkit-line-clamp: 3;
+}
+.control-panel .movement-status {
+  min-height: 23px;
+  margin-top: 5px;
+  padding: 5px 7px;
+  font-size: 8px;
+}
+.control-panel > .diagnostic-card {
+  flex: 0 0 94px !important;
+  min-height: 94px !important;
+  grid-template-columns: minmax(96px, .23fr) minmax(0, 1fr);
+  gap: 7px;
+  padding: 7px;
+}
+.control-panel > .diagnostic-card > .subheading { font-size: 9px; }
+.control-panel > .diagnostic-card > .subheading span { font-size: 8px; }
+.control-panel .diagnostic-grid { gap: 4px; }
+.control-panel .diagnostic-grid > div { padding: 5px 6px; gap: 3px; }
+.control-panel .diagnostic-grid span { font-size: 8px; }
+.control-panel .diagnostic-grid strong { font-size: 10px; }
+
+@media (max-height: 760px) {
+  .control-panel .control-layout {
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+  }
+  .control-panel .movement-card,
+  .control-panel .goto-card {
+    min-height: 0;
+    padding: 6px;
+  }
+  .control-panel .dpad {
+    grid-template-columns: repeat(3, 31px);
+    grid-template-rows: repeat(3, 24px);
+    margin: 4px auto;
+  }
+  .control-panel .goto-form .field input { height: 27px; }
+  .control-panel .goto-form .primary-button { min-height: 26px; }
+  .control-panel > .diagnostic-card {
+    flex-basis: 76px !important;
+    min-height: 76px !important;
+    padding: 5px;
+  }
+}
