@@ -1493,6 +1493,8 @@ function applyPatch (projectRoot = path.resolve(__dirname, '..')) {
     results.push(replaceFile(path.join(copy.root, 'src', 'connection.js'), patchBedrockConnectionOutboundDiagnosticsSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'client.js'), patchIdentityDomainSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'client.js'), patchNetworkSettingsCompressionSource))
+    results.push(replaceFile(path.join(copy.root, 'src', 'client.js'), patchClientConnectionDiagnosticsSource))
+    results.push(replaceFile(path.join(copy.root, 'src', 'client.js'), patchClientSignallingOptionsSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'client', 'auth.js'), patchClientWorldConnectionProtocolSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'nethernet', 'signalling.js'), patchNethernetSignallingSource))
     results.push(replaceFile(path.join(copy.root, 'src', 'nethernet', 'index.js'), patchNethernetTimeoutOptionsSource))
