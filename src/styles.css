@@ -2810,3 +2810,137 @@ main#dashboardGrid{flex:1 1 auto;width:100%;min-height:0;max-height:none;margin:
   .control-panel .goto-card { padding: 4px; }
   .control-panel .diagnostic-grid > div { padding: 2px 3px; }
 }
+
+/* 0.9.6: use the available control-panel height for movement and diagnostics */
+.control-panel .control-layout {
+  flex: 1 1 210px !important;
+  min-height: 210px !important;
+  align-items: stretch;
+}
+.control-panel .movement-card,
+.control-panel .goto-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 210px;
+  padding: 10px;
+}
+.control-panel .movement-card .subheading,
+.control-panel .goto-card .subheading {
+  font-size: 10px;
+  gap: 5px;
+}
+.control-panel .movement-card .subheading span,
+.control-panel .goto-card .subheading span {
+  font-size: 8px;
+}
+.control-panel .dpad {
+  grid-template-columns: repeat(3, 35px);
+  grid-template-rows: repeat(3, 31px);
+  gap: 4px;
+  margin: 10px auto;
+}
+.control-panel .move-key { font-size: 15px; }
+.control-panel .movement-actions {
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.control-panel .movement-actions .action-key {
+  min-height: 28px;
+  padding: 0 7px;
+  font-size: 8px;
+  gap: 4px;
+}
+.control-panel .movement-actions .action-key kbd {
+  padding: 2px 4px;
+  font-size: 8px;
+}
+.control-panel .movement-actions .action-key small { font-size: 8px; }
+.control-panel .movement-actions > .secondary-button {
+  min-height: 27px;
+  padding: 0 7px;
+  font-size: 8px;
+}
+.control-panel .goto-form {
+  gap: 5px;
+  margin-top: 8px;
+}
+.control-panel .goto-form .field { gap: 3px; }
+.control-panel .goto-form .field span { font-size: 8px; }
+.control-panel .goto-form .field input {
+  height: 32px;
+  padding: 0 6px;
+  font-size: 9px;
+}
+.control-panel .goto-form .primary-button {
+  min-height: 31px;
+  font-size: 9px;
+}
+.control-panel .goto-note {
+  margin-top: 7px;
+  font-size: 8px;
+  line-height: 1.35;
+  -webkit-line-clamp: 3;
+}
+.control-panel .movement-status {
+  min-height: 24px;
+  margin-top: 6px;
+  padding: 6px 7px;
+  font-size: 9px;
+}
+.control-panel > .diagnostic-card {
+  flex: 0 0 100px !important;
+  min-height: 100px !important;
+  grid-template-columns: minmax(92px, .22fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 8px;
+  padding: 8px;
+}
+.control-panel > .diagnostic-card > .subheading {
+  justify-content: center;
+  gap: 4px;
+  font-size: 9px;
+  line-height: 1.25;
+}
+.control-panel > .diagnostic-card > .subheading span { font-size: 8px; }
+.control-panel .diagnostic-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  align-content: stretch;
+}
+.control-panel .diagnostic-grid > div {
+  justify-content: center;
+  gap: 3px;
+  padding: 5px 6px;
+}
+.control-panel .diagnostic-grid span {
+  font-size: 8px;
+  line-height: 1.2;
+}
+.control-panel .diagnostic-grid strong {
+  font-size: 10px;
+  line-height: 1.2;
+}
+@media (max-height: 760px) {
+  .control-panel .control-layout {
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+  }
+  .control-panel .movement-card,
+  .control-panel .goto-card {
+    min-height: 0;
+    padding: 5px;
+  }
+  .control-panel .dpad {
+    grid-template-columns: repeat(3, 27px);
+    grid-template-rows: repeat(3, 19px);
+    margin: 3px auto;
+  }
+  .control-panel > .diagnostic-card {
+    flex-basis: 72px !important;
+    min-height: 72px !important;
+    gap: 5px;
+    padding: 5px;
+  }
+  .control-panel .diagnostic-grid { gap: 3px; }
+  .control-panel .diagnostic-grid > div { padding: 3px; }
+}
