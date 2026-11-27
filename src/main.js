@@ -298,7 +298,7 @@ function createBotRecord (saved) {
     friendWorldSelection: saved.friendWorldSelection && typeof saved.friendWorldSelection === 'object' ? saved.friendWorldSelection : null,
     skinData: saved.skinData && typeof saved.skinData === 'object' ? saved.skinData : null,
     skinMeta: saved.skinMeta && typeof saved.skinMeta === 'object' ? saved.skinMeta : null,
-    skinHistory: normalizeSkinHistory(saved.skinHistory),
+    skinHistory: normalizeSkinHistory(saved.skinHistory?.length ? saved.skinHistory : (saved.skinData && saved.skinMeta ? [{ skinData: saved.skinData, skinMeta: saved.skinMeta }] : [])),
     skinFallbackActive: false,
     skinFallbackPending: false,
     skinFallbackUsed: false,
@@ -1944,27 +1944,6 @@ async function collectSkinImportFiles (selectedPaths) {
   return files
 }
 
-
-async function waitForBotAgentRelease (bot, previousAgent, timeoutMs = 15000) {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    if (bot.agent !== previousAgent && !bot.client && !bot.connectionStarting) return
-    await new Promise(resolve => setTimeout(resolve, 50))
-  }
-  throw new Error('古いBot接続が終了しませんでした。スキンは保存済みです。手動で切断してから再接続してください。')
-}
-
-async function waitForBotSpawn (bot, previousAgent, timeoutMs = 90000) {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    if (bot.agent && bot.agent !== previousAgent && bot.status === 'connected') return
-    if (bot.status === 'error' && bot.hadError && !bot.connectionStarting) {
-      throw new Error(bot.lastError || 'スキン適用のための再接続に失敗しました。')
-    }
-    await new Promise(resolve => setTimeout(resolve, 100))
-  }
-  throw new Error('再接続後のワールド参加を確認できませんでした。スキンは保存済みで、次回接続時に適用されます。')
-}
 
 function sendPlayerSkinPacket (bot, agent, oldSkinName = '') {
   if (!bot || !agent || bot.agent !== agent || bot.status !== 'connected') {
