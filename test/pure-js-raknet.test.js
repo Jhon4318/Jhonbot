@@ -175,7 +175,7 @@ test('patches app and nested Mineflayer protocol copies without touching options
       CLIENT_TIMEOUT_ORIGINAL,
       CLIENT_CLOSE_REASON_ORIGINAL,
       '  }',
-      '  close () {',
+      '  function close () {',
       '    if (this._closed) return',
       '    this._closed = true',
       '    this.q = []',
