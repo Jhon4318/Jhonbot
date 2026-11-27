@@ -190,6 +190,38 @@ function clientSkinToPlayerSkin (clientSkin) {
     const index = names.findIndex(name => name.toLowerCase().replace(/[^a-z0-9]/g, '') === normalized)
     return index >= 0 ? index : 0
   }
+  const colorValue = (value) => {
+    if (Number.isFinite(value)) return Number(value) | 0
+    const normalized = String(value ?? '').trim().replace(/^#/, '')
+    const parsed = normalized ? Number.parseInt(normalized, 16) : 0
+    return Number.isFinite(parsed) ? parsed | 0 : 0
+  }
+  const pieceTypeNames = [
+    'Unknown', 'Skeleton', 'Body', 'Skin', 'Bottom', 'Feet', 'Dress', 'Top',
+    'High_Pants', 'Hands', 'Outerwear', 'FacialHair', 'Mouth', 'Eyes', 'Hair',
+    'Hood', 'Back', 'FaceAccessory', 'Head', 'Legs', 'LeftLeg', 'RightLeg',
+    'Arms', 'LeftArm', 'RightArm', 'Capes', 'ClassicSkin', 'Emote', 'CoCo', 'Unsupported'
+  ]
+  const personaPieces = (Array.isArray(clientSkin.PersonaPieces) ? clientSkin.PersonaPieces : [])
+    .filter(piece => piece && typeof piece === 'object')
+    .map(piece => ({
+      piece_id: String(piece.piece_id ?? piece.PieceId ?? ''),
+      piece_type: enumValue(piece.piece_type ?? piece.PieceType, pieceTypeNames),
+      pack_id: String(piece.pack_id ?? piece.PackId ?? ''),
+      is_default_piece: (piece.is_default_piece ?? piece.IsDefaultPiece) === true,
+      product_id: String(piece.product_id ?? piece.ProductId ?? '')
+    }))
+    .filter(piece => piece.piece_id && /^[a-f0-9-]{36}$/i.test(piece.pack_id))
+  const pieceTintColors = (Array.isArray(clientSkin.PieceTintColors) ? clientSkin.PieceTintColors : [])
+    .filter(tint => tint && typeof tint === 'object')
+    .map(tint => ({
+      piece_type: String(tint.piece_type ?? tint.PieceType ?? ''),
+      colors: (Array.isArray(tint.colors ?? tint.Colors) ? (tint.colors ?? tint.Colors) : [])
+        .slice(0, 4)
+        .map(colorValue)
+        .concat([0, 0, 0, 0]).slice(0, 4)
+    }))
+    .filter(tint => tint.piece_type)
   const animations = (Array.isArray(clientSkin.AnimatedImageData) ? clientSkin.AnimatedImageData : []).map(entry => {
     const frame = entry && typeof entry === 'object' ? entry : {}
     const sourceImage = frame.skin_image || frame.image || frame.Image || frame.SkinImage || {}
@@ -204,6 +236,11 @@ function clientSkinToPlayerSkin (clientSkin) {
       expression_type: enumValue(frame.expression_type ?? frame.AnimationExpression ?? frame.ExpressionType, ['Linear', 'Blinking'])
     }
   })
+  const trustedSkinFlag = clientSkin.TrustedSkin === true
+    ? 'True'
+    : clientSkin.TrustedSkin === false
+      ? 'False'
+      : 'Unset'
   return {
     skin_id: String(clientSkin.SkinId || ''),
     skin_resource_pack: decodeBase64Text(clientSkin.SkinResourcePatch || ''),
@@ -216,18 +253,23 @@ function clientSkinToPlayerSkin (clientSkin) {
     cape_id: String(clientSkin.CapeId || ''),
     full_skin_id: String(clientSkin.SkinId || ''),
     arm_size: String(clientSkin.ArmSize || 'wide').toLowerCase() === 'slim' ? 0 : 1,
-    skin_color: Number.parseInt(String(clientSkin.SkinColor || '#0').replace(/^#/, '') || '0', 16) >>> 0,
-    personal_pieces: Array.isArray(clientSkin.PersonaPieces) ? clientSkin.PersonaPieces : [],
-    piece_tint_colors: Array.isArray(clientSkin.PieceTintColors) ? clientSkin.PieceTintColors : [],
+    skin_color: colorValue(clientSkin.SkinColor || '#0'),
+    personal_pieces: personaPieces,
+    piece_tint_colors: pieceTintColors,
     premium: clientSkin.PremiumSkin === true,
     persona: clientSkin.PersonaSkin === true,
     cape_on_classic: clientSkin.CapeOnClassicSkin === true,
     primary_user: clientSkin.TrustedSkin !== false,
     overriding_player_appearance: clientSkin.OverrideSkin !== false,
-    trusted_skin_flag: clientSkin.TrustedSkin === false ? 'False' : clientSkin.TrustedSkin === true ? 'True' : 'Unset',
+    // 1.26.60's packet reference names this TrustedSkinFlag. The mc-data
+    // serializer maps the same wire field as "trusted"; include both names so
+    // the serializer version and packet reference stay aligned.
+    trusted: trustedSkinFlag,
+    trusted_skin_flag: trustedSkinFlag,
     profile_hash: String(clientSkin.ProfileHash || '')
   }
 }
+
 function importSkinEntries (inputEntries) {
   if (!Array.isArray(inputEntries) || !inputEntries.length) throw new Error('スキン素材が選択されていません。')
   const entries = []
