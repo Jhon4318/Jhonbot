@@ -902,7 +902,23 @@ function patchClientConnectionDiagnosticsSource (source) {
     CLIENT_CLOSE_STATUS_MARKER,
     'bedrock-protocol/src/client.js pre-close status preservation'
   )
-  return { source: closeStatus.source, changed: signal.changed || connected.changed || timeout.changed || closeReason.changed || closeStatus.changed }
+  const packetError = applySingleReplace(
+    closeStatus.source,
+    BEDROCK_CONNECTION_READ_PACKET_ERROR_ORIGINAL,
+    [
+      '      // Dump information about the packet only if user is not handling error event.',
+      "      if (this.options?.transport === 'nethernet') {",
+      "        const message = String(e?.message || e).split(String.fromCharCode(10)).join(' ').slice(0, 180)",
+      "        this.connection?.nethernet?.reportDiagnostic?.('Bedrock inbound packet parser failed; packetBytes=' + packet.length + ', errorName=' + String(e?.name || 'Error') + ', message=' + message)",
+      '      }',
+      "      if (this.listenerCount('error') === 0) this.deserializer.dumpFailedBuffer(packet)",
+      "      this.emit('error', e)",
+      '      return // BEDROCK_BOT_CONSOLE_BEDROCK_PACKET_PARSE_DIAGNOSTICS'
+    ].join('\n'),
+    BEDROCK_CONNECTION_READ_PACKET_ERROR_MARKER,
+    'bedrock-protocol/src/client.js packet parser diagnostics'
+  )
+  return { source: packetError.source, changed: signal.changed || connected.changed || timeout.changed || closeReason.changed || closeStatus.changed || packetError.changed }
 }
 
 function patchNethernetTimeoutOptionsSource (source) {
@@ -1479,23 +1495,7 @@ function patchBedrockConnectionOutboundDiagnosticsSource (source) {
     BEDROCK_CONNECTION_DECRYPTED_PACKET_MARKER,
     'bedrock-protocol/src/connection.js decrypted batch diagnostics'
   )
-  const packetError = applySingleReplace(
-    decrypted.source,
-    BEDROCK_CONNECTION_READ_PACKET_ERROR_ORIGINAL,
-    [
-      '      // Dump information about the packet only if user is not handling error event.',
-      "      if (this.options?.transport === 'nethernet') {",
-      "        const message = String(e?.message || e).split(String.fromCharCode(10)).join(' ').slice(0, 180)",
-      "        this.connection?.nethernet?.reportDiagnostic?.('Bedrock inbound packet parser failed; packetBytes=' + packet.length + ', errorName=' + String(e?.name || 'Error') + ', message=' + message)",
-      '      }',
-      "      if (this.listenerCount('error') === 0) this.deserializer.dumpFailedBuffer(packet)",
-      "      this.emit('error', e)",
-      '      return // BEDROCK_BOT_CONSOLE_BEDROCK_PACKET_PARSE_DIAGNOSTICS'
-    ].join('\n'),
-    BEDROCK_CONNECTION_READ_PACKET_ERROR_MARKER,
-    'bedrock-protocol/src/connection.js packet parser diagnostics'
-  )
-  return { source: packetError.source, changed: write.changed || send.changed || handle.changed || decrypted.changed || packetError.changed }
+  return { source: decrypted.source, changed: write.changed || send.changed || handle.changed || decrypted.changed }
 }
 
 function patchNethernetConnectionDiagnosticsSource (source) {
