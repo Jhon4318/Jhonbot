@@ -58,6 +58,7 @@ test('adds safe stage diagnostics to Xbox services NetherNet connection flow', (
     CLIENT_CONNECTED_ORIGINAL,
     '    }',
     CLIENT_TIMEOUT_ORIGINAL,
+    CLIENT_CLOSE_REASON_ORIGINAL,
     '}'
   ].join('\n')
 
