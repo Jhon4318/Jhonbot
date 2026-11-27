@@ -185,6 +185,14 @@ const CLIENT_TIMEOUT_ORIGINAL = [
 ].join('\n')
 const CLIENT_TIMEOUT_MARKER = 'BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TIMEOUT_DIAGNOSTICS'
 
+const CLIENT_CLOSE_REASON_ORIGINAL = [
+  '    this.connection.onCloseConnection = (reason) => {',
+  '      if (this.status === ClientStatus.Disconnected) this.conLog?.(`Server closed connection: ${reason}`)',
+  '      this.close()',
+  '    }'
+].join('\n')
+const CLIENT_CLOSE_REASON_MARKER = 'BEDROCK_BOT_CONSOLE_FRIEND_WORLD_CLOSE_REASON_DIAGNOSTICS'
+
 const NETHERNET_OPTIONS_ORIGINAL = [
   '        webrtcBackend: options.webrtcBackend,',
   "        ...(options.signalling === 'http' && {",
@@ -826,7 +834,24 @@ function patchClientConnectionDiagnosticsSource (source) {
     CLIENT_TIMEOUT_MARKER,
     'bedrock-protocol/src/client.js transport-timeout diagnostics'
   )
-  return { source: timeout.source, changed: signal.changed || connected.changed || timeout.changed }
+  const closeReason = applySingleReplace(
+    timeout.source,
+    CLIENT_CLOSE_REASON_ORIGINAL,
+    [
+      '    this.connection.onCloseConnection = (reason) => {',
+      "      if (this.options.transport === 'nethernet' && this.options.nethernet.signalling === 'services') {",
+      "        const detail = String(reason ?? 'unknown').replace(/[\\r\\n]+/g, ' ').slice(0, 300)",
+      "        this.conLog?.('[NetherNet] Connection closed; status=' + this.status + ', reason=' + detail)",
+      '      } else if (this.status === ClientStatus.Disconnected) {',
+      '        this.conLog?.(`Server closed connection: ${reason}`)',
+      '      }',
+      '      this.close()',
+      '    } // BEDROCK_BOT_CONSOLE_FRIEND_WORLD_CLOSE_REASON_DIAGNOSTICS'
+    ].join('\n'),
+    CLIENT_CLOSE_REASON_MARKER,
+    'bedrock-protocol/src/client.js Xbox world close reason diagnostics'
+  )
+  return { source: closeReason.source, changed: signal.changed || connected.changed || timeout.changed || closeReason.changed }
 }
 
 function patchNethernetTimeoutOptionsSource (source) {
@@ -1588,6 +1613,8 @@ module.exports = {
   CLIENT_CONNECTED_MARKER,
   CLIENT_TIMEOUT_ORIGINAL,
   CLIENT_TIMEOUT_MARKER,
+  CLIENT_CLOSE_REASON_ORIGINAL,
+  CLIENT_CLOSE_REASON_MARKER,
   NETHERNET_OPTIONS_ORIGINAL,
   NETHERNET_OPTIONS_MARKER,
   NETHERNET_SEND_RELIABLE_ORIGINAL,
