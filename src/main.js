@@ -1166,9 +1166,14 @@ async function connectBot (botId, options = {}) {
 
   agent._client.on('status', (status) => {
     if (bot.agent !== agent || status === lastBedrockStatus) return
-    lastBedrockStatus = status
+    if (Number(status) !== 0) lastBedrockStatus = status
     const label = bedrockStatusNames[Number(status)] || 'Unknown'
     pushLog(`${bot.label}: [Bedrock] 通信状態=${label} (${String(status)})`, 'info', bot.id)
+  })
+  agent._client.on('error', (error) => {
+    if (bot.agent !== agent) return
+    const message = String(error?.message || error).split(String.fromCharCode(10)).join(' ').slice(0, 220)
+    pushLog(`${bot.label}: [Bedrock] 内部処理エラー=${String(error?.name || 'Error')}: ${message}`, 'error', bot.id)
   })
   agent._client.on('packet', (packet) => {
     if (bot.agent !== agent) return
@@ -1218,7 +1223,9 @@ async function connectBot (botId, options = {}) {
   })
   agent._client.on('close', () => {
     if (bot.connectionAttempt !== attemptId) return
-    const previousStatus = bedrockStatusNames[Number(lastBedrockStatus)] || 'Unknown'
+    const closeStatus = agent._client._diagnosticPreCloseStatus
+    const effectiveStatus = closeStatus == null ? lastBedrockStatus : closeStatus
+    const previousStatus = bedrockStatusNames[Number(effectiveStatus)] || 'Unknown'
     const packetTrail = bedrockPacketTrail.length ? bedrockPacketTrail.join(' -> ') : '受信なし'
     const elapsedMs = Date.now() - bedrockStartedAt
     const level = bot.manualDisconnect ? 'info' : 'warning'
