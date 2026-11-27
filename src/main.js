@@ -64,8 +64,8 @@ const { formatBedrockChatMessage } = require('./chat-format')
 const { createInventoryDropPlan, tossStackConfirmed } = require('./inventory-drop')
 const { moveInventorySlotConfirmed, selectHotbarSlot } = require('./inventory-ops')
 const { buildFriendWorldIdentity, findMatchingFriendWorldSession } = require('./friend-world-selection')
-const { importSkinEntries } = require('./skin-import')
-const { reconnectWithSavedSkin } = require('./skin-reconnect')
+const { importSkinEntries, clientSkinToPlayerSkin } = require('./skin-import')
+const { normalizeSkinHistory, rememberSkin } = require('./skin-history')
 const { skinImportChoiceOptions, skinImportFileDialogOptions, skinImportFolderDialogOptions } = require('./skin-import-dialog')
 const { installSubClientSupport, createGuestLoginTokens, createSubClientLoginDispatcher, MAX_SUB_CLIENTS } = require('./subclients')
 const { nextGuestSubClientId, resolveGuestLabel } = require('./guest-naming')
@@ -228,6 +228,7 @@ function publicBot (bot) {
     worldName: bot.worldName || '',
     friendWorldSelection: bot.friendWorldSelection ? { ...bot.friendWorldSelection } : null,
     skin: bot.skinMeta ? { ...bot.skinMeta } : null,
+    skinHistory: normalizeSkinHistory(bot.skinHistory).map(entry => ({ ...entry.skinMeta })),
     skinFallbackActive: bot.skinFallbackActive === true,
     selectedHotbarSlot: Number.isInteger(bot.agent?.quickBarSlot) ? bot.agent.quickBarSlot : 0,
     movementMode: normalizeBotMovementMode(bot.movementMode),
@@ -297,6 +298,7 @@ function createBotRecord (saved) {
     friendWorldSelection: saved.friendWorldSelection && typeof saved.friendWorldSelection === 'object' ? saved.friendWorldSelection : null,
     skinData: saved.skinData && typeof saved.skinData === 'object' ? saved.skinData : null,
     skinMeta: saved.skinMeta && typeof saved.skinMeta === 'object' ? saved.skinMeta : null,
+    skinHistory: normalizeSkinHistory(saved.skinHistory?.length ? saved.skinHistory : (saved.skinData && saved.skinMeta ? [{ skinData: saved.skinData, skinMeta: saved.skinMeta }] : [])),
     skinFallbackActive: false,
     skinFallbackPending: false,
     skinFallbackUsed: false,
@@ -432,9 +434,10 @@ function saveSettings () {
       id, label, host, port, mode, signallingUrl, lastSuccessfulMode: lastSuccessfulMode || '', lastSuccessfulAt: lastSuccessfulAt || ''
     })),
     trustedServerKeys: { ...settings.trustedServerKeys },
-    bots: Array.from(bots.values()).map(({ id, label, targetType, targetId, networkId, worldName, movementMode, modules, parentBotId, subClientId, friendWorldSelection, skinData, skinMeta }) => ({
+    bots: Array.from(bots.values()).map(({ id, label, targetType, targetId, networkId, worldName, movementMode, modules, parentBotId, subClientId, friendWorldSelection, skinData, skinMeta, skinHistory }) => ({
       id, label, targetType, targetId, networkId, worldName, movementMode: normalizeBotMovementMode(movementMode), modules: normalizeBotModules(modules),
       friendWorldSelection: friendWorldSelection || null, skinData: skinData || null, skinMeta: skinMeta || null,
+      skinHistory: normalizeSkinHistory(skinHistory),
       ...(parentBotId ? { parentBotId, subClientId } : {})
     }))
   }
@@ -687,6 +690,45 @@ function addServerProfile (input) {
   return profile
 }
 
+async function updateServerProfile (serverId, input) {
+  const index = settings.servers.findIndex(item => item.id === String(serverId || ''))
+  if (index < 0) throw new Error('編集する接続先が見つかりません。')
+  const previous = settings.servers[index]
+  const profile = normalizeServerProfile(input)
+  const duplicate = settings.servers.find(item =>
+    item.id !== previous.id &&
+    item.host.toLowerCase() === profile.host.toLowerCase() &&
+    item.port === profile.port &&
+    item.mode === profile.mode &&
+    (item.signallingUrl || '') === profile.signallingUrl
+  )
+  if (duplicate) throw new Error(`同じ接続先「${duplicate.label}」が既に登録されています。`)
+
+  profile.id = previous.id
+  const sameEndpoint = previous.host.toLowerCase() === profile.host.toLowerCase() &&
+    previous.port === profile.port &&
+    previous.mode === profile.mode &&
+    (previous.signallingUrl || '') === (profile.signallingUrl || '')
+  if (sameEndpoint) {
+    profile.lastSuccessfulMode = previous.lastSuccessfulMode || ''
+    profile.lastSuccessfulAt = previous.lastSuccessfulAt || ''
+  } else {
+    profile.lastSuccessfulMode = ''
+    profile.lastSuccessfulAt = ''
+  }
+
+  settings.servers[index] = profile
+  try {
+    await saveSettings()
+  } catch (error) {
+    settings.servers[index] = previous
+    throw error
+  }
+  send('servers:updated', publicServerProfiles())
+  pushLog(`接続先「${previous.label}」を「${profile.label}」に編集しました。`, 'success')
+  return profile
+}
+
 function addHiveAsiaPreset () {
   return addServerProfile({
     label: 'The Hive（アジア）',
@@ -832,7 +874,11 @@ async function getBotRealmFromInvite (botId, inviteCode) {
 function createNethernetDiagnosticHandler (bot, attemptId) {
   return (message) => {
     if (bot.connectionAttempt !== attemptId) return
-    pushLog(`${bot.label}: [NetherNet] ${String(message).slice(0, 800)}`, 'info', bot.id)
+    const detail = String(message).slice(0, 800)
+    writeDiagnosticLog(`[nethernet] bot=${bot.id} ${detail}`)
+    if (/(?:error|warn|failed|timeout|timed out|rejected|denied|disconnect)/i.test(detail)) {
+      pushLog(`${bot.label}: NetherNet接続診断: ${detail}`, /(?:error|failed|timeout|rejected|denied)/i.test(detail) ? 'warning' : 'info', bot.id)
+    }
   }
 }
 
@@ -1091,9 +1137,15 @@ async function connectBot (botId, options = {}) {
       useRaknetWorkers: false,
       profilesFolder: encryptedAuthCacheFactory(bot.id),
       authflow: bot.authflow,
-      skinData: bot.skinFallbackActive ? undefined : (bot.skinData ? validateSkinLoginData(bot.skinData) : undefined),
+      skinData: undefined,
       onMsaCode: (data) => onMicrosoftDeviceCode(bot, data),
-      conLog: (message) => pushLog(`${bot.label}: ${message}`, 'info', bot.id),
+      conLog: (message) => {
+        const detail = String(message || '')
+        writeDiagnosticLog(`[bedrock-conLog] bot=${bot.id} ${detail}`)
+        if (/(?:error|failed|timeout|timed out|server closed|disconnect requested)/i.test(detail)) {
+          pushLog(`${bot.label}: ${detail.slice(0, 500)}`, 'warning', bot.id)
+        }
+      },
       hideErrors: false,
       logErrors: false,
       respawn: true
@@ -1148,83 +1200,39 @@ async function connectBot (botId, options = {}) {
     throw new Error(bot.lastError)
   }
 
-  // Trace only protocol lifecycle packet names and the public status enum; never log packet payloads or tokens.
-  const bedrockLifecyclePackets = new Set([
-    'network_settings',
-    'server_to_client_handshake',
-    'play_status',
-    'resource_packs_info',
-    'resource_pack_stack',
-    'start_game',
-    'disconnect'
-  ])
-  const bedrockPacketCounts = new Map()
-  const bedrockPacketTrail = []
-  const bedrockStartedAt = Date.now()
-  const bedrockStatusNames = ['Disconnected', 'Connecting', 'Authenticating', 'Initializing', 'Initialized']
-  let lastBedrockStatus = null
-
-  agent._client.on('status', (status) => {
-    if (bot.agent !== agent || status === lastBedrockStatus) return
-    if (Number(status) !== 0) lastBedrockStatus = status
-    const label = bedrockStatusNames[Number(status)] || 'Unknown'
-    pushLog(`${bot.label}: [Bedrock] 通信状態=${label} (${String(status)})`, 'info', bot.id)
-  })
+  // Record the negotiated compression once per connection. This is file-only,
+  // so it remains available for diagnosis without filling the dashboard log.
   agent._client.on('packet', (packet) => {
     if (bot.agent !== agent) return
     const name = String(packet?.data?.name || packet?.name || '')
-    if (!bedrockLifecyclePackets.has(name)) return
-    bedrockPacketTrail.push(name)
-    if (bedrockPacketTrail.length > 8) bedrockPacketTrail.shift()
-    const seen = (bedrockPacketCounts.get(name) || 0) + 1
-    bedrockPacketCounts.set(name, seen)
-    if (seen > 4) return
+    if (name !== 'network_settings') return
     const params = packet?.data?.params || packet?.params || {}
-    let detail = ''
-    if (name === 'play_status') {
-      detail = ' / status=' + String(params.status ?? 'unknown')
-    } else if (name === 'network_settings') {
-      const algorithmValue = params.compression_algorithm
-      const algorithmName = algorithmValue === 'snappy' || algorithmValue === 1 || algorithmValue === '1'
-        ? 'snappy'
-        : (algorithmValue === 'deflate' || algorithmValue === 0 || algorithmValue === '0'
-            ? 'deflate'
-            : (algorithmValue === 'none' || algorithmValue === 2 || algorithmValue === 65535 || algorithmValue === '65535'
-                ? 'none'
-                : 'unknown'))
-      const threshold = Number(params.compression_threshold)
-      detail = ' / compression=' + algorithmName + ', threshold=' + (Number.isFinite(threshold) ? String(threshold) : 'unknown')
-    } else if (name === 'disconnect') {
-      const reason = extractDisconnectReason(packet)
-      if (reason) {
-        detail = ' / server_reason=' + reason
-        bot.lastServerDisconnectReason = reason
-        pushLog(`${bot.label}: [Bedrock] サーバー切断理由=${reason}`, 'warning', bot.id)
-        if (bot.skinData && !bot.skinFallbackActive && isSkinRejectionReason(reason)) {
-          bot.skinFallbackPending = true
-          pushLog(`${bot.label}: サーバーがカスタムスキンを拒否した可能性を検出しました。標準スキンで一度だけ再接続します。`, 'warning', bot.id)
-        }
-      } else {
-        detail = ' / server_reason=理由フィールドなし'
-      }
+    const algorithmValue = params.compression_algorithm
+    const algorithmName = algorithmValue === 'snappy' || algorithmValue === 1 || algorithmValue === '1'
+      ? 'snappy'
+      : (algorithmValue === 'deflate' || algorithmValue === 0 || algorithmValue === '0'
+          ? 'deflate'
+          : (algorithmValue === 'none' || algorithmValue === 2 || algorithmValue === 65535 || algorithmValue === '65535'
+              ? 'none'
+              : 'unknown'))
+    const threshold = Number(params.compression_threshold)
+    writeDiagnosticLog(`[network-settings] bot=${bot.id} compression=${algorithmName} threshold=${Number.isFinite(threshold) ? String(threshold) : 'unknown'}`)
+  })
+
+  // Keep packet-level detail in the diagnostic file; the dashboard shows only a real server kick.
+  agent._client.on('packet', (packet) => {
+    if (bot.agent !== agent) return
+    const name = String(packet?.data?.name || packet?.name || '')
+    if (name !== 'disconnect') return
+    const reason = extractDisconnectReason(packet)
+    if (!reason) return
+    bot.lastServerDisconnectReason = reason
+    writeDiagnosticLog(`[bedrock-disconnect] bot=${bot.id} reason=${reason}`)
+    pushLog(`${bot.label}: サーバー切断: ${reason}`, 'warning', bot.id)
+    if (bot.skinData && !bot.skinFallbackActive && isSkinRejectionReason(reason)) {
+      bot.skinFallbackPending = true
+      pushLog(`${bot.label}: サーバーがカスタムスキンを拒否したため、標準スキンへ切り替えて再接続します。`, 'warning', bot.id)
     }
-    pushLog(`${bot.label}: [Bedrock] 受信パケット=${name}${detail}`, 'info', bot.id)
-  })
-  agent._client.on('loggingIn', () => {
-    if (bot.agent === agent) pushLog(`${bot.label}: [Bedrock] Loginパケットの送信処理を呼び出しました。`, 'info', bot.id)
-  })
-  agent._client.on('join', () => {
-    if (bot.agent === agent) pushLog(`${bot.label}: [Bedrock] サーバーとの暗号化ハンドシェイクが完了しました。`, 'info', bot.id)
-  })
-  agent._client.on('close', () => {
-    if (bot.connectionAttempt !== attemptId) return
-    const closeStatus = agent._client._diagnosticPreCloseStatus
-    const effectiveStatus = closeStatus == null ? lastBedrockStatus : closeStatus
-    const previousStatus = bedrockStatusNames[Number(effectiveStatus)] || 'Unknown'
-    const packetTrail = bedrockPacketTrail.length ? bedrockPacketTrail.join(' -> ') : '受信なし'
-    const elapsedMs = Date.now() - bedrockStartedAt
-    const level = bot.manualDisconnect ? 'info' : 'warning'
-    pushLog(`${bot.label}: [Bedrock] 通信クライアント終了。経過=${elapsedMs}ms / 直前の状態=${previousStatus} / 受信履歴=${packetTrail}`, level, bot.id)
   })
 
   agent._client.on('start_game', (packet) => {
@@ -1232,9 +1240,8 @@ async function connectBot (botId, options = {}) {
     bot.startGameReceived = true
     bot.movementAuthority = packet?.movement_authority == null ? '不明' : String(packet.movement_authority)
     bot.lastServerTick = diagnosticValue(packet?.current_tick)
-    const hashMode = packet?.block_network_ids_are_hashes ? 'ハッシュ形式' : '通常形式'
     const world = agent._bedrockWorldSupport
-    pushLog(`${bot.label}: StartGame受信。移動権限=${bot.movementAuthority} / ブロックID=${hashMode} / 地形解析=${world?.supported ? '利用可能' : (world?.reason || '判定中')}`, 'info', bot.id)
+    writeDiagnosticLog(`[start-game] bot=${bot.id} movementAuthority=${bot.movementAuthority} worldSupport=${world?.supported ? 'yes' : (world?.reason || 'pending')}`)
     publishBot(bot)
   })
   agent._client.on('correct_player_move_prediction', (packet) => {
@@ -1261,6 +1268,7 @@ async function connectBot (botId, options = {}) {
 
   agent._client.on('session', (profile) => {
     bot.playerName = profile?.name || ''
+    bot.playerUuid = profile?.uuid || ''
     publishAccountStatus(bot, 'authenticated')
     setBotStatus(bot, 'connecting')
   })
@@ -1294,7 +1302,15 @@ async function connectBot (botId, options = {}) {
     bot.reconnectStatus = '接続済み'
     setBotStatus(bot, 'connected')
     preparePathfinder(bot)
-    if (bot.skinData) pushLog(`${bot.label}: 保存済みカスタムスキンをBedrockログインデータに含めました。表示可否はサーバーに依存します。`, 'info', bot.id)
+    if (bot.skinData && !bot.skinFallbackActive) {
+      try {
+        sendPlayerSkinPacket(bot, agent)
+        pushLog(`${bot.label}: スキン「${bot.skinMeta?.name || 'カスタムスキン'}」を接続を維持したまま適用しました。`, 'success', bot.id)
+      } catch (error) {
+        writeDiagnosticLog(`[skin-apply-on-spawn] bot=${bot.id} ${describeFailure(error)}`)
+        pushLog(`${bot.label}: 保存済みスキンを適用できませんでした: ${safeErrorMessage(error)}`, 'warning', bot.id)
+      }
+    }
     publishBotInventory(bot)
     pushLog(`${bot.label}: ワールドにスポーンしました。`, 'success', bot.id)
     if (options.reconnect) {
@@ -1948,25 +1964,64 @@ async function collectSkinImportFiles (selectedPaths) {
 }
 
 
-async function waitForBotAgentRelease (bot, previousAgent, timeoutMs = 15000) {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    if (bot.agent !== previousAgent && !bot.client && !bot.connectionStarting) return
-    await new Promise(resolve => setTimeout(resolve, 50))
+function sendPlayerSkinPacket (bot, agent, oldSkinName = '') {
+  if (!bot || !agent || bot.agent !== agent || bot.status !== 'connected') {
+    throw new Error('ワールド参加中のBotだけスキンを即時変更できます。')
   }
-  throw new Error('古いBot接続が終了しませんでした。スキンは保存済みです。手動で切断してから再接続してください。')
+  const client = agent._client
+  if (!client || typeof client.queue !== 'function') {
+    throw new Error('Bedrockの送信キューを利用できません。')
+  }
+  const uuid = String(client.profile?.uuid || bot.playerUuid || agent.player?.uuid || '')
+  if (!uuid) {
+    throw new Error('Xbox認証で取得したプレイヤーUUIDを確認できません。')
+  }
+  const validated = validateSkinLoginData(bot.skinData)
+  const serializedSkin = clientSkinToPlayerSkin(validated)
+  client.queue('player_skin', {
+    uuid,
+    skin: serializedSkin,
+    skin_name: String(bot.skinMeta?.name || 'Jhonbot Custom Skin').slice(0, 128),
+    old_skin_name: String(oldSkinName || '').slice(0, 128)
+  })
+  bot.lastAppliedSkinName = String(bot.skinMeta?.name || 'Jhonbot Custom Skin')
+  bot.lastAppliedSkinAt = new Date().toISOString()
+  return { uuid, skinName: bot.lastAppliedSkinName }
 }
 
-async function waitForBotSpawn (bot, previousAgent, timeoutMs = 90000) {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    if (bot.agent && bot.agent !== previousAgent && bot.status === 'connected') return
-    if (bot.status === 'error' && bot.hadError && !bot.connectionStarting) {
-      throw new Error(bot.lastError || 'スキン適用のための再接続に失敗しました。')
+async function applySkinDataToBot (bot, skinData, skinMeta) {
+  if (!bot) throw new Error('Botが見つかりません。')
+  validateSkinLoginData(skinData)
+  const previousName = bot.skinMeta?.name || bot.lastAppliedSkinName || ''
+  bot.skinData = skinData
+  bot.skinMeta = { ...skinMeta }
+  bot.skinHistory = rememberSkin(bot.skinHistory, bot.skinData, bot.skinMeta)
+  bot.skinFallbackActive = false
+  bot.skinFallbackPending = false
+  bot.skinFallbackUsed = false
+  await saveSettings()
+
+  let appliedLive = false
+  let applyError = ''
+  if (bot.status === 'connected' && bot.agent) {
+    try {
+      sendPlayerSkinPacket(bot, bot.agent, previousName)
+      appliedLive = true
+    } catch (error) {
+      applyError = safeErrorMessage(error)
+      writeDiagnosticLog(`[skin-apply] bot=${bot.id} ${describeFailure(error)}`)
     }
-    await new Promise(resolve => setTimeout(resolve, 100))
   }
-  throw new Error('再接続後のワールド参加を確認できませんでした。スキンは保存済みで、次回接続時に適用されます。')
+
+  if (appliedLive) {
+    pushLog(`${bot.label}: スキン「${bot.skinMeta.name}」を接続を維持したまま変更しました。サーバー側の表示対応は別途必要です。`, 'success', bot.id)
+  } else if (applyError) {
+    pushLog(`${bot.label}: スキン「${bot.skinMeta.name}」を保存しましたが、即時送信できませんでした: ${applyError}`, 'warning', bot.id)
+  } else {
+    pushLog(`${bot.label}: スキン「${bot.skinMeta.name}」を保存しました。次回ワールド参加後に自動適用します。`, 'info', bot.id)
+  }
+  publishBot(bot)
+  return { appliedLive, applyError, bot: publicBot(bot) }
 }
 
 async function importSkinForBot (botId) {
@@ -1984,38 +2039,23 @@ async function importSkinForBot (botId) {
   const files = await collectSkinImportFiles(selected.filePaths)
   const imported = importSkinEntries(files)
   validateSkinLoginData(imported.skinData)
-  bot.skinData = imported.skinData
-  bot.skinMeta = { ...imported.meta, previewDataUrl: imported.previewDataUrl }
-  bot.skinFallbackActive = false
-  bot.skinFallbackPending = false
-  bot.skinFallbackUsed = false
-  await saveSettings()
+  const applied = await applySkinDataToBot(bot, imported.skinData, {
+    ...imported.meta,
+    previewDataUrl: imported.previewDataUrl
+  })
+  return { cancelled: false, ...applied }
+}
 
-  let appliedLive = false
-  let reconnectError = ''
-  if (bot.status === 'connected' && bot.agent) {
-    try {
-      const result = await reconnectWithSavedSkin(bot, {
-        disconnect: disconnectBot,
-        waitForRelease: waitForBotAgentRelease,
-        connect: connectBot,
-        waitForSpawn: waitForBotSpawn
-      })
-      appliedLive = result.reconnected
-    } catch (error) {
-      reconnectError = safeErrorMessage(error)
-    }
+async function applySkinHistoryForBot (botId, historyIndex) {
+  const bot = bots.get(String(botId || ''))
+  if (!bot) throw new Error('Botが見つかりません。')
+  const history = normalizeSkinHistory(bot.skinHistory)
+  const index = Number(historyIndex)
+  if (!Number.isInteger(index) || index < 0 || index >= history.length) {
+    throw new Error('選択したスキン履歴が見つかりません。')
   }
-
-  if (appliedLive) {
-    pushLog(`${bot.label}: カスタムスキン「${bot.skinMeta.name}」をログインデータに含めて再接続しました。表示可否は参加先サーバーに依存します。`, 'success', bot.id)
-  } else if (reconnectError) {
-    pushLog(`${bot.label}: スキン「${bot.skinMeta.name}」は保存しましたが、自動再接続に失敗しました: ${reconnectError}`, 'warning', bot.id)
-  } else {
-    pushLog(`${bot.label}: カスタムスキン「${bot.skinMeta.name}」を保存しました。次回接続時にログインデータへ適用します。`, 'info', bot.id)
-  }
-  publishBot(bot)
-  return { cancelled: false, bot: publicBot(bot), appliedLive, reconnectError }
+  const selected = history[index]
+  return applySkinDataToBot(bot, selected.skinData, selected.skinMeta)
 }
 
 function queueBotInventoryPublish (bot, agent) {
@@ -2898,6 +2938,7 @@ ipcMain.handle('app:get-state', () => {
 })
 ipcMain.handle('bot:add', (_event, input) => publicBot(bots.get(addBot(input).id)))
 ipcMain.handle('bot:add-guest', async (_event, args) => addGuestBot(args?.parentBotId, args))
+ipcMain.handle('server:update', (_event, args) => updateServerProfile(args?.serverId, args))
 ipcMain.handle('server:add', (_event, input) => {
   const profile = addServerProfile(input)
   return { ...profile }
@@ -2974,6 +3015,7 @@ ipcMain.handle('bot:get-inventory', (_event, botId) => getBotInventory(botId))
 ipcMain.handle('bot:move-inventory-item', (_event, args) => moveBotInventoryItem(args?.botId, args))
 ipcMain.handle('bot:select-hotbar-slot', (_event, args) => selectBotHotbarSlot(args?.botId, args))
 ipcMain.handle('bot:import-skin', (_event, botId) => importSkinForBot(botId))
+ipcMain.handle('bot:apply-skin-history', (_event, args) => applySkinHistoryForBot(args?.botId, args?.index))
 ipcMain.handle('bot:toss-item', (_event, args) => tossBotItem(args?.botId, args))
 ipcMain.handle('bot:toss-all-items', (_event, args) => tossAllBotItems(args?.botId))
 ipcMain.handle('auth:open-url', async (_event, rawUrl) => {

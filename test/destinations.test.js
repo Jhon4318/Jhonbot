@@ -250,6 +250,33 @@ test('preserves saved friend-world identity and custom skin data when settings a
   assert.deepEqual(reloaded.bots[0].skinMeta, skinMeta)
 })
 
+test('migrates and preserves the newest three recent skin records', () => {
+  const first = {
+    skinData: { SkinId: 'skin-1', SkinData: 'AQ==' },
+    skinMeta: { name: 'First', width: 64, height: 64 }
+  }
+  const second = {
+    skinData: { SkinId: 'skin-2', SkinData: 'Ag==' },
+    skinMeta: { name: 'Second', width: 128, height: 128 }
+  }
+  const third = {
+    skinData: { SkinId: 'skin-3', SkinData: 'Aw==' },
+    skinMeta: { name: 'Third', width: 256, height: 256 }
+  }
+  const migrated = migrateSettings({
+    bots: [{
+      id: 'skin-history-bot',
+      label: 'Skin History Bot',
+      skinHistory: [first, second, third, {
+        skinData: [],
+        skinMeta: { name: 'Invalid' }
+      }]
+    }]
+  })
+
+  assert.deepEqual(migrated.bots[0].skinHistory, [first, second, third])
+})
+
 test('invalid array values for saved Bot metadata do not become active settings', () => {
   const migrated = migrateSettings({
     bots: [{

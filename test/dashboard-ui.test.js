@@ -285,15 +285,30 @@ test('graphical inventory exposes equipment, 27 main slots, 9 hotbar slots and s
   assert.ok(renderer.includes("event.dataTransfer.setData('text/plain'"))
 })
 
-test('custom skins expose PNG, geometry, animation and SkinStealer import actions', () => {
-  for (const id of ['skinModuleCard', 'skinPreviewImage', 'skinName', 'skinDetails', 'importSkinButton', 'skinStatus']) {
+test('custom skins expose import, recent-skin quick switch and live PlayerSkin updates', () => {
+  for (const id of ['skinModuleCard', 'skinPreviewImage', 'skinName', 'skinDetails', 'importSkinButton', 'skinHistoryButtons', 'skinStatus']) {
     assert.ok(elementIds(html).includes(id), 'Missing skin element: ' + id)
   }
   assert.ok(renderer.includes('api.importSkin(bot.id)'))
+  assert.ok(renderer.includes('api.applySkinHistory({ botId: bot.id, index })'))
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8').replace(/\r\n/g, '\n')
-  assert.match(main, /skinData: bot.skinData || undefined/)
-  assert.ok(main.includes('validateSkinLoginData(bot.skinData)'))
+  assert.ok(main.includes("client.queue('player_skin'"))
+  assert.ok(main.includes('clientSkinToPlayerSkin(validated)'))
+  assert.ok(main.includes('rememberSkin(bot.skinHistory'))
+  assert.ok(main.includes("skinData: undefined"))
+  assert.ok(main.includes('skinHistory: normalizeSkinHistory(bot.skinHistory)'))
   assert.match(main, /findMatchingFriendWorldSession/)
+})
+
+test('registered server profiles expose edit controls and preserve the same destination ID', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
+  const preload = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload.js'), 'utf8')
+  assert.ok(renderer.includes('openServerProfileForm(server)'))
+  assert.ok(renderer.includes('api.updateServer({ ...payload, serverId: editingServerId })'))
+  assert.ok(preload.includes("ipcRenderer.invoke('server:update', data)"))
+  assert.ok(main.includes("ipcMain.handle('server:update'"))
+  assert.ok(main.includes('profile.id = previous.id'))
+  assert.ok(html.includes('id="serverSignallingUrl"'))
 })
 
 test('skin import uses separate file and folder dialogs so Windows can open individual files', () => {
@@ -343,6 +358,24 @@ test('dashboard fit keeps inventory actions and chat composer visible while logs
   assert.ok(fit.includes('gap: 1px'))
 })
 
+
+test('movement and diagnostics stay enlarged in a short Bot operation panel', () => {
+  const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
+  const latest = styles.slice(styles.lastIndexOf('0.9.9: Recent skins'))
+  const shortHeight = latest.slice(latest.lastIndexOf('@media (max-height: 760px)'))
+  assert.ok(latest.includes('.control-panel .dpad {'))
+  assert.ok(latest.includes('grid-template-columns: repeat(3, 39px);'))
+  assert.ok(latest.includes('.control-panel .goto-form .field input {'))
+  assert.ok(latest.includes('height: 34px;'))
+  assert.ok(latest.includes('flex: 0 0 94px !important;'))
+  assert.ok(shortHeight.includes('flex: 1 1 215px !important;'))
+  assert.ok(shortHeight.includes('min-height: 215px !important;'))
+  assert.ok(shortHeight.includes('grid-template-columns: repeat(3, 43px);'))
+  assert.ok(!shortHeight.includes('flex: 0 0 auto !important'))
+  assert.ok(!shortHeight.includes('repeat(3, 31px)'))
+  assert.ok(latest.includes('#dashboardGrid > .control-panel'))
+  assert.ok(latest.includes('overflow: hidden !important;'))
+})
 
 test('Bedrock world chat formats translation messages instead of showing raw translation keys', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8').replace(/\r\n/g, '\n')
@@ -401,7 +434,7 @@ test('Control is the sprint latch and Shift is the sneak latch', () => {
   assert.ok(rendererSource.includes('clearToggledControls(bot.id, false)'))
 })
 
-test('importing a Persona BIN reconnects an active Bot through saved login skinData', () => {
+test('Persona BIN skins are sent after spawn without injecting custom skin data into Login or reconnecting', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8').replace(/\r\n/g, '\n')
   const importer = fs.readFileSync(path.join(__dirname, '..', 'src', 'skin-import.js'), 'utf8')
   const parser = fs.readFileSync(path.join(__dirname, '..', 'src', 'skin-bin.js'), 'utf8')
@@ -410,9 +443,11 @@ test('importing a Persona BIN reconnects an active Bot through saved login skinD
   assert.ok(parser.includes('parsePersonaMetadataTail'))
   assert.ok(parser.includes('personaPieces'))
   assert.ok(parser.includes('pieceTintColors'))
-  assert.ok(main.includes('reconnectWithSavedSkin(bot'))
-  assert.ok(main.includes('waitForBotSpawn'))
-  assert.match(main, /skinData: bot\.skinFallbackActive \? undefined : \(bot\.skinData \? validateSkinLoginData\(bot\.skinData\) : undefined\)/)
+  assert.ok(main.includes("client.queue('player_skin'"))
+  assert.ok(main.includes("agent._client.on('session'"))
+  assert.ok(main.includes('client.profile?.uuid'))
+  assert.ok(main.includes('skinData: undefined'))
+  assert.doesNotMatch(main, /reconnectWithSavedSkin\(bot/)
 })
 
 
@@ -438,8 +473,9 @@ test('friend-world selection, guest reconnect and active Mods distinguish automa
   const policy = fs.readFileSync(path.join(__dirname, '..', 'src', 'reconnect-policy.js'), 'utf8')
   assert.ok(main.includes('askForWorldSelection(bot, sessions, attemptId, options.reconnect === true)'))
   assert.ok(main.includes('onDiagnostics: createNethernetDiagnosticHandler(bot, attemptId)'))
-  assert.ok(main.includes('bedrockPacketTrail'))
-  assert.ok(main.includes('通信クライアント終了。経過='))
+  assert.ok(main.includes('writeDiagnosticLog(`[nethernet] bot=${bot.id}'))
+  assert.ok(main.includes('writeDiagnosticLog(`[start-game] bot=${bot.id}'))
+  assert.doesNotMatch(main, /bedrockPacketTrail|通信クライアント終了。経過=/)
   assert.ok(main.includes('if (options.reconnect) {\n      reconnectGuestBots(bot)'))
   assert.ok(main.includes('getReconnectableGuestBots(Array.from(bots.values()), parent.id)'))
   assert.ok(main.includes('async function waitForGuestConnectionRelease (guest'))

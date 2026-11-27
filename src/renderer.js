@@ -56,13 +56,14 @@ const inventoryHotbarGrid = document.getElementById('inventoryHotbarGrid')
 const inventoryHotbarSelect = document.getElementById('inventoryHotbarSelect')
 const inventoryCursorStatus = document.getElementById('inventoryCursorStatus')
 const importSkinButton = document.getElementById('importSkinButton')
+const skinHistoryButtons = document.getElementById('skinHistoryButtons')
 const skinPreviewImage = document.getElementById('skinPreviewImage')
 const skinPreviewPlaceholder = document.getElementById('skinPreviewPlaceholder')
 const skinName = document.getElementById('skinName')
 const skinDetails = document.getElementById('skinDetails')
 const skinStatus = document.getElementById('skinStatus')
 
-const state = { bots: new Map(), servers: [], installedMods: [], modCatalog: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), toggledControlsByBot: new Map(), toggleControlsPressed: new Set(), logAutoFollow: true, pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map(), inventoryGearByBot: new Map(), inventoryQuickBarByBot: new Map(), inventoryCursor: null, inventoryMovePending: false, selectedModId: 'inventory', botPage: 0, serverPage: 0 }
+const state = { bots: new Map(), servers: [], installedMods: [], modCatalog: [], authUrl: '', toastTimer: null, selectedBotId: '', heldInputs: new Map(), toggledControlsByBot: new Map(), toggleControlsPressed: new Set(), logAutoFollow: true, pendingWorldRequestId: '', pendingServerKeyRequestId: '', chatMessagesByBot: new Map(), inventoryByBot: new Map(), inventoryUpdatedAtByBot: new Map(), inventoryGearByBot: new Map(), inventoryQuickBarByBot: new Map(), inventoryCursor: null, inventoryMovePending: false, selectedModId: 'inventory', botPage: 0, serverPage: 0, editingServerId: '', skinHistoryBusy: false }
 const statusLabels = {
   disconnected: '未参加',
   authenticating: '認証処理中',
@@ -732,11 +733,18 @@ function initializeDashboardLayout () {
     if (!addBotPanel.hidden) document.getElementById('botLabel').focus()
   })
   document.getElementById('openAddServerFormButton').addEventListener('click', () => {
-    addBotPanel.hidden = true; serverFormPanel.hidden = !serverFormPanel.hidden
-    if (!serverFormPanel.hidden) document.getElementById('serverLabel').focus()
+    if (!serverFormPanel.hidden) {
+      serverFormPanel.hidden = true
+      resetServerProfileForm()
+      return
+    }
+    openServerProfileForm()
   })
   document.getElementById('closeAddBotFormButton').addEventListener('click', () => { addBotPanel.hidden = true })
-  document.getElementById('closeServerFormButton').addEventListener('click', () => { serverFormPanel.hidden = true })
+  document.getElementById('closeServerFormButton').addEventListener('click', () => {
+    serverFormPanel.hidden = true
+    resetServerProfileForm()
+  })
   const catalogDialog = document.getElementById('modCatalogDialog')
   document.getElementById('openModCatalogDialogButton').addEventListener('click', () => {
     renderModStore()
@@ -1049,6 +1057,21 @@ async function chooseHotbarSlot (slot) {
 function renderSkinPanel (bot) {
   const skin = bot?.skin
   importSkinButton.disabled = !bot || bot.modules?.skin?.assigned !== true
+
+  skinHistoryButtons.replaceChildren()
+  const recentSkins = Array.isArray(bot?.skinHistory) ? bot.skinHistory.slice(0, 3) : []
+  skinHistoryButtons.hidden = recentSkins.length === 0
+  recentSkins.forEach((entry, index) => {
+    const button = createElement('button', 'secondary-button skin-history-button' + (index === 0 ? ' active' : ''),
+      entry.name || `履歴 ${index + 1}`)
+    button.type = 'button'
+    button.dataset.skinHistoryIndex = String(index)
+    button.title = `${entry.name || 'カスタムスキン'} · ${entry.width || '?'}×${entry.height || '?'} · ${entry.geometryId || '標準モデル'}`
+    button.disabled = state.skinHistoryBusy || importSkinButton.disabled || index === 0
+    if (index === 0) button.setAttribute('aria-current', 'true')
+    skinHistoryButtons.append(button)
+  })
+
   if (!skin) {
     skinPreviewImage.hidden = true
     skinPreviewPlaceholder.hidden = false
@@ -1063,10 +1086,10 @@ function renderSkinPanel (bot) {
   skinName.textContent = skin.name || 'カスタムスキン'
   skinDetails.textContent = `${skin.width}×${skin.height} · ${skin.geometryId || '標準モデル'}${skin.hasAnimation ? ' · Animationあり' : ''}${skin.hasCape ? ' · Capeあり' : ''}${skin.sourceFormat ? ' · ' + skin.sourceFormat : ''}`
   skinStatus.textContent = bot.skinFallbackActive
-    ? 'サーバーが指定スキンを拒否したため、現在は標準スキンで接続します。保存済みスキンは残してあります。別のスキンを読み込むと再試行します。'
+    ? 'サーバーが前回のカスタムスキンを拒否したため、現在は標準スキンです。別のスキンを選ぶと再試行します。'
     : bot.status === 'connected'
-      ? '素材保存済み。適用時はBotを再接続し、ログインデータにスキンを含めます。4D表示は参加先サーバーに依存します。'
-      : '素材保存済み。次回ワールド接続時のログインデータに適用します。'
+      ? '接続を維持したままPlayerSkinパケットで変更します。4D表示は参加先サーバーの対応状況に依存します。'
+      : 'スキンは保存済みです。次回ワールド参加後にPlayerSkinパケットで自動適用します。'
 }
 
 function renderInventoryPanel () {
@@ -1175,6 +1198,35 @@ function renderPanelPager (container, currentPage, pageCount, onChange) {
   container.append(previous, createElement('span', '', `${currentPage + 1} / ${pageCount}`), next)
 }
 
+function resetServerProfileForm () {
+  state.editingServerId = ''
+  document.getElementById('serverLabel').value = ''
+  document.getElementById('serverHost').value = ''
+  document.getElementById('serverPort').value = '19132'
+  document.getElementById('serverMode').value = 'auto'
+  document.getElementById('serverSignallingUrl').value = ''
+  document.getElementById('serverFormLabel').textContent = '接続先を登録'
+  document.getElementById('serverFormTitle').textContent = '接続先を登録'
+  serverForm.querySelector('button[type="submit"]').textContent = '接続先を登録'
+}
+
+function openServerProfileForm (server = null) {
+  const panel = document.getElementById('serverFormPanel')
+  document.getElementById('addBotFormPanel').hidden = true
+  state.editingServerId = server?.id || ''
+  document.getElementById('serverLabel').value = server?.label || ''
+  document.getElementById('serverHost').value = server?.host || ''
+  document.getElementById('serverPort').value = String(server?.port || 19132)
+  document.getElementById('serverMode').value = server?.mode || 'auto'
+  document.getElementById('serverSignallingUrl').value = server?.signallingUrl || ''
+  const editing = Boolean(server)
+  document.getElementById('serverFormLabel').textContent = editing ? '接続先を編集' : '接続先を登録'
+  document.getElementById('serverFormTitle').textContent = editing ? '接続先を編集' : '接続先を登録'
+  serverForm.querySelector('button[type="submit"]').textContent = editing ? '変更を保存' : '接続先を登録'
+  panel.hidden = false
+  document.getElementById('serverLabel').focus()
+}
+
 function renderServerProfiles () {
   serverProfileList.replaceChildren()
   serverProfileFooter.replaceChildren()
@@ -1201,6 +1253,10 @@ function renderServerProfiles () {
       createElement('span', 'server-profile-address', `${server.host}:${server.port} · ${configuredModeLabel}${historyLabel}`)
     )
     const actions = createElement('div', 'server-profile-actions')
+    const edit = createElement('button', 'secondary-button edit-server-button', '編集')
+    edit.type = 'button'
+    edit.addEventListener('click', () => openServerProfileForm(server))
+    actions.append(edit)
     if (server.mode !== 'raknet') {
       const resetKey = createElement('button', 'secondary-button reset-server-key-button', '鍵をリセット')
       resetKey.type = 'button'
@@ -1401,25 +1457,32 @@ form.addEventListener('submit', async (event) => {
 serverForm.addEventListener('submit', async (event) => {
   event.preventDefault()
   const submit = serverForm.querySelector('button[type="submit"]')
+  const editingServerId = state.editingServerId
   submit.disabled = true
   try {
-    const profile = await api.addServer({
+    const payload = {
       label: document.getElementById('serverLabel').value,
       host: document.getElementById('serverHost').value,
       port: document.getElementById('serverPort').value,
-      mode: document.getElementById('serverMode').value
-    })
-    if (!state.servers.some(item => item.id === profile.id)) state.servers.push(profile)
+      mode: document.getElementById('serverMode').value,
+      signallingUrl: document.getElementById('serverSignallingUrl').value
+    }
+    const profile = editingServerId
+      ? await api.updateServer({ ...payload, serverId: editingServerId })
+      : await api.addServer(payload)
+    const existingIndex = state.servers.findIndex(item => item.id === profile.id)
+    if (existingIndex >= 0) state.servers[existingIndex] = profile
+    else state.servers.push(profile)
     state.serverPage = Math.max(0, Math.ceil(state.servers.length / 3) - 1)
     renderServerProfiles()
     renderBots()
-    document.getElementById('serverLabel').value = ''
-    document.getElementById('serverHost').value = ''
-    document.getElementById('serverPort').value = '19132'
     document.getElementById('serverFormPanel').hidden = true
-    showToast(`接続先「${profile.label}」を登録しました。各Botの参加先から選べます。`)
+    resetServerProfileForm()
+    showToast(editingServerId
+      ? `接続先「${profile.label}」を更新しました。既に接続中のBotは次回接続から新しい設定を使用します。`
+      : `接続先「${profile.label}」を登録しました。各Botの参加先から選べます。`)
   } catch (error) {
-    showToast(error.message || '接続先を登録できませんでした。')
+    showToast(error.message || (editingServerId ? '接続先を更新できませんでした。' : '接続先を登録できませんでした。'))
   } finally {
     submit.disabled = false
   }
@@ -1586,16 +1649,42 @@ importSkinButton.addEventListener('click', async () => {
       renderSkinPanel(result.bot)
     }
     if (result?.appliedLive) {
-      showToast('Botを再接続し、カスタムスキンを含むログイン処理が完了しました。4D表示はサーバー側の対応に依存します。')
-    } else if (result?.reconnectError) {
-      showToast('スキンは保存されましたが、自動再接続に失敗しました: ' + result.reconnectError)
+      showToast('接続を維持したままスキンを変更しました。4D表示はサーバー側の対応に依存します。')
+    } else if (result?.applyError) {
+      showToast('スキンは保存されましたが即時送信できませんでした: ' + result.applyError)
     } else {
-      showToast('スキン素材を保存しました。次回ワールド接続時に適用します。')
+      showToast('スキンを保存しました。次回ワールド参加後に自動適用します。')
     }
   } catch (error) {
     showToast(error.message || 'スキン素材を読み込めませんでした。')
   } finally {
-    importSkinButton.disabled = !selectedBot()
+    importSkinButton.disabled = !selectedBot() || selectedBot()?.modules?.skin?.assigned !== true
+  }
+})
+
+skinHistoryButtons.addEventListener('click', async (event) => {
+  const button = event.target.closest('button[data-skin-history-index]')
+  const bot = selectedBot()
+  if (!button || !bot || state.skinHistoryBusy) return
+  const index = Number(button.dataset.skinHistoryIndex)
+  state.skinHistoryBusy = true
+  renderSkinPanel(bot)
+  try {
+    const result = await api.applySkinHistory({ botId: bot.id, index })
+    if (result?.bot) {
+      state.bots.set(result.bot.id, result.bot)
+      renderBots()
+      renderBotModulesPanel(false)
+      renderSkinPanel(result.bot)
+    }
+    if (result?.appliedLive) showToast('最近使ったスキンに、接続を維持したまま変更しました。')
+    else if (result?.applyError) showToast('スキンは保存されましたが即時送信できませんでした: ' + result.applyError)
+    else showToast('スキンを切り替えました。次回ワールド参加後に自動適用します。')
+  } catch (error) {
+    showToast(error.message || 'スキン履歴を適用できませんでした。')
+  } finally {
+    state.skinHistoryBusy = false
+    renderSkinPanel(selectedBot())
   }
 })
 
