@@ -60,6 +60,79 @@ function Get-ShortestSameVolumeDirectory {
   return ($matches | Sort-Object Length | Select-Object -First 1)
 }
 
+
+function Get-AsarPackageVersion {
+  param([Parameter(Mandatory = $true)][string]$AsarPath)
+
+  $stream = [System.IO.File]::Open(
+    $AsarPath,
+    [System.IO.FileMode]::Open,
+    [System.IO.FileAccess]::Read,
+    [System.IO.FileShare]::ReadWrite
+  )
+  try {
+    if ($stream.Length -lt 16) {
+      throw 'app.asarのヘッダーが短すぎます。'
+    }
+
+    $prefix = New-Object byte[] 16
+    if ($stream.Read($prefix, 0, $prefix.Length) -ne $prefix.Length) {
+      throw 'app.asarのヘッダーを読み取れません。'
+    }
+
+    # ASAR header layout: 8-byte pickle prefix, then JSON header.
+    $headerSize = [long][System.BitConverter]::ToUInt32($prefix, 4)
+    if ($headerSize -lt 8 -or $headerSize -gt 67108864) {
+      throw 'app.asarのヘッダーサイズが不正です。'
+    }
+
+    $headerJsonSize = [int]($headerSize - 8)
+    if (([long]8 + $headerSize) -gt $stream.Length) {
+      throw 'app.asarのヘッダーがファイル範囲外です。'
+    }
+
+    $headerBytes = New-Object byte[] $headerJsonSize
+    $stream.Position = 16
+    $headerRead = 0
+    while ($headerRead -lt $headerJsonSize) {
+      $count = $stream.Read($headerBytes, $headerRead, $headerJsonSize - $headerRead)
+      if ($count -le 0) { throw 'app.asarのJSONヘッダーが途中で終わっています。' }
+      $headerRead += $count
+    }
+
+    $header = [System.Text.Encoding]::UTF8.GetString($headerBytes) | ConvertFrom-Json
+    $packageEntry = $header.files.'package.json'
+    if (!$packageEntry) {
+      throw 'app.asar内にルートのpackage.jsonがありません。'
+    }
+
+    $packageOffset = [long]8 + $headerSize + [long]$packageEntry.offset
+    $packageSize = [int]$packageEntry.size
+    if ($packageSize -le 0 -or $packageSize -gt 1048576 -or
+        $packageOffset -lt 0 -or ($packageOffset + $packageSize) -gt $stream.Length) {
+      throw 'app.asar内のpackage.jsonの位置またはサイズが不正です。'
+    }
+
+    $packageBytes = New-Object byte[] $packageSize
+    $stream.Position = $packageOffset
+    $packageRead = 0
+    while ($packageRead -lt $packageSize) {
+      $count = $stream.Read($packageBytes, $packageRead, $packageSize - $packageRead)
+      if ($count -le 0) { throw 'app.asar内のpackage.jsonが途中で終わっています。' }
+      $packageRead += $count
+    }
+
+    $package = [System.Text.Encoding]::UTF8.GetString($packageBytes) | ConvertFrom-Json
+    $version = [string]$package.version
+    if ($version -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$') {
+      throw 'app.asar内のpackage.jsonに有効なバージョンがありません。'
+    }
+    return $version
+  } finally {
+    $stream.Dispose()
+  }
+}
+
 try {
   $manifestPath = Join-Path $PSScriptRoot 'update-manifest.json'
   $packageAsar = Join-Path $PSScriptRoot 'resources\app.asar'
@@ -149,19 +222,38 @@ try {
 
   $exePath = Join-Path $installRoot 'Bedrock Bot Console.exe'
   $exeVersionInfo = (Get-Item -LiteralPath $exePath).VersionInfo
-  # electron-builder sets Windows FileVersion from package.json's version by default.
-  $versionText = [string]$exeVersionInfo.FileVersion
-  if ([string]::IsNullOrWhiteSpace($versionText)) { $versionText = [string]$exeVersionInfo.ProductVersion }
-  $versionMatch = [regex]::Match($versionText, '\d+(?:\.\d+){1,3}')
-  if (!$versionMatch.Success -and $entry -and ![string]::IsNullOrWhiteSpace([string]$entry.DisplayVersion)) {
-    $versionMatch = [regex]::Match([string]$entry.DisplayVersion, '\d+(?:\.\d+){1,3}')
+  $registryVersion = if ($entry) { [string]$entry.DisplayVersion } else { 'なし' }
+
+  # The manual updater replaces app.asar without replacing the Electron executable
+  # or uninstall registry entry. Read the actual app version from app.asar first.
+  $appAsarPath = Join-Path $installRoot 'resources\\app.asar'
+  $appPackageVersion = ''
+  try {
+    $appPackageVersion = Get-AsarPackageVersion -AsarPath $appAsarPath
+  } catch {
+    Write-UpdateLog "app.asarからアプリ版を読めませんでした。EXE/レジストリを代替使用します: $($_.Exception.Message)" 'WARN'
+  }
+
+  $versionSource = 'app.asar/package.json'
+  if (![string]::IsNullOrWhiteSpace($appPackageVersion)) {
+    $versionText = $appPackageVersion
+    $versionMatch = [regex]::Match($versionText, '^\d+(?:\.\d+){1,3}$')
+  } else {
+    # Compatibility fallback for installations whose app.asar has no readable package.json.
+    $versionSource = 'EXE'
+    $versionText = [string]$exeVersionInfo.FileVersion
+    if ([string]::IsNullOrWhiteSpace($versionText)) { $versionText = [string]$exeVersionInfo.ProductVersion }
+    $versionMatch = [regex]::Match($versionText, '\d+(?:\.\d+){1,3}')
+    if (!$versionMatch.Success -and $entry -and ![string]::IsNullOrWhiteSpace([string]$entry.DisplayVersion)) {
+      $versionMatch = [regex]::Match([string]$entry.DisplayVersion, '\d+(?:\.\d+){1,3}')
+      if ($versionMatch.Success) { $versionSource = 'Registry' }
+    }
   }
   if (!$versionMatch.Success) {
-    throw 'インストール済みバージョンを確認できません。EXEのバージョン情報がありません。'
+    throw 'インストール済みバージョンを確認できません。app.asar/EXE/レジストリのバージョン情報がありません。'
   }
   $currentVersion = [version]$versionMatch.Value
-  $registryVersion = if ($entry) { [string]$entry.DisplayVersion } else { 'なし' }
-  Write-UpdateLog "インストール済みバージョン v$currentVersion（EXE=$($exeVersionInfo.ProductVersion) / レジストリ=$registryVersion）"
+  Write-UpdateLog "インストール済みバージョン v$currentVersion（判定元=$versionSource / EXE=$($exeVersionInfo.ProductVersion) / レジストリ=$registryVersion）"
   if ($currentVersion -lt $minimumVersion) {
     throw "現在のv$currentVersionは手動更新の対象外です。v$($manifest.minimumSupportedVersion)以降にSetup.exeで更新してください。"
   }
@@ -175,7 +267,8 @@ try {
   if (!(Test-Path $runtimeLog -PathType Leaf)) {
     throw 'Electronの実行バージョンを確認できません。アプリを一度起動してから再試行するか、Setup.exeを使用してください。'
   }
-  $electronLine = Get-Content -LiteralPath $runtimeLog -Tail 500 | Select-String -Pattern 'electron=([0-9]+(?:\.[0-9]+){1,3})' | Select-Object -Last 1
+  # The startup line may be more than 500 lines old in a busy diagnostic log.
+  $electronLine = Get-Content -LiteralPath $runtimeLog | Select-String -Pattern 'electron=([0-9]+(?:\\.[0-9]+){1,3})' | Select-Object -Last 1
   if (!$electronLine) {
     throw 'ログからElectronの実行バージョンを確認できません。Setup.exeを使用してください。'
   }
