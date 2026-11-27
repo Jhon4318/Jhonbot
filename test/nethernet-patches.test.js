@@ -72,7 +72,7 @@ test('applies friend-world Xbox signalling diagnostics and forwards the diagnost
   assert.ok(patchedClient.source.includes('Xbox services signalling is ready'))
   assert.equal(patchClientConnectionDiagnosticsSource(patchedClient.source).changed, false)
 
-  const optionsFixture = ['function connect () {', `return new NethernetSignal(id, authflow, version, ${CLIENT_SERVICES_SIGNAL_OPTIONS_ORIGINAL})`, '}'].join('\n')
+  const optionsFixture = ['function connect () {', `return new NethernetSignal(id, authflow, version, ${CLIENT_SERVICES_SIGNAL_OPTIONS_ORIGINAL}\n)`, '}'].join('\n')
   const patchedOptions = patchClientSignallingOptionsSource(optionsFixture)
   assert.equal(patchedOptions.changed, true)
   assert.match(patchedOptions.source, new RegExp(CLIENT_SERVICES_SIGNAL_OPTIONS_MARKER))
