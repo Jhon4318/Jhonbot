@@ -122,7 +122,7 @@ function extractSkinPackDescriptor (jsonEntries) {
   for (const entry of jsonEntries) {
     const skins = entry.value && Array.isArray(entry.value.skins) ? entry.value.skins : []
     const selected = skins.find(skin => skin && typeof skin === 'object' &&
-      (typeof skin.geometry === 'string' || typeof skin.texture === 'string'))
+      (typeof skin.geometry === 'string' || typeof skin.texture === 'string' || typeof skin.tsukuyomi_full_skin === 'string'))
     if (selected) {
       return {
         geometry: typeof selected.geometry === 'string' ? selected.geometry.trim() : '',
