@@ -88,9 +88,9 @@ function validateSkinLoginData (skinData) {
   // Base64 for the same field, so normalize those records before Login JWT creation.
   const rawGeometryVersion = String(skinData.SkinGeometryDataEngineVersion || '').trim()
   let geometryVersion = rawGeometryVersion
-  if (rawGeometryVersion && !/^\\d+\\.\\d+(?:\\.\\d+)?$/.test(rawGeometryVersion)) {
+  if (rawGeometryVersion && !/^\d+\.\d+(?:\.\d+)?$/.test(rawGeometryVersion)) {
     const decodedVersion = Buffer.from(rawGeometryVersion, 'base64').toString('utf8').trim()
-    if (!/^\\d+\\.\\d+(?:\\.\\d+)?$/.test(decodedVersion)) {
+    if (!/^\d+\.\d+(?:\.\d+)?$/.test(decodedVersion)) {
       throw new Error('SkinGeometryDataEngineVersionが正しいバージョン文字列ではありません。')
     }
     geometryVersion = decodedVersion
