@@ -285,15 +285,30 @@ test('graphical inventory exposes equipment, 27 main slots, 9 hotbar slots and s
   assert.ok(renderer.includes("event.dataTransfer.setData('text/plain'"))
 })
 
-test('custom skins expose PNG, geometry, animation and SkinStealer import actions', () => {
-  for (const id of ['skinModuleCard', 'skinPreviewImage', 'skinName', 'skinDetails', 'importSkinButton', 'skinStatus']) {
+test('custom skins expose import, recent-skin quick switch and live PlayerSkin updates', () => {
+  for (const id of ['skinModuleCard', 'skinPreviewImage', 'skinName', 'skinDetails', 'importSkinButton', 'skinHistoryButtons', 'skinStatus']) {
     assert.ok(elementIds(html).includes(id), 'Missing skin element: ' + id)
   }
   assert.ok(renderer.includes('api.importSkin(bot.id)'))
+  assert.ok(renderer.includes('api.applySkinHistory({ botId: bot.id, index })'))
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8').replace(/\r\n/g, '\n')
-  assert.match(main, /skinData: bot.skinData || undefined/)
-  assert.ok(main.includes('validateSkinLoginData(bot.skinData)'))
+  assert.ok(main.includes("client.queue('player_skin'"))
+  assert.ok(main.includes('clientSkinToPlayerSkin(validated)'))
+  assert.ok(main.includes('rememberSkin(bot.skinHistory'))
+  assert.ok(main.includes("skinData: undefined"))
+  assert.ok(main.includes('skinHistory: normalizeSkinHistory(bot.skinHistory)'))
   assert.match(main, /findMatchingFriendWorldSession/)
+})
+
+test('registered server profiles expose edit controls and preserve the same destination ID', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
+  const preload = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload.js'), 'utf8')
+  assert.ok(renderer.includes('openServerProfileForm(server)'))
+  assert.ok(renderer.includes('api.updateServer({ ...payload, serverId: editingServerId })'))
+  assert.ok(preload.includes("ipcRenderer.invoke('server:update', data)"))
+  assert.ok(main.includes("ipcMain.handle('server:update'"))
+  assert.ok(main.includes('profile.id = previous.id'))
+  assert.ok(html.includes('id="serverSignallingUrl"'))
 })
 
 test('skin import uses separate file and folder dialogs so Windows can open individual files', () => {
@@ -343,6 +358,15 @@ test('dashboard fit keeps inventory actions and chat composer visible while logs
   assert.ok(fit.includes('gap: 1px'))
 })
 
+
+test('movement and diagnostics are enlarged inside the Bot operation panel', () => {
+  const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
+  const latest = styles.slice(styles.lastIndexOf('0.9.9: Recent skins'))
+  assert.match(latest, /\.control-panel \.dpad[\s\S]*39px/)
+  assert.match(latest, /\.control-panel \.goto-form \.field input[\s\S]*34px/)
+  assert.match(latest, /\.control-panel > \.diagnostic-card[\s\S]*94px/)
+  assert.match(latest, /#dashboardGrid > \.control-panel[\s\S]*overflow: hidden/)
+})
 
 test('Bedrock world chat formats translation messages instead of showing raw translation keys', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8').replace(/\r\n/g, '\n')
@@ -401,7 +425,7 @@ test('Control is the sprint latch and Shift is the sneak latch', () => {
   assert.ok(rendererSource.includes('clearToggledControls(bot.id, false)'))
 })
 
-test('importing a Persona BIN reconnects an active Bot through saved login skinData', () => {
+test('Persona BIN skins are sent after spawn without injecting custom skin data into Login or reconnecting', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8').replace(/\r\n/g, '\n')
   const importer = fs.readFileSync(path.join(__dirname, '..', 'src', 'skin-import.js'), 'utf8')
   const parser = fs.readFileSync(path.join(__dirname, '..', 'src', 'skin-bin.js'), 'utf8')
@@ -410,9 +434,11 @@ test('importing a Persona BIN reconnects an active Bot through saved login skinD
   assert.ok(parser.includes('parsePersonaMetadataTail'))
   assert.ok(parser.includes('personaPieces'))
   assert.ok(parser.includes('pieceTintColors'))
-  assert.ok(main.includes('reconnectWithSavedSkin(bot'))
-  assert.ok(main.includes('waitForBotSpawn'))
-  assert.match(main, /skinData: bot\.skinFallbackActive \? undefined : \(bot\.skinData \? validateSkinLoginData\(bot\.skinData\) : undefined\)/)
+  assert.ok(main.includes("client.queue('player_skin'"))
+  assert.ok(main.includes("agent._client.on('session'"))
+  assert.ok(main.includes('client.profile?.uuid'))
+  assert.ok(main.includes('skinData: undefined'))
+  assert.doesNotMatch(main, /reconnectWithSavedSkin\(bot/)
 })
 
 
