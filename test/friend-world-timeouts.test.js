@@ -25,7 +25,10 @@ const {
   CLIENT_CONNECTED_ORIGINAL,
   CLIENT_CONNECTED_MARKER,
   CLIENT_TIMEOUT_ORIGINAL,
+    CLIENT_CLOSE_REASON_ORIGINAL,
   CLIENT_TIMEOUT_MARKER,
+  CLIENT_CLOSE_REASON_ORIGINAL,
+  CLIENT_CLOSE_REASON_MARKER,
   NETHERNET_OPTIONS_ORIGINAL,
   NETHERNET_OPTIONS_MARKER,
   NETHERNET_SEND_RELIABLE_ORIGINAL,
@@ -64,6 +67,7 @@ test('adds safe stage diagnostics to Xbox services NetherNet connection flow', (
   assert.match(patched.source, new RegExp(CLIENT_SERVICES_SIGNAL_MARKER))
   assert.match(patched.source, new RegExp(CLIENT_CONNECTED_MARKER))
   assert.match(patched.source, new RegExp(CLIENT_TIMEOUT_MARKER))
+  assert.match(patched.source, new RegExp(CLIENT_CLOSE_REASON_MARKER))
   assert.match(patched.source, /Xbox services signalling is ready/)
   assert.match(patched.source, /WebRTC transport connected/)
   assert.match(patched.source, /WebRTC transport did not connect/)
@@ -110,7 +114,7 @@ test('keeps the longer timeouts scoped to friend-world mode', () => {
   const friendBlock = mainSource.slice(friendStart, friendEnd)
   assert.match(friendBlock, /signallingConnectTimeout: 30000/)
   assert.match(friendBlock, /inactivityTimeoutMs: 15000/)
-  assert.doesNotMatch(friendBlock, /onDiagnostics/)
+  assert.match(friendBlock, /onDiagnostics: createNethernetDiagnosticHandler\(bot, attemptId\)/)
   assert.match(friendBlock, /connectTimeout: 60000/)
   assert.doesNotMatch(mainSource.slice(friendEnd), /inactivityTimeoutMs: 15000/)
 })
