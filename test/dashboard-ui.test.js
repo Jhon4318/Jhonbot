@@ -261,7 +261,7 @@ test('individual and full inventory drops wait for Bedrock stack request respons
 
 
 test('Bedrock inventory drops do not require player movement mode', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
+  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8').replace(/\r\n/g, '\n')
   const singleStart = main.indexOf('async function tossBotItem')
   const bulkStart = main.indexOf('async function tossAllBotItems')
   const bulkEnd = main.indexOf('function publishModuleStatus', bulkStart)
@@ -290,14 +290,14 @@ test('custom skins expose PNG, geometry, animation and SkinStealer import action
     assert.ok(elementIds(html).includes(id), 'Missing skin element: ' + id)
   }
   assert.ok(renderer.includes('api.importSkin(bot.id)'))
-  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
+  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8').replace(/\r\n/g, '\n')
   assert.match(main, /skinData: bot.skinData || undefined/)
   assert.ok(main.includes('validateSkinLoginData(bot.skinData)'))
   assert.match(main, /findMatchingFriendWorldSession/)
 })
 
 test('skin import uses separate file and folder dialogs so Windows can open individual files', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
+  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8').replace(/\r\n/g, '\n')
   const picker = fs.readFileSync(path.join(__dirname, '..', 'src', 'skin-import-dialog.js'), 'utf8')
   assert.ok(main.includes('dialog.showMessageBox(mainWindow, skinImportChoiceOptions())'))
   assert.ok(main.includes('skinImportFileDialogOptions()'))
@@ -313,7 +313,7 @@ test('world chat and connection logs retain scrollable history rather than rende
   assert.ok(renderer.includes('logList.children.length > 300'))
   assert.ok(styles.includes('.chat-panel .chat-messages') && styles.includes('overflow-y: auto'))
   assert.ok(styles.includes('.log-panel .log-list') && styles.includes('overflow-y: auto'))
-  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
+  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8').replace(/\r\n/g, '\n')
   assert.ok(main.includes("agent.on('chat'"))
   assert.ok(main.includes("recordBotChatMessage(bot, 'incoming'"))
 })
@@ -345,7 +345,7 @@ test('dashboard fit keeps inventory actions and chat composer visible while logs
 
 
 test('Bedrock world chat formats translation messages instead of showing raw translation keys', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
+  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8').replace(/\r\n/g, '\n')
   const formatter = fs.readFileSync(path.join(__dirname, '..', 'src', 'chat-format.js'), 'utf8')
   assert.ok(main.includes('formatBedrockChatMessage(message, fallback)'))
   assert.ok(main.includes('messageObject || (translate ? { translate } : message)'))
@@ -402,7 +402,7 @@ test('Control is the sprint latch and Shift is the sneak latch', () => {
 })
 
 test('importing a Persona BIN reconnects an active Bot through saved login skinData', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
+  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8').replace(/\r\n/g, '\n')
   const importer = fs.readFileSync(path.join(__dirname, '..', 'src', 'skin-import.js'), 'utf8')
   const parser = fs.readFileSync(path.join(__dirname, '..', 'src', 'skin-bin.js'), 'utf8')
   assert.ok(importer.includes('decodeTsukuyomiPersonaSkinBin'))
@@ -434,7 +434,7 @@ test('inventory UI displays enchantment labels and locks slots during confirmed 
 })
 
 test('friend-world selection, guest reconnect and active Mods distinguish automatic reconnects', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
+  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8').replace(/\r\n/g, '\n')
   const policy = fs.readFileSync(path.join(__dirname, '..', 'src', 'reconnect-policy.js'), 'utf8')
   assert.ok(main.includes('askForWorldSelection(bot, sessions, attemptId, options.reconnect === true)'))
   assert.ok(main.includes('if (options.reconnect) {\n      reconnectGuestBots(bot)'))
