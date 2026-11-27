@@ -3017,6 +3017,7 @@ ipcMain.handle('bot:get-inventory', (_event, botId) => getBotInventory(botId))
 ipcMain.handle('bot:move-inventory-item', (_event, args) => moveBotInventoryItem(args?.botId, args))
 ipcMain.handle('bot:select-hotbar-slot', (_event, args) => selectBotHotbarSlot(args?.botId, args))
 ipcMain.handle('bot:import-skin', (_event, botId) => importSkinForBot(botId))
+ipcMain.handle('bot:apply-skin-history', (_event, args) => applySkinHistoryForBot(args?.botId, args?.index))
 ipcMain.handle('bot:toss-item', (_event, args) => tossBotItem(args?.botId, args))
 ipcMain.handle('bot:toss-all-items', (_event, args) => tossAllBotItems(args?.botId))
 ipcMain.handle('auth:open-url', async (_event, rawUrl) => {
