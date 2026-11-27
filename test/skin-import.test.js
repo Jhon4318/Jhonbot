@@ -370,8 +370,17 @@ test('SkinStealer Persona BIN import forwards Persona pieces and tint colors int
     Colors: ['#ff0e2245', '#0', '#ff19192a', '#0']
   }])
   const wire = clientSkinToPlayerSkin(imported.skinData)
-  assert.deepEqual(wire.personal_pieces, imported.skinData.PersonaPieces)
-  assert.deepEqual(wire.piece_tint_colors, imported.skinData.PieceTintColors)
+  assert.deepEqual(wire.personal_pieces, [{
+    piece_id: '01234567-89ab-cdef-0123-456789abcdef',
+    piece_type: 7,
+    pack_id: '77665544-3322-1100-ffee-ddccbbaa9988',
+    is_default_piece: true,
+    product_id: ''
+  }])
+  assert.deepEqual(wire.piece_tint_colors, [{
+    piece_type: 'persona_mouth',
+    colors: [-15850939, 0, -15132374, 0]
+  }])
 })
 
 
