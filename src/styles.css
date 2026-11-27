@@ -3054,25 +3054,74 @@ main#dashboardGrid{flex:1 1 auto;width:100%;min-height:0;max-height:none;margin:
 .control-panel .diagnostic-grid strong { font-size: 10px; }
 
 @media (max-height: 760px) {
+  /* The previous rule collapsed the D-pad and disabled flex growth, leaving
+     an empty strip at the bottom of the fixed-height Bot operation panel. */
+  #dashboardGrid > .control-panel {
+    gap: 5px;
+    padding: 8px;
+  }
   .control-panel .control-layout {
-    flex: 0 0 auto !important;
-    min-height: 0 !important;
+    flex: 1 1 215px !important;
+    min-height: 215px !important;
+    align-items: stretch;
   }
   .control-panel .movement-card,
   .control-panel .goto-card {
-    min-height: 0;
-    padding: 6px;
+    min-height: 215px;
+    padding: 9px;
   }
+  .control-panel .movement-card .subheading,
+  .control-panel .goto-card .subheading {
+    font-size: 10px;
+    gap: 5px;
+  }
+  .control-panel .movement-card .subheading span,
+  .control-panel .goto-card .subheading span { font-size: 8px; }
   .control-panel .dpad {
-    grid-template-columns: repeat(3, 31px);
-    grid-template-rows: repeat(3, 24px);
-    margin: 4px auto;
+    grid-template-columns: repeat(3, 43px);
+    grid-template-rows: repeat(3, 38px);
+    gap: 4px;
+    margin: 9px auto;
   }
-  .control-panel .goto-form .field input { height: 27px; }
-  .control-panel .goto-form .primary-button { min-height: 26px; }
+  .control-panel .move-key { font-size: 16px; }
+  .control-panel .movement-actions { gap: 4px; }
+  .control-panel .movement-actions .action-key {
+    min-height: 29px;
+    padding: 0 7px;
+    font-size: 8px;
+  }
+  .control-panel .movement-actions > .secondary-button {
+    min-height: 28px;
+    padding: 0 7px;
+    font-size: 8px;
+  }
+  .control-panel .goto-form { gap: 5px; margin-top: 8px; }
+  .control-panel .goto-form .field span { font-size: 8px; }
+  .control-panel .goto-form .field input {
+    height: 35px;
+    padding: 0 6px;
+    font-size: 10px;
+  }
+  .control-panel .goto-form .primary-button {
+    min-height: 33px;
+    font-size: 9px;
+  }
+  .control-panel .goto-note {
+    margin-top: 6px;
+    font-size: 8px;
+    line-height: 1.35;
+    -webkit-line-clamp: 3;
+  }
+  .control-panel .movement-status {
+    min-height: 24px;
+    margin-top: 6px;
+    padding: 6px 7px;
+    font-size: 9px;
+  }
   .control-panel > .diagnostic-card {
-    flex-basis: 76px !important;
-    min-height: 76px !important;
-    padding: 5px;
+    flex: 0 0 96px !important;
+    min-height: 96px !important;
+    padding: 7px;
   }
+  .control-panel .diagnostic-grid > div { padding: 5px 6px; }
 }
