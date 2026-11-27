@@ -127,6 +127,8 @@ function extractSkinPackDescriptor (jsonEntries) {
       return {
         geometry: typeof selected.geometry === 'string' ? selected.geometry.trim() : '',
         texture: typeof selected.texture === 'string' ? selected.texture.trim() : '',
+        fullSkin: typeof selected.tsukuyomi_full_skin === 'string' ? selected.tsukuyomi_full_skin.trim() : '',
+        sourceName: entry.name,
         animations: selected.animations && typeof selected.animations === 'object' ? selected.animations : null
       }
     }
@@ -146,6 +148,41 @@ function findSkinPackTexture (pngEntries, textureReference) {
     pngEntries.find(entry => normalizeAssetReference(entry.name).endsWith('/' + wanted)) ||
     pngEntries.find(entry => normalizeAssetReference(entry.name).split('/').pop() === wantedBase) ||
     null
+}
+
+function findSkinPackFullSkinBin (entries, descriptor) {
+  const reference = normalizeAssetReference(descriptor?.fullSkin)
+  if (!reference) return null
+  if (reference.split('/').some(part => part === '..' || part === '.')) {
+    throw new Error('skins.json の tsukuyomi_full_skin に不正な相対パスが指定されています。')
+  }
+
+  const sourceName = normalizeAssetReference(descriptor?.sourceName)
+  const sourceDirectory = sourceName.includes('/') ? sourceName.slice(0, sourceName.lastIndexOf('/')) : ''
+  const relativeReference = sourceDirectory ? sourceDirectory + '/' + reference : reference
+  const candidates = [relativeReference, reference]
+  for (const candidate of [...new Set(candidates)]) {
+    const matches = entries.filter(entry => normalizeAssetReference(entry.name) === candidate)
+    if (matches.length === 1) return matches[0]
+    if (matches.length > 1) {
+      throw new Error('skins.json の tsukuyomi_full_skin に指定されたBINが複数あります: ' + descriptor.fullSkin)
+    }
+    const suffixMatches = entries.filter(entry => normalizeAssetReference(entry.name).endsWith('/' + candidate))
+    if (suffixMatches.length === 1) return suffixMatches[0]
+    if (suffixMatches.length > 1) {
+      throw new Error('skins.json の tsukuyomi_full_skin に指定されたBINを一意に特定できません: ' + descriptor.fullSkin)
+    }
+  }
+
+  const wantedBase = reference.split('/').pop()
+  const basenameMatches = entries.filter(entry =>
+    normalizeAssetReference(entry.name).split('/').pop() === wantedBase
+  )
+  if (basenameMatches.length === 1) return basenameMatches[0]
+  if (basenameMatches.length > 1) {
+    throw new Error('skins.json の tsukuyomi_full_skin と同名のBINが複数あります。配置を整理してください: ' + descriptor.fullSkin)
+  }
+  return null
 }
 
 function geometryMatchesSkinPackReference (geometry, reference) {
@@ -302,6 +339,16 @@ function importSkinEntries (inputEntries) {
   let geometry = null
   let animation = null
   let personaBin = null
+  const declaredFullSkinBin = findSkinPackFullSkinBin(entries, skinPackDescriptor)
+  if (skinPackDescriptor?.fullSkin) {
+    if (!declaredFullSkinBin) {
+      throw new Error(`skins.json の tsukuyomi_full_skin に指定されたBIN「${skinPackDescriptor.fullSkin}」が見つかりません。`)
+    }
+    personaBin = decodeTsukuyomiPersonaSkinBin(declaredFullSkinBin.data, declaredFullSkinBin.name)
+    if (!personaBin) {
+      throw new Error(`skins.json の tsukuyomi_full_skin に指定されたBIN「${declaredFullSkinBin.name}」をTsukuyomi Persona形式として認識できませんでした。`)
+    }
+  }
   const geometryEntries = []
   for (const entry of jsons) {
     const value = entry.value
@@ -350,6 +397,9 @@ function importSkinEntries (inputEntries) {
       throw new Error('JSON内のSkinDataと画像サイズが一致しません。')
     }
     texture = { width, height, data: raw }
+  } else if (personaBin) {
+    texture = { width: personaBin.width, height: personaBin.height, data: personaBin.data }
+    geometry = personaBin.geometry
   } else {
     const bin = entries.find(entry => /\.bin$/i.test(entry.name) && /(skin|texture|full_skin)/i.test(entry.name)) ||
       entries.find(entry => /\.bin$/i.test(entry.name))
