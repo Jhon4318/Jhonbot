@@ -72,7 +72,7 @@ const patchSource = fs.readFileSync(path.join(projectRoot, 'scripts', 'patch-bed
 
 test('expects the package version actually published by the pinned HTTP-capable commit', () => {
   assert.equal(EXPECTED_VERSION, '3.60.1')
-  assert.equal(packageJson.version, '0.9.9')
+  assert.equal(packageJson.version, '0.9.10')
 })
 
 test('patches the HTTP-capable bedrock-protocol discovery probe to pure-JavaScript RakNet', () => {
