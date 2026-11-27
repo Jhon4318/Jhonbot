@@ -23,8 +23,8 @@ function normalizeSkinHistory (history, limit = 3) {
   const result = []
   const seen = new Set()
   for (const entry of history) {
-    if (!entry || !entry.skinData || typeof entry.skinData !== 'object' ||
-        !entry.skinMeta || typeof entry.skinMeta !== 'object') continue
+    if (!entry || !entry.skinData || typeof entry.skinData !== 'object' || Array.isArray(entry.skinData) ||
+        !entry.skinMeta || typeof entry.skinMeta !== 'object' || Array.isArray(entry.skinMeta)) continue
     const key = skinFingerprint(entry.skinData)
     if (seen.has(key)) continue
     seen.add(key)
