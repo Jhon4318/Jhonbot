@@ -37,10 +37,10 @@
           <button class="primary-button" type="submit"><span>＋</span> Botを追加</button>
         </form>
         <div class="notice-line"><span class="notice-dot"></span>通常Botを認証してワールド参加。1アカウントにつきゲストBotを最大3体追加できます。</div>
-      </div><div id="serverFormPanel" class="management-drawer server-form-drawer" hidden><div class="management-drawer-bar"><strong>接続先を登録</strong><button id="closeServerFormButton" type="button" class="icon-button">閉じる</button></div>
+      </div><div id="serverFormPanel" class="management-drawer server-form-drawer" hidden><div class="management-drawer-bar"><strong id="serverFormLabel">接続先を登録</strong><button id="closeServerFormButton" type="button" class="icon-button">閉じる</button></div>
         <div class="panel-heading">
           <div>
-            <h2>接続先を登録</h2>
+            <h2 id="serverFormTitle">接続先を登録</h2>
             <p class="muted small">公開サーバーは一度登録すると、複数のBotで共有できます。The HiveはHTTPSのNetherNetシグナリングを使用します。</p>
           </div>
           <span class="step-chip">DESTINATIONS</span>
@@ -56,6 +56,7 @@
               <option value="raknet">RakNet（旧方式）</option>
             </select>
           </label>
+          <label class="field server-signalling-field"><span>シグナリングURL（任意）</span><input id="serverSignallingUrl" type="url" placeholder="https://example.net"></label>
           <button class="primary-button" type="submit">接続先を登録</button>
         </form>
         <div class="server-presets">
@@ -232,6 +233,7 @@
               <div class="skin-preview-info"><strong id="skinName">スキン未設定</strong><span id="skinDetails">PNG・Geometry JSON・Animation JSON・SkinSteal BIN・MCpackに対応</span></div>
             </div>
             <div class="module-actions"><button id="importSkinButton" type="button" class="secondary-button" disabled>スキン素材を読み込む</button></div>
+            <div id="skinHistoryButtons" class="skin-history-buttons" hidden aria-label="最近使ったスキン"></div>
             <div id="skinStatus" class="module-status">Botを選択してください。</div>
           </section>
 
