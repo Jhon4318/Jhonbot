@@ -226,7 +226,7 @@ try {
 
   # The manual updater replaces app.asar without replacing the Electron executable
   # or uninstall registry entry. Read the actual app version from app.asar first.
-  $appAsarPath = Join-Path $installRoot 'resources\\app.asar'
+  $appAsarPath = Join-Path $installRoot 'resources\app.asar'
   $appPackageVersion = ''
   try {
     $appPackageVersion = Get-AsarPackageVersion -AsarPath $appAsarPath
@@ -268,7 +268,7 @@ try {
     throw 'Electronの実行バージョンを確認できません。アプリを一度起動してから再試行するか、Setup.exeを使用してください。'
   }
   # The startup line may be more than 500 lines old in a busy diagnostic log.
-  $electronLine = Get-Content -LiteralPath $runtimeLog | Select-String -Pattern 'electron=([0-9]+(?:\\.[0-9]+){1,3})' | Select-Object -Last 1
+  $electronLine = Get-Content -LiteralPath $runtimeLog | Select-String -Pattern 'electron=([0-9]+(?:\.[0-9]+){1,3})' | Select-Object -Last 1
   if (!$electronLine) {
     throw 'ログからElectronの実行バージョンを確認できません。Setup.exeを使用してください。'
   }
