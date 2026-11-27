@@ -29,6 +29,12 @@ if (!$applierSource.Contains('Programs\Bedrock Bot Console')) {
 if (!$applierSource.Contains('ProductVersion') -or !$applierSource.Contains('FileVersion')) {
   throw 'Apply-Update.ps1 must be able to read the installed EXE version.'
 }
+if (!$applierSource.Contains('function Get-AsarPackageVersion') -or !$applierSource.Contains("app.asar/package.json")) {
+  throw 'Apply-Update.ps1 must prefer the actual app.asar package version over stale EXE/registry metadata.'
+}
+if (!$applierSource.Contains('Get-Content -LiteralPath $runtimeLog | Select-String') -or $applierSource.Contains('-Tail 500')) {
+  throw 'Apply-Update.ps1 must scan the complete runtime log for the Electron startup version.'
+}
 $fileVersionIndex = $applierSource.IndexOf('$versionText = [string]$exeVersionInfo.FileVersion')
 $productVersionIndex = $applierSource.IndexOf('$versionText = [string]$exeVersionInfo.ProductVersion')
 if ($fileVersionIndex -lt 0 -or $productVersionIndex -lt $fileVersionIndex) {

@@ -46,6 +46,83 @@ test('4D geometry and animation JSON are included in the skin packet payload', (
   assert.equal(wire.trusted_skin_flag, 'True')
 })
 
+test('Tsukuyomi legacy geometry.skin packs resolve geometry and texture through skins.json', () => {
+  const geometry = {
+    format_version: '1.10.0',
+    'geometry.skin': {
+      texturewidth: 128,
+      textureheight: 128,
+      visible_bounds_width: 3,
+      bones: [
+        {
+          name: 'body',
+          pivot: [0, 20, 0],
+          poly_mesh: {
+            normalized_uvs: true,
+            positions: [[-1, 0, 0], [1, 0, 0], [0, 2, 0]],
+            normals: [[0, 0, 1]],
+            uvs: [[0, 0], [1, 0], [0.5, 1]],
+            polys: [[[0, 0, 0], [1, 0, 0], [2, 0, 0]]]
+          }
+        }
+      ]
+    }
+  }
+  const selectedTexture = pngBuffer(128, 128)
+  const pack = {
+    skins: [{
+      localization_name: 'legacy_4d',
+      geometry: 'geometry.skin',
+      texture: 'textures/custom_body.png',
+      type: 'free'
+    }],
+    serialize_name: 'legacy_4d',
+    localization_name: 'Legacy 4D'
+  }
+  const imported = importSkinEntries([
+    { name: 'pack/preview.png', data: pngBuffer(64, 64) },
+    { name: 'pack/textures/custom_body.png', data: selectedTexture },
+    { name: 'pack/models/geometry.json', data: Buffer.from(JSON.stringify(geometry)) },
+    { name: 'pack/skins.json', data: Buffer.from(JSON.stringify(pack)) },
+    { name: 'pack/manifest.json', data: Buffer.from(JSON.stringify({ format_version: 1 })) }
+  ])
+
+  assert.equal(imported.meta.geometryId, 'geometry.skin')
+  assert.equal(imported.meta.hasGeometry, true)
+  assert.equal(imported.meta.width, 128)
+  assert.equal(imported.meta.height, 128)
+  assert.equal(imported.meta.sourceFormat, 'Bedrock Skin Pack (Tsukuyomi compatible)')
+  assert.deepEqual(JSON.parse(Buffer.from(imported.skinData.SkinGeometryData, 'base64').toString()), geometry)
+  assert.equal(imported.skinData.SkinGeometryDataEngineVersion, '1.10.0')
+  assert.deepEqual(Buffer.from(imported.skinData.SkinData, 'base64'), PNG.sync.read(selectedTexture).data)
+
+  const wire = clientSkinToPlayerSkin(imported.skinData)
+  assert.equal(wire.geometry_data_version, '1.10.0')
+  assert.deepEqual(JSON.parse(wire.geometry_data), geometry)
+  assert.deepEqual(JSON.parse(wire.skin_resource_pack), { geometry: { default: 'geometry.skin' } })
+  assert.equal(wire.skin_data.width, 128)
+  assert.equal(wire.skin_data.height, 128)
+})
+
+test('skin pack geometry selection honors its declared identifier when multiple geometry files are present', () => {
+  const selected = {
+    format_version: '1.10.0',
+    'geometry.skin': { bones: [{ name: 'selected' }] }
+  }
+  const decoy = {
+    format_version: '1.12.0',
+    'geometry.other': { bones: [{ name: 'decoy' }] }
+  }
+  const imported = importSkinEntries([
+    { name: 'skin.png', data: pngBuffer() },
+    { name: 'skins.json', data: Buffer.from(JSON.stringify({ skins: [{ geometry: 'geometry.skin', texture: 'skin.png' }] })) },
+    { name: 'geometry-other.json', data: Buffer.from(JSON.stringify(decoy)) },
+    { name: 'geometry.json', data: Buffer.from(JSON.stringify(selected)) }
+  ])
+  assert.equal(imported.meta.geometryId, 'geometry.skin')
+  assert.deepEqual(JSON.parse(Buffer.from(imported.skinData.SkinGeometryData, 'base64').toString()), selected)
+})
+
 test('MCpack ZIP archive is read without extracting untrusted paths to disk', () => {
   const pack = zipSync({
     'textures/skin.png': pngBuffer(),
@@ -197,7 +274,7 @@ test('imports the actual Tsukuyomi Persona BIN layout including its 4D geometry 
   assert.equal(imported.skinData.PersonaSkin, true)
   assert.deepEqual(JSON.parse(Buffer.from(imported.skinData.SkinResourcePatch, 'base64').toString()), sample.resourcePatch)
   assert.deepEqual(JSON.parse(Buffer.from(imported.skinData.SkinGeometryData, 'base64').toString()), sample.geometry)
-  assert.equal(Buffer.from(imported.skinData.SkinGeometryDataEngineVersion, 'base64').toString(), '1.14.0')
+  assert.equal(imported.skinData.SkinGeometryDataEngineVersion, '1.14.0')
   assert.match(imported.previewDataUrl, /^data:image\/png;base64,/)
   const wire = clientSkinToPlayerSkin(imported.skinData)
   assert.deepEqual(JSON.parse(wire.skin_resource_pack), sample.resourcePatch)
