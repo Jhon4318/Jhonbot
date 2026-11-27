@@ -359,15 +359,18 @@ test('dashboard fit keeps inventory actions and chat composer visible while logs
 })
 
 
-test('movement and diagnostics are enlarged inside the Bot operation panel', () => {
+test('movement and diagnostics stay enlarged in a short Bot operation panel', () => {
   const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8')
   const latest = styles.slice(styles.lastIndexOf('0.9.9: Recent skins'))
-  assert.match(latest, /\.control-panel \.dpad[\s\S]*39px/)
-  assert.match(latest, /\.control-panel \.goto-form \.field input[\s\S]*34px/)
-  assert.match(latest, /\.control-panel > \.diagnostic-card[\s\S]*94px/)
-  assert.match(latest, /#dashboardGrid > \.control-panel[\s\S]*overflow: hidden/)
+  assert.match(latest, /\\.control-panel \\.dpad[\\s\\S]*39px/)
+  assert.match(latest, /\\.control-panel \\.goto-form \\.field input[\\s\\S]*34px/)
+  assert.match(latest, /\\.control-panel > \\.diagnostic-card[\\s\\S]*94px/)
+  assert.match(latest, /@media \\(max-height: 760px\\)[\\s\\S]*flex: 1 1 215px !important/)
+  assert.match(latest, /@media \\(max-height: 760px\\)[\\s\\S]*min-height: 215px !important/)
+  assert.match(latest, /@media \\(max-height: 760px\\)[\\s\\S]*repeat\\(3, 43px\\)/)
+  assert.doesNotMatch(latest.slice(latest.lastIndexOf('@media (max-height: 760px)'),), /flex: 0 0 auto !important|repeat\\(3, 31px\\)/)
+  assert.match(latest, /#dashboardGrid > \\.control-panel[\\s\\S]*overflow: hidden/)
 })
-
 test('Bedrock world chat formats translation messages instead of showing raw translation keys', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8').replace(/\r\n/g, '\n')
   const formatter = fs.readFileSync(path.join(__dirname, '..', 'src', 'chat-format.js'), 'utf8')
