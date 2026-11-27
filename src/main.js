@@ -1200,6 +1200,25 @@ async function connectBot (botId, options = {}) {
     throw new Error(bot.lastError)
   }
 
+  // Record the negotiated compression once per connection. This is file-only,
+  // so it remains available for diagnosis without filling the dashboard log.
+  agent._client.on('packet', (packet) => {
+    if (bot.agent !== agent) return
+    const name = String(packet?.data?.name || packet?.name || '')
+    if (name !== 'network_settings') return
+    const params = packet?.data?.params || packet?.params || {}
+    const algorithmValue = params.compression_algorithm
+    const algorithmName = algorithmValue === 'snappy' || algorithmValue === 1 || algorithmValue === '1'
+      ? 'snappy'
+      : (algorithmValue === 'deflate' || algorithmValue === 0 || algorithmValue === '0'
+          ? 'deflate'
+          : (algorithmValue === 'none' || algorithmValue === 2 || algorithmValue === 65535 || algorithmValue === '65535'
+              ? 'none'
+              : 'unknown'))
+    const threshold = Number(params.compression_threshold)
+    writeDiagnosticLog(`[network-settings] bot=${bot.id} compression=${algorithmName} threshold=${Number.isFinite(threshold) ? String(threshold) : 'unknown'}`)
+  })
+
   // Keep packet-level detail in the diagnostic file; the dashboard shows only a real server kick.
   agent._client.on('packet', (packet) => {
     if (bot.agent !== agent) return
