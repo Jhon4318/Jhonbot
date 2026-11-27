@@ -37,9 +37,19 @@ test('only identifies explicit skin rejection reasons', () => {
   assert.equal(isSkinRejectionReason('Disconnected'), false)
 })
 
-test('accepts a consistent PNG-derived Bedrock skin login payload', () => {
+test('accepts a consistent PNG-derived Bedrock skin login payload and normalizes legacy geometry versions', () => {
   const skin = validSkin()
-  assert.equal(validateSkinLoginData(skin), skin)
+  const validated = validateSkinLoginData(skin)
+  assert.notEqual(validated, skin)
+  assert.equal(validated.SkinGeometryDataEngineVersion, '0.0.0')
+  assert.equal(skin.SkinGeometryDataEngineVersion, Buffer.from('0.0.0').toString('base64'))
+})
+
+test('preserves an already normalized GeometryDataEngineVersion for the Login client-data JWT', () => {
+  const skin = validSkin()
+  skin.SkinGeometryDataEngineVersion = '1.14.0'
+  const validated = validateSkinLoginData(skin)
+  assert.equal(validated.SkinGeometryDataEngineVersion, '1.14.0')
 })
 
 test('rejects mismatched texture byte counts before attempting login', () => {
