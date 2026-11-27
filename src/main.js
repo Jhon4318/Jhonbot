@@ -1166,7 +1166,7 @@ async function connectBot (botId, options = {}) {
 
   agent._client.on('status', (status) => {
     if (bot.agent !== agent || status === lastBedrockStatus) return
-    lastBedrockStatus = status
+    if (Number(status) !== 0) lastBedrockStatus = status
     const label = bedrockStatusNames[Number(status)] || 'Unknown'
     pushLog(`${bot.label}: [Bedrock] 通信状態=${label} (${String(status)})`, 'info', bot.id)
   })
@@ -1218,7 +1218,9 @@ async function connectBot (botId, options = {}) {
   })
   agent._client.on('close', () => {
     if (bot.connectionAttempt !== attemptId) return
-    const previousStatus = bedrockStatusNames[Number(lastBedrockStatus)] || 'Unknown'
+    const closeStatus = agent._client._diagnosticPreCloseStatus
+    const effectiveStatus = closeStatus == null ? lastBedrockStatus : closeStatus
+    const previousStatus = bedrockStatusNames[Number(effectiveStatus)] || 'Unknown'
     const packetTrail = bedrockPacketTrail.length ? bedrockPacketTrail.join(' -> ') : '受信なし'
     const elapsedMs = Date.now() - bedrockStartedAt
     const level = bot.manualDisconnect ? 'info' : 'warning'

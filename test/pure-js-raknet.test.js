@@ -40,6 +40,10 @@ const {
   CLIENT_CONNECTED_ORIGINAL,
   CLIENT_TIMEOUT_ORIGINAL,
   CLIENT_CLOSE_REASON_ORIGINAL,
+  CLIENT_CLOSE_STATUS_ORIGINAL,
+  BEDROCK_CONNECTION_HANDLE_ORIGINAL,
+  BEDROCK_CONNECTION_DECRYPTED_PACKET_ORIGINAL,
+  BEDROCK_CONNECTION_READ_PACKET_ERROR_ORIGINAL,
   NETHERNET_OPTIONS_ORIGINAL,
   NETHERNET_CLIENT_DIAGNOSTIC_OPTION_ORIGINAL,
   NETHERNET_CLIENT_SEND_ORIGINAL,
@@ -68,6 +72,7 @@ const patchSource = fs.readFileSync(path.join(projectRoot, 'scripts', 'patch-bed
 
 test('expects the package version actually published by the pinned HTTP-capable commit', () => {
   assert.equal(EXPECTED_VERSION, '3.60.1')
+  assert.equal(packageJson.version, '0.9.7')
 })
 
 test('patches the HTTP-capable bedrock-protocol discovery probe to pure-JavaScript RakNet', () => {
@@ -170,6 +175,22 @@ test('patches app and nested Mineflayer protocol copies without touching options
       CLIENT_TIMEOUT_ORIGINAL,
       CLIENT_CLOSE_REASON_ORIGINAL,
       '  }',
+      '  function close () {',
+      '    if (this._closed) return',
+      '    this._closed = true',
+      '    this.q = []',
+      '    this.q2 = []',
+      '    this.status = ClientStatus.Disconnected',
+      '  }',
+      '}',
+      'class PacketFixture {',
+      '  readPacket (packet) {',
+      '    try {',
+      '      var des = this.deserializer.parsePacketBuffer(packet)',
+      '    } catch (e) {',
+      BEDROCK_CONNECTION_READ_PACKET_ERROR_ORIGINAL,
+      '    }',
+      '  }',
       '}'
     ].join('\n')
     fs.writeFileSync(path.join(root, 'src', 'client.js'), clientSource)
@@ -177,6 +198,8 @@ test('patches app and nested Mineflayer protocol copies without touching options
       'class ConnectionFixture {',
       BEDROCK_CONNECTION_WRITE_ORIGINAL,
       BEDROCK_CONNECTION_SEND_MCPE_ORIGINAL,
+      BEDROCK_CONNECTION_HANDLE_ORIGINAL,
+      BEDROCK_CONNECTION_DECRYPTED_PACKET_ORIGINAL,
       '}'
     ].join('\n')
     fs.writeFileSync(path.join(root, 'src', 'connection.js'), bedrockConnectionSource)
@@ -348,9 +371,13 @@ test('patches app and nested Mineflayer protocol copies without touching options
       assert.match(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_TIMEOUT_DIAGNOSTICS/)
       assert.match(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_SIGNAL_OPTIONS/)
       assert.match(clientSource, /BEDROCK_BOT_CONSOLE_FRIEND_WORLD_CLOSE_REASON_DIAGNOSTICS/)
+      assert.match(clientSource, /BEDROCK_BOT_CONSOLE_PRE_CLOSE_STATUS_DIAGNOSTICS/)
+      assert.match(clientSource, /BEDROCK_BOT_CONSOLE_BEDROCK_PACKET_PARSE_DIAGNOSTICS/)
       const bedrockConnectionSource = fs.readFileSync(path.join(target, 'src', 'connection.js'), 'utf8')
       assert.match(bedrockConnectionSource, /BEDROCK_BOT_CONSOLE_BEDROCK_OUTBOUND_PACKET_DIAGNOSTICS/)
       assert.match(bedrockConnectionSource, /BEDROCK_BOT_CONSOLE_NETHERNET_HANDSHAKE_SEND_RESULT/)
+      assert.match(bedrockConnectionSource, /BEDROCK_BOT_CONSOLE_BEDROCK_INBOUND_FRAME_DIAGNOSTICS/)
+      assert.match(bedrockConnectionSource, /BEDROCK_BOT_CONSOLE_BEDROCK_DECRYPTED_FRAME_DIAGNOSTICS/)
       const worldAuthSource = fs.readFileSync(path.join(target, 'src', 'client', 'auth.js'), 'utf8')
       assert.match(worldAuthSource, /BEDROCK_BOT_CONSOLE_XBOX_CONNECTIONTYPE_ROUTING/)
       assert.match(worldAuthSource, /_signallingProtocol = protocol/)
@@ -371,6 +398,8 @@ test('patches app and nested Mineflayer protocol copies without touching options
     assert.match(connectionSource, /BEDROCK_BOT_CONSOLE_RELIABLE_CHANNEL_DIAGNOSTICS/)
     assert.match(connectionSource, /BEDROCK_BOT_CONSOLE_UNRELIABLE_CHANNEL_DIAGNOSTICS/)
     assert.match(connectionSource, /BEDROCK_BOT_CONSOLE_RELIABLE_PAYLOAD_DIAGNOSTICS/)
+    assert.match(connectionSource, /payloadHex/)
+    assert.match(connectionSource, /Reliable data channel error; eventType=/)
     const identitySource = fs.readFileSync(path.join(nethernetRoot, 'src', 'signalling', 'sdpIdentity.js'), 'utf8')
     assert.match(identitySource, /BEDROCK_BOT_CONSOLE_SESSION_FINGERPRINT_SCOPE/)
     assert.match(identitySource, /normalizeFingerprintScope\(sdp\)/)

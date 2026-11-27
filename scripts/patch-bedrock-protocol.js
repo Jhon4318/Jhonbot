@@ -193,6 +193,13 @@ const CLIENT_CLOSE_REASON_ORIGINAL = [
 ].join('\n')
 const CLIENT_CLOSE_REASON_MARKER = 'BEDROCK_BOT_CONSOLE_FRIEND_WORLD_CLOSE_REASON_DIAGNOSTICS'
 
+const CLIENT_CLOSE_STATUS_ORIGINAL = [
+  '    this.q = []',
+  '    this.q2 = []',
+  '    this.status = ClientStatus.Disconnected'
+].join('\n')
+const CLIENT_CLOSE_STATUS_MARKER = 'BEDROCK_BOT_CONSOLE_PRE_CLOSE_STATUS_DIAGNOSTICS'
+
 const NETHERNET_OPTIONS_ORIGINAL = [
   '        webrtcBackend: options.webrtcBackend,',
   "        ...(options.signalling === 'http' && {",
@@ -341,6 +348,40 @@ const BEDROCK_CONNECTION_SEND_MCPE_ORIGINAL = [
   '  }'
 ].join('\n')
 const BEDROCK_CONNECTION_SEND_MCPE_MARKER = 'BEDROCK_BOT_CONSOLE_NETHERNET_HANDSHAKE_SEND_RESULT'
+
+const BEDROCK_CONNECTION_HANDLE_ORIGINAL = [
+  '  handle (buffer) { // handle encapsulated',
+  '    if (!this.batchHeader || buffer[0] === this.batchHeader) { // wrapper',
+  '      if (this.encryptionEnabled) {',
+  '        this.decrypt(buffer.slice(1))',
+  '      } else {',
+  '        const packets = Framer.decode(this, buffer)',
+  '        for (const packet of packets) {',
+  '          this.readPacket(packet)',
+  '        }',
+  '      }',
+  '    } else {',
+  "      throw Error('Bad packet header ' + buffer[0])",
+  '    }',
+  '  }'
+].join('\n')
+const BEDROCK_CONNECTION_HANDLE_MARKER = 'BEDROCK_BOT_CONSOLE_BEDROCK_INBOUND_FRAME_DIAGNOSTICS'
+const BEDROCK_CONNECTION_DECRYPTED_PACKET_ORIGINAL = [
+  '  onDecryptedPacket = (buf) => {',
+  '    const packets = Framer.getPackets(buf)',
+  '    for (const packet of packets) {',
+  '      this.readPacket(packet)',
+  '    }',
+  '  }'
+].join('\n')
+const BEDROCK_CONNECTION_DECRYPTED_PACKET_MARKER = 'BEDROCK_BOT_CONSOLE_BEDROCK_DECRYPTED_FRAME_DIAGNOSTICS'
+const BEDROCK_CONNECTION_READ_PACKET_ERROR_ORIGINAL = [
+  '      // Dump information about the packet only if user is not handling error event.',
+  "      if (this.listenerCount('error') === 0) this.deserializer.dumpFailedBuffer(packet)",
+  "      this.emit('error', e)",
+  '      return'
+].join('\n')
+const BEDROCK_CONNECTION_READ_PACKET_ERROR_MARKER = 'BEDROCK_BOT_CONSOLE_BEDROCK_PACKET_PARSE_DIAGNOSTICS'
 
 const VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL = "  const key = crypto.createPublicKey({ key: claims?.cpk, format: 'jwk' })"
 const VERIFY_SERVER_IDENTITY_PUBLIC_KEY_MARKER = 'BEDROCK_BOT_CONSOLE_CPK_PUBLIC_KEY_FORMAT'
@@ -851,7 +892,35 @@ function patchClientConnectionDiagnosticsSource (source) {
     CLIENT_CLOSE_REASON_MARKER,
     'bedrock-protocol/src/client.js Xbox world close reason diagnostics'
   )
-  return { source: closeReason.source, changed: signal.changed || connected.changed || timeout.changed || closeReason.changed }
+  const closeStatus = applySingleReplace(
+    closeReason.source,
+    CLIENT_CLOSE_STATUS_ORIGINAL,
+    [
+      '    this.q = []',
+      '    this.q2 = []',
+      '    this._diagnosticPreCloseStatus = this.status',
+      '    this.status = ClientStatus.Disconnected // BEDROCK_BOT_CONSOLE_PRE_CLOSE_STATUS_DIAGNOSTICS'
+    ].join('\n'),
+    CLIENT_CLOSE_STATUS_MARKER,
+    'bedrock-protocol/src/client.js pre-close status preservation'
+  )
+  const packetError = applySingleReplace(
+    closeStatus.source,
+    BEDROCK_CONNECTION_READ_PACKET_ERROR_ORIGINAL,
+    [
+      '      // Dump information about the packet only if user is not handling error event.',
+      "      if (this.options?.transport === 'nethernet') {",
+      "        const message = String(e?.message || e).split(String.fromCharCode(10)).join(' ').slice(0, 180)",
+      "        this.connection?.nethernet?.reportDiagnostic?.('Bedrock inbound packet parser failed; packetBytes=' + packet.length + ', errorName=' + String(e?.name || 'Error') + ', message=' + message)",
+      '      }',
+      "      if (this.listenerCount('error') === 0) this.deserializer.dumpFailedBuffer(packet)",
+      "      this.emit('error', e)",
+      '      return // BEDROCK_BOT_CONSOLE_BEDROCK_PACKET_PARSE_DIAGNOSTICS'
+    ].join('\n'),
+    BEDROCK_CONNECTION_READ_PACKET_ERROR_MARKER,
+    'bedrock-protocol/src/client.js packet parser diagnostics'
+  )
+  return { source: packetError.source, changed: signal.changed || connected.changed || timeout.changed || closeReason.changed || closeStatus.changed || packetError.changed }
 }
 
 function patchNethernetTimeoutOptionsSource (source) {
@@ -1372,7 +1441,63 @@ function patchBedrockConnectionOutboundDiagnosticsSource (source) {
     BEDROCK_CONNECTION_SEND_MCPE_MARKER,
     'bedrock-protocol/src/connection.js reliable send result diagnostics'
   )
-  return { source: send.source, changed: write.changed || send.changed }
+  const handle = applySingleReplace(
+    send.source,
+    BEDROCK_CONNECTION_HANDLE_ORIGINAL,
+    [
+      '  handle (buffer) { // handle encapsulated',
+      '    const reportInbound = (message) => {',
+      "      if (this.options?.transport !== 'nethernet') return",
+      '      this.connection?.nethernet?.reportDiagnostic?.(message)',
+      '    }',
+      "    const stage = this.encryptionEnabled ? 'decrypt' : 'framer-decode'",
+      '    try {',
+      '      if (!this.batchHeader || buffer[0] === this.batchHeader) { // wrapper',
+      '        if (this.encryptionEnabled) {',
+      "          reportInbound('Bedrock inbound decrypt input received; bytes=' + buffer.length)",
+      '          this.decrypt(buffer.slice(1))',
+      '        } else {',
+      '          const packets = Framer.decode(this, buffer)',
+      "          reportInbound('Bedrock inbound frame decoded; bytes=' + buffer.length + ', packetCount=' + packets.length + ', compression=' + String(this.compressionAlgorithm || 'unknown') + ', header=' + (buffer.length ? '0x' + buffer[0].toString(16).padStart(2, '0') : 'empty'))",
+      '          for (const packet of packets) {',
+      '            this.readPacket(packet)',
+      '          }',
+      '        }',
+      '      } else {',
+      "        throw Error('Bad packet header ' + buffer[0])",
+      '      }',
+      '    } catch (error) {',
+      "      const message = String(error?.message || error).split(String.fromCharCode(10)).join(' ').slice(0, 180)",
+      "      reportInbound('Bedrock inbound ' + stage + ' failed; bytes=' + buffer.length + ', errorName=' + String(error?.name || 'Error') + ', message=' + message)",
+      '      throw error',
+      '    } // BEDROCK_BOT_CONSOLE_BEDROCK_INBOUND_FRAME_DIAGNOSTICS',
+      '  }'
+    ].join('\n'),
+    BEDROCK_CONNECTION_HANDLE_MARKER,
+    'bedrock-protocol/src/connection.js inbound frame/decompression diagnostics'
+  )
+  const decrypted = applySingleReplace(
+    handle.source,
+    BEDROCK_CONNECTION_DECRYPTED_PACKET_ORIGINAL,
+    [
+      '  onDecryptedPacket = (buf) => {',
+      '    try {',
+      '      const packets = Framer.getPackets(buf)',
+      "      this.connection?.nethernet?.reportDiagnostic?.('Bedrock decrypted batch framed; bytes=' + buf.length + ', packetCount=' + packets.length)",
+      '      for (const packet of packets) {',
+      '        this.readPacket(packet)',
+      '      }',
+      '    } catch (error) {',
+      "      const message = String(error?.message || error).split(String.fromCharCode(10)).join(' ').slice(0, 180)",
+      "      this.connection?.nethernet?.reportDiagnostic?.('Bedrock decrypted batch framing failed; bytes=' + buf.length + ', errorName=' + String(error?.name || 'Error') + ', message=' + message)",
+      '      throw error',
+      '    } // BEDROCK_BOT_CONSOLE_BEDROCK_DECRYPTED_FRAME_DIAGNOSTICS',
+      '  }'
+    ].join('\n'),
+    BEDROCK_CONNECTION_DECRYPTED_PACKET_MARKER,
+    'bedrock-protocol/src/connection.js decrypted batch diagnostics'
+  )
+  return { source: decrypted.source, changed: write.changed || send.changed || handle.changed || decrypted.changed }
 }
 
 function patchNethernetConnectionDiagnosticsSource (source) {
@@ -1387,13 +1512,13 @@ function patchNethernetConnectionDiagnosticsSource (source) {
       '        this.flushQueue()',
       '      }',
       '',
-      '      this.reliable.onclose = () => {',
-      "        this.nethernet?.reportDiagnostic?.('Reliable data channel closed')",
+      '      this.reliable.onclose = (event) => {',
+      "        this.nethernet?.reportDiagnostic?.('Reliable data channel closed; eventType=' + String(event?.type || 'unknown') + ', readyState=' + String(this.reliable?.readyState || 'unknown') + ', bufferedAmount=' + String(this.reliable?.bufferedAmount ?? 'unknown'))",
       "        this.notifyClosed('disconnected')",
       '      }',
       '',
-      '      this.reliable.onerror = () => {',
-      "        this.nethernet?.reportDiagnostic?.('Reliable data channel error')",
+      '      this.reliable.onerror = (event) => {',
+      "        this.nethernet?.reportDiagnostic?.('Reliable data channel error; eventType=' + String(event?.type || 'unknown') + ', errorName=' + String(event?.error?.name || 'unknown') + ', readyState=' + String(this.reliable?.readyState || 'unknown'))",
       "        this.notifyClosed('disconnected')",
       '      } // BEDROCK_BOT_CONSOLE_RELIABLE_CHANNEL_DIAGNOSTICS'
     ].join('\n'),
@@ -1411,13 +1536,13 @@ function patchNethernetConnectionDiagnosticsSource (source) {
       "        this.nethernet?.reportDiagnostic?.('Unreliable data channel opened')",
       '      }',
       '',
-      '      this.unreliable.onclose = () => {',
-      "        this.nethernet?.reportDiagnostic?.('Unreliable data channel closed')",
+      '      this.unreliable.onclose = (event) => {',
+      "        this.nethernet?.reportDiagnostic?.('Unreliable data channel closed; eventType=' + String(event?.type || 'unknown') + ', readyState=' + String(this.unreliable?.readyState || 'unknown') + ', bufferedAmount=' + String(this.unreliable?.bufferedAmount ?? 'unknown'))",
       "        this.notifyClosed('disconnected')",
       '      }',
       '',
-      '      this.unreliable.onerror = () => {',
-      "        this.nethernet?.reportDiagnostic?.('Unreliable data channel error')",
+      '      this.unreliable.onerror = (event) => {',
+      "        this.nethernet?.reportDiagnostic?.('Unreliable data channel error; eventType=' + String(event?.type || 'unknown') + ', errorName=' + String(event?.error?.name || 'unknown') + ', readyState=' + String(this.unreliable?.readyState || 'unknown'))",
       "        this.notifyClosed('disconnected')",
       '      } // BEDROCK_BOT_CONSOLE_UNRELIABLE_CHANNEL_DIAGNOSTICS'
     ].join('\n'),
@@ -1433,7 +1558,11 @@ function patchNethernetConnectionDiagnosticsSource (source) {
     [
       '    this.receivedMessageCount = (this.receivedMessageCount || 0) + 1',
       '    if (this.receivedMessageCount <= 8) {',
-      "      this.nethernet?.reportDiagnostic?.('Reliable data channel payload received; count=' + this.receivedMessageCount + ', bytes=' + this.buf.length)",
+      "      const payloadPreview = this.buf.subarray(0, 96)",
+      "      const payloadHex = payloadPreview.toString('hex')",
+      "      const payloadTruncated = this.buf.length > payloadPreview.length",
+      "      const header = this.buf.length ? '0x' + this.buf[0].toString(16).padStart(2, '0') : 'empty'",
+      "      this.nethernet?.reportDiagnostic?.('Reliable data channel payload received; count=' + this.receivedMessageCount + ', bytes=' + this.buf.length + ', header=' + header + ', hex=' + payloadHex + (payloadTruncated ? '...truncated' : ''))",
       '    }',
       "    this.nethernet.emit('encapsulated', this.buf, this.address)",
       '    this.buf = null // BEDROCK_BOT_CONSOLE_RELIABLE_PAYLOAD_DIAGNOSTICS'
@@ -1615,6 +1744,10 @@ module.exports = {
   CLIENT_TIMEOUT_MARKER,
   CLIENT_CLOSE_REASON_ORIGINAL,
   CLIENT_CLOSE_REASON_MARKER,
+  CLIENT_CLOSE_STATUS_ORIGINAL,
+  BEDROCK_CONNECTION_HANDLE_ORIGINAL,
+  BEDROCK_CONNECTION_DECRYPTED_PACKET_ORIGINAL,
+  BEDROCK_CONNECTION_READ_PACKET_ERROR_ORIGINAL,
   NETHERNET_OPTIONS_ORIGINAL,
   NETHERNET_OPTIONS_MARKER,
   NETHERNET_SEND_RELIABLE_ORIGINAL,

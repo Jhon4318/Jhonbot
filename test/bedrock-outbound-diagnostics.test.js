@@ -6,6 +6,8 @@ const vm = require('node:vm')
 const {
   BEDROCK_CONNECTION_WRITE_ORIGINAL,
   BEDROCK_CONNECTION_SEND_MCPE_ORIGINAL,
+  BEDROCK_CONNECTION_HANDLE_ORIGINAL,
+  BEDROCK_CONNECTION_DECRYPTED_PACKET_ORIGINAL,
   patchBedrockConnectionOutboundDiagnosticsSource
 } = require('../scripts/patch-bedrock-protocol')
 
@@ -16,6 +18,8 @@ function createFixtureSource () {
     '  sendEncryptedBatch (batch) { this.sendMCPE(batch.encode(), true) }',
     BEDROCK_CONNECTION_WRITE_ORIGINAL,
     BEDROCK_CONNECTION_SEND_MCPE_ORIGINAL,
+    BEDROCK_CONNECTION_HANDLE_ORIGINAL,
+    BEDROCK_CONNECTION_DECRYPTED_PACKET_ORIGINAL,
     '}'
   ].join('\n')
 }
