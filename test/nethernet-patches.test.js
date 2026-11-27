@@ -32,6 +32,8 @@ const {
   CLIENT_CONNECTED_MARKER,
   CLIENT_TIMEOUT_ORIGINAL,
   CLIENT_TIMEOUT_MARKER,
+  CLIENT_CLOSE_REASON_ORIGINAL,
+  CLIENT_CLOSE_REASON_MARKER,
   patchClientConnectionDiagnosticsSource,
   patchClientSignallingOptionsSource,
   VERIFY_SERVER_IDENTITY_PUBLIC_KEY_ORIGINAL,
@@ -56,6 +58,7 @@ test('applies friend-world Xbox signalling diagnostics and forwards the diagnost
     CLIENT_CONNECTED_ORIGINAL,
     '    }',
     CLIENT_TIMEOUT_ORIGINAL,
+    CLIENT_CLOSE_REASON_ORIGINAL,
     '  }',
     '}'
   ].join('\n')
@@ -64,6 +67,8 @@ test('applies friend-world Xbox signalling diagnostics and forwards the diagnost
   assert.match(patchedClient.source, new RegExp(CLIENT_SERVICES_SIGNAL_MARKER))
   assert.match(patchedClient.source, new RegExp(CLIENT_CONNECTED_MARKER))
   assert.match(patchedClient.source, new RegExp(CLIENT_TIMEOUT_MARKER))
+  assert.match(patchedClient.source, new RegExp(CLIENT_CLOSE_REASON_MARKER))
+  assert.ok(patchedClient.source.includes('Connection closed; status='))
   assert.ok(patchedClient.source.includes('Xbox services signalling is ready'))
   assert.equal(patchClientConnectionDiagnosticsSource(patchedClient.source).changed, false)
 
