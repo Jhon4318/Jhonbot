@@ -247,8 +247,8 @@ function varInt (value) {
   return Buffer.from(bytes)
 }
 
-function syntheticTsukuyomiPersonaBin () {
-  const skinId = Buffer.from('persona-test-skin-4d')
+function syntheticTsukuyomiPersonaBin (skinIdValue = 'persona-test-skin-4d') {
+  const skinId = Buffer.from(skinIdValue)
   const resourcePatch = {
     geometry: {
       default: 'geometry.persona_test',
@@ -262,7 +262,8 @@ function syntheticTsukuyomiPersonaBin () {
       { description: { identifier: 'geometry.animated_face_persona_test', texture_width: 32, texture_height: 64 }, bones: [] }
     ]
   }
-  const geometryBytes = Buffer.from(JSON.stringify(geometry))
+  // Tsukuyomi's real full_skin.bin includes the newline at the end of the Geometry JSON record.
+  const geometryBytes = Buffer.from(JSON.stringify(geometry) + '\n')
   const pixels = Buffer.alloc(256 * 256 * 4)
   for (let i = 0; i < pixels.length; i += 4) {
     pixels[i] = 180
@@ -306,6 +307,47 @@ test('imports the actual Tsukuyomi Persona BIN layout including its 4D geometry 
   const wire = clientSkinToPlayerSkin(imported.skinData)
   assert.deepEqual(JSON.parse(wire.skin_resource_pack), sample.resourcePatch)
   assert.deepEqual(JSON.parse(wire.geometry_data), sample.geometry)
+})
+
+test('skins.json tsukuyomi_full_skin selects the declared BIN when a folder contains multiple BIN files', () => {
+  const selected = syntheticTsukuyomiPersonaBin('persona-declared-full-skin')
+  const unrelated = syntheticTsukuyomiPersonaBin('persona-unrelated-skin')
+  const skinsJson = Buffer.from(JSON.stringify({
+    skins: [{
+      geometry: 'geometry.persona_test',
+      texture: 'skin.png',
+      tsukuyomi_full_skin: 'skin.bin',
+      type: 'free'
+    }]
+  }))
+
+  const imported = importSkinEntries([
+    { name: 'pack/extras/skin.bin', data: unrelated.buffer },
+    { name: 'pack/skins.json', data: skinsJson },
+    { name: 'pack/skin.bin', data: selected.buffer },
+    { name: 'pack/skin.png', data: pngBuffer(64, 64) }
+  ])
+
+  assert.equal(imported.skinData.SkinId, 'persona-declared-full-skin')
+  assert.equal(imported.skinData.SkinImageWidth, 256)
+  assert.equal(imported.skinData.SkinImageHeight, 256)
+  assert.deepEqual(Buffer.from(imported.skinData.SkinData, 'base64'), selected.pixels)
+  assert.equal(imported.meta.sourceFormat, 'Tsukuyomi Persona BIN')
+  assert.equal(imported.meta.geometryId, 'geometry.persona_test')
+})
+
+test('skins.json reports an explicit error when its tsukuyomi_full_skin file is missing', () => {
+  const skinsJson = Buffer.from(JSON.stringify({
+    skins: [{
+      geometry: 'geometry.persona_test',
+      texture: 'skin.png',
+      tsukuyomi_full_skin: 'skin.bin'
+    }]
+  }))
+  assert.throws(
+    () => importSkinEntries([{ name: 'pack/skins.json', data: skinsJson }]),
+    /tsukuyomi_full_skin.*BIN「skin\.bin」.*見つかりません/
+  )
 })
 
 test('Persona BIN wins over a companion preview PNG so its original RGBA and 4D metadata are retained', () => {
