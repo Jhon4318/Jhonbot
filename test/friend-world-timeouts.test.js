@@ -26,6 +26,8 @@ const {
   CLIENT_CONNECTED_MARKER,
   CLIENT_TIMEOUT_ORIGINAL,
   CLIENT_CLOSE_REASON_ORIGINAL,
+  CLIENT_CLOSE_STATUS_ORIGINAL,
+  BEDROCK_CONNECTION_READ_PACKET_ERROR_ORIGINAL,
   CLIENT_TIMEOUT_MARKER,
   CLIENT_CLOSE_REASON_MARKER,
   NETHERNET_OPTIONS_ORIGINAL,
@@ -59,6 +61,18 @@ test('adds safe stage diagnostics to Xbox services NetherNet connection flow', (
     '    }',
     CLIENT_TIMEOUT_ORIGINAL,
     CLIENT_CLOSE_REASON_ORIGINAL,
+    '}',
+    'function close () {',
+    CLIENT_CLOSE_STATUS_ORIGINAL,
+    '}',
+    'class PacketFixture {',
+    '  readPacket (packet) {',
+    '    try {',
+    '      var des = this.deserializer.parsePacketBuffer(packet)',
+    '    } catch (e) {',
+    BEDROCK_CONNECTION_READ_PACKET_ERROR_ORIGINAL,
+    '    }',
+    '  }',
     '}'
   ].join('\n')
 
