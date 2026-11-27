@@ -192,7 +192,20 @@ test('PlayerSkin wire format decodes all base64 strings and converts animated im
     }],
     SkinGeometryData: Buffer.from(geometry).toString('base64'),
     SkinGeometryDataEngineVersion: Buffer.from('1.12.0').toString('base64'),
-    SkinAnimationData: Buffer.from(animationData).toString('base64')
+    SkinAnimationData: Buffer.from(animationData).toString('base64'),
+    SkinColor: '#FFFFFFFF',
+    PersonaPieces: [{
+      PieceId: '12345678-1234-1234-1234-123456789012',
+      PieceType: 14,
+      PackId: '87654321-4321-4321-4321-210987654321',
+      IsDefaultPiece: false,
+      ProductId: 'persona-hair-product'
+    }],
+    PieceTintColors: [{
+      PieceType: 'persona_hair',
+      Colors: ['#FFFFFFFF', '#FF000000', '#FF112233', '#80445566']
+    }],
+    TrustedSkin: true
   })
   assert.equal(wire.skin_resource_pack, resourcePatch)
   assert.equal(wire.geometry_data, geometry)
@@ -205,6 +218,20 @@ test('PlayerSkin wire format decodes all base64 strings and converts animated im
   assert.equal(wire.animations[0].animation_type, 2)
   assert.equal(wire.animations[0].animation_frames, 4)
   assert.equal(wire.animations[0].expression_type, 1)
+  assert.equal(wire.skin_color, -1)
+  assert.deepEqual(wire.personal_pieces, [{
+    piece_id: '12345678-1234-1234-1234-123456789012',
+    piece_type: 14,
+    pack_id: '87654321-4321-4321-4321-210987654321',
+    is_default_piece: false,
+    product_id: 'persona-hair-product'
+  }])
+  assert.deepEqual(wire.piece_tint_colors, [{
+    piece_type: 'persona_hair',
+    colors: [-1, -16777216, -15654349, -2143015578]
+  }])
+  assert.equal(wire.trusted, 'True')
+  assert.equal(wire.trusted_skin_flag, 'True')
 })
 
 
