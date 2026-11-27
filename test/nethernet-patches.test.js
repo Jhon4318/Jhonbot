@@ -47,9 +47,16 @@ test('pins the exact bedrock-protocol and nethernet versions whose source is pat
 test('applies friend-world Xbox signalling diagnostics and forwards the diagnostic callback', () => {
   const clientFixture = [
     'class Client {',
+    '  connect () {',
+    "    this.once('session', (sessionData) => {",
     CLIENT_SERVICES_SIGNAL_ORIGINAL,
+    '    })',
+    '  }',
+    '  _connect = (sessionData) => {',
     CLIENT_CONNECTED_ORIGINAL,
+    '    }',
     CLIENT_TIMEOUT_ORIGINAL,
+    '  }',
     '}'
   ].join('\n')
   const patchedClient = patchClientConnectionDiagnosticsSource(clientFixture)
@@ -60,7 +67,7 @@ test('applies friend-world Xbox signalling diagnostics and forwards the diagnost
   assert.ok(patchedClient.source.includes('Xbox services signalling is ready'))
   assert.equal(patchClientConnectionDiagnosticsSource(patchedClient.source).changed, false)
 
-  const optionsFixture = ['function connect () {', CLIENT_SERVICES_SIGNAL_OPTIONS_ORIGINAL, '}'].join('\n')
+  const optionsFixture = ['function connect () {', `return new NethernetSignal(id, authflow, version, ${CLIENT_SERVICES_SIGNAL_OPTIONS_ORIGINAL})`, '}'].join('\n')
   const patchedOptions = patchClientSignallingOptionsSource(optionsFixture)
   assert.equal(patchedOptions.changed, true)
   assert.match(patchedOptions.source, new RegExp(CLIENT_SERVICES_SIGNAL_OPTIONS_MARKER))
