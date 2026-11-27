@@ -829,15 +829,19 @@ async function getBotRealmFromInvite (botId, inviteCode) {
   }
 }
 
+function createNethernetDiagnosticHandler (bot, attemptId) {
+  return (message) => {
+    if (bot.connectionAttempt !== attemptId) return
+    pushLog(`${bot.label}: [NetherNet] ${String(message).slice(0, 800)}`, 'info', bot.id)
+  }
+}
+
 function serverKeyOptions (bot, profile, mode, attemptId) {
   const nethernet = {
     webrtcBackend: 'werift',
     signallingConnectTimeout: 30000,
     inactivityTimeoutMs: 15000,
-    onDiagnostics: (message) => {
-      if (bot.connectionAttempt !== attemptId) return
-      pushLog(`${bot.label}: [NetherNet] ${String(message)}`, 'info', bot.id)
-    }
+    onDiagnostics: createNethernetDiagnosticHandler(bot, attemptId)
   }
   if (mode === 'http' || mode === 'auto') {
     const expectedOrigin = serverHttpSignallingOrigin(profile)
@@ -1036,7 +1040,8 @@ async function connectBot (botId, options = {}) {
         nethernet: {
           webrtcBackend: 'werift',
           signallingConnectTimeout: 30000,
-          inactivityTimeoutMs: 15000
+          inactivityTimeoutMs: 15000,
+          onDiagnostics: createNethernetDiagnosticHandler(bot, attemptId)
         },
         // The outer watchdog is longer than the 30s response + 15s inactivity windows,
         // leaving room for timer scheduling without masking the more specific timeout.
@@ -1154,6 +1159,8 @@ async function connectBot (botId, options = {}) {
     'disconnect'
   ])
   const bedrockPacketCounts = new Map()
+  const bedrockPacketTrail = []
+  const bedrockStartedAt = Date.now()
   const bedrockStatusNames = ['Disconnected', 'Connecting', 'Authenticating', 'Initializing', 'Initialized']
   let lastBedrockStatus = null
 
@@ -1167,6 +1174,8 @@ async function connectBot (botId, options = {}) {
     if (bot.agent !== agent) return
     const name = String(packet?.data?.name || packet?.name || '')
     if (!bedrockLifecyclePackets.has(name)) return
+    bedrockPacketTrail.push(name)
+    if (bedrockPacketTrail.length > 8) bedrockPacketTrail.shift()
     const seen = (bedrockPacketCounts.get(name) || 0) + 1
     bedrockPacketCounts.set(name, seen)
     if (seen > 4) return
@@ -1206,6 +1215,14 @@ async function connectBot (botId, options = {}) {
   })
   agent._client.on('join', () => {
     if (bot.agent === agent) pushLog(`${bot.label}: [Bedrock] サーバーとの暗号化ハンドシェイクが完了しました。`, 'info', bot.id)
+  })
+  agent._client.on('close', () => {
+    if (bot.connectionAttempt !== attemptId) return
+    const previousStatus = bedrockStatusNames[Number(lastBedrockStatus)] || 'Unknown'
+    const packetTrail = bedrockPacketTrail.length ? bedrockPacketTrail.join(' -> ') : '受信なし'
+    const elapsedMs = Date.now() - bedrockStartedAt
+    const level = bot.manualDisconnect ? 'info' : 'warning'
+    pushLog(`${bot.label}: [Bedrock] 通信クライアント終了。経過=${elapsedMs}ms / 直前の状態=${previousStatus} / 受信履歴=${packetTrail}`, level, bot.id)
   })
 
   agent._client.on('start_game', (packet) => {
