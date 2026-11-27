@@ -147,6 +147,9 @@ function migrateSettings (parsed) {
       skinMeta: item.skinMeta && typeof item.skinMeta === 'object' && !Array.isArray(item.skinMeta)
         ? item.skinMeta
         : null,
+      skinHistory: Array.isArray(item.skinHistory)
+        ? item.skinHistory.filter(entry => entry && typeof entry === 'object' && entry.skinData && typeof entry.skinData === 'object' && entry.skinMeta && typeof entry.skinMeta === 'object').slice(0, 3)
+        : [],
       ...(typeof item.parentBotId === 'string' && item.parentBotId !== item.id && [1, 2, 3].includes(Number(item.subClientId))
         ? { parentBotId: item.parentBotId, subClientId: Number(item.subClientId) }
         : {})
