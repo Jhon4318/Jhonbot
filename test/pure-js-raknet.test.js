@@ -168,6 +168,7 @@ test('patches app and nested Mineflayer protocol copies without touching options
       CLIENT_CONNECTED_ORIGINAL,
       '    }',
       CLIENT_TIMEOUT_ORIGINAL,
+      CLIENT_CLOSE_REASON_ORIGINAL,
       '  }',
       '}'
     ].join('\n')
