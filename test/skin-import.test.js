@@ -93,7 +93,7 @@ test('Tsukuyomi legacy geometry.skin packs resolve geometry and texture through 
   assert.equal(imported.meta.height, 128)
   assert.equal(imported.meta.sourceFormat, 'Bedrock Skin Pack (Tsukuyomi compatible)')
   assert.deepEqual(JSON.parse(Buffer.from(imported.skinData.SkinGeometryData, 'base64').toString()), geometry)
-  assert.equal(Buffer.from(imported.skinData.SkinGeometryDataEngineVersion, 'base64').toString(), '1.10.0')
+  assert.equal(imported.skinData.SkinGeometryDataEngineVersion, '1.10.0')
   assert.deepEqual(Buffer.from(imported.skinData.SkinData, 'base64'), PNG.sync.read(selectedTexture).data)
 
   const wire = clientSkinToPlayerSkin(imported.skinData)
@@ -274,7 +274,7 @@ test('imports the actual Tsukuyomi Persona BIN layout including its 4D geometry 
   assert.equal(imported.skinData.PersonaSkin, true)
   assert.deepEqual(JSON.parse(Buffer.from(imported.skinData.SkinResourcePatch, 'base64').toString()), sample.resourcePatch)
   assert.deepEqual(JSON.parse(Buffer.from(imported.skinData.SkinGeometryData, 'base64').toString()), sample.geometry)
-  assert.equal(Buffer.from(imported.skinData.SkinGeometryDataEngineVersion, 'base64').toString(), '1.14.0')
+  assert.equal(imported.skinData.SkinGeometryDataEngineVersion, '1.14.0')
   assert.match(imported.previewDataUrl, /^data:image\/png;base64,/)
   const wire = clientSkinToPlayerSkin(imported.skinData)
   assert.deepEqual(JSON.parse(wire.skin_resource_pack), sample.resourcePatch)
